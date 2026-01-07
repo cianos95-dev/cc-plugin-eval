@@ -39,6 +39,8 @@ npx vitest run -t "SkillAnalyzer"
 npm run clean              # Removes dist/ and coverage/
 ```
 
+**Test behavior**: Tests run in parallel with randomized order (catches order-dependent bugs). Default timeout is 30s per test. CI retries failed tests twice before failing.
+
 ## Additional Linters
 
 Run before committing:
@@ -75,6 +77,12 @@ cc-plugin-eval run -p ./plugin --dry-run
 
 # Resume interrupted run
 cc-plugin-eval resume -r <run-id>
+
+# Re-run only failed scenarios from previous run
+cc-plugin-eval run -p ./plugin --fast
+
+# Output in different formats
+cc-plugin-eval run -p ./plugin --output junit-xml  # json, yaml, junit-xml, tap
 ```
 
 ## Architecture
@@ -120,9 +128,9 @@ tests/
 
 **Programmatic detection is primary** - parse `Skill`, `Task`, and `SlashCommand` tool calls from transcripts for 100% confidence detection. For hooks, detect `SDKHookResponseMessage` events from the Agent SDK. LLM judge is secondary, used only for quality assessment and edge cases where programmatic detection fails.
 
-### Hooks Evaluation (Foundation - Phase 2)
+### Hooks Evaluation
 
-**Status**: Foundation code implemented but not yet integrated into pipeline (see Issue #50).
+**Status**: Integrated into pipeline (PR #58). Enable with `scope.hooks: true` in config.
 
 Hooks evaluation foundation includes:
 
@@ -149,7 +157,6 @@ Hooks evaluation foundation includes:
 
 - Session lifecycle hooks (SessionStart, SessionEnd) fire once per session
 - Detection relies on SDK emitting `hook_response` messages
-- MCP tool patterns may require LLM fallback (not yet implemented)
 
 ### Two SDK Integration Points
 

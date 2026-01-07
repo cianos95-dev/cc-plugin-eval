@@ -57,9 +57,9 @@ marketplace:
 #
 #   hooks - Evaluate hook components (hooks.json)
 #     Possible values:
-#       - true - Test hook triggering (Phase 2 feature)
+#       - true - Test hook triggering
 #       - false - Skip hook evaluation
-#     Default: false (not yet implemented)
+#     Default: false
 #
 #   mcp_servers - Evaluate MCP server components (.mcp.json)
 #     Possible values:
