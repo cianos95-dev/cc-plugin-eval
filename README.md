@@ -19,7 +19,7 @@ Claude Code plugins contain multiple component types (skills, agents, commands) 
 ## Features
 
 - **4-Stage Pipeline**: Analysis → Generation → Execution → Evaluation
-- **Multi-Component Support**: Skills, agents, and commands (hooks/MCP coming soon)
+- **Multi-Component Support**: Skills, agents, commands, hooks, and MCP servers
 - **Programmatic Detection**: 100% confidence detection by parsing tool captures
 - **Semantic Testing**: Synonym and paraphrase variations to test trigger robustness
 - **Resume Capability**: Checkpoint after each stage, resume interrupted runs
@@ -171,8 +171,8 @@ scope:
   skills: true
   agents: true
   commands: true
-  hooks: false # Coming in Phase 2
-  mcp_servers: false # Coming in Phase 3
+  hooks: true # Integrated in PR #58
+  mcp_servers: true # Integrated in PR #63
 
 # Scenario generation settings
 generation:
@@ -316,8 +316,8 @@ tests/
 ## Roadmap
 
 - [x] Phase 1: Skills, agents, commands evaluation
-- [ ] Phase 2: Hooks evaluation
-- [ ] Phase 3: MCP servers evaluation
+- [x] Phase 2: Hooks evaluation (PR #58)
+- [x] Phase 3: MCP servers evaluation (PR #63)
 - [ ] Phase 4: Cross-plugin conflict detection
 - [ ] Phase 5: Marketplace evaluation
 

@@ -190,6 +190,54 @@ MCP (Model Context Protocol) servers provide external tool integration. Evaluati
 - Per-tool scenario generation deferred to future iteration
 - Cross-component conflict detection (MCP + skill) deferred
 
+### Adding New Component Types
+
+When implementing evaluation for a new component type, choose the appropriate pattern:
+
+**Deterministic Pattern** (commands, hooks, MCP):
+
+- Component triggering is predictable (same input → same component)
+- Use when: Tool invocation, syntax-based, or configuration-based triggering
+- Files needed: `{type}-analyzer.ts`, `{type}-scenario-generator.ts`
+- Generation: NO LLM calls, uses mapping tables or templates
+- Example: Hooks use tool matchers, MCP uses tool names, commands use `/command` syntax
+
+**LLM Pattern** (skills, agents):
+
+- Component triggering is semantic (different phrasing → same intent)
+- Use when: Natural language matching, fuzzy intent recognition
+- Files needed: `{type}-analyzer.ts`, `{type}-scenario-generator.ts` with Anthropic SDK calls
+- Generation: LLM creates variations, paraphrases, edge cases
+- Example: Skills use trigger phrases, agents use example contexts
+
+**Integration checklist**:
+
+1. Define types in `src/types/` (component interface, trigger info)
+2. Create analyzer in Stage 1 (parse component files, extract metadata)
+3. Create scenario generator in Stage 2 (deterministic or LLM-based)
+4. Extend detection in Stage 4 (`programmatic-detector.ts`)
+5. Update `AnalysisOutput` interface in `src/types/state.ts`
+6. Add to pipeline in `src/stages/{1,2,4}-*/index.ts`
+7. Add state migration in `src/state/state-manager.ts`
+8. Add tests for analyzer and generator
+
+### Stage 3 Execution Flow
+
+**For all component types**:
+
+1. Agent SDK loads plugin from path (validates manifest, discovers components)
+2. PreToolUse hooks capture tool invocations in real-time via `createToolCaptureCollector()`
+3. Hook response collector captures `SDKHookResponseMessage` events via `createHookResponseCollector()`
+4. Transcripts are saved per scenario for Stage 4 analysis
+
+**Component-specific behavior**:
+
+- **Skills/Agents/Commands**: Triggered via `Skill`, `Task`, `SlashCommand` tool calls
+- **Hooks**: Fire on events (PreToolUse, Stop, SessionStart, etc.), responses captured via SDK system messages
+- **MCP servers**: SDK automatically connects to servers, tools become available via `mcp__<server>__<tool>` pattern
+
+**No code changes needed in Stage 3** when adding new component types - tool capture is universal. Just ensure new tools are parsed in Stage 4 detection.
+
 ### Two SDK Integration Points
 
 1. **Anthropic SDK** (`@anthropic-ai/sdk`) - Used in Stages 2 and 4 for LLM calls (scenario generation, judgment)
@@ -280,3 +328,34 @@ const resumeHandlers: Record<PipelineStage, ResumeHandler> = {
 };
 // State files stored at: results/<plugin-name>/<run-id>/state.json
 ```
+
+### State Migration for New Component Types
+
+```typescript
+// Pattern in src/state/state-manager.ts - migrate legacy state when loading
+function migrateState(state: PipelineState): PipelineState {
+  // Add new component types with default empty values for backward compatibility
+  const legacyComponents = state.analysis.components as {
+    skills: SkillComponent[];
+    agents: AgentComponent[];
+    commands: CommandComponent[];
+    hooks?: HookComponent[]; // Added in PR #58
+    mcp_servers?: McpComponent[]; // Added in PR #63
+  };
+
+  return {
+    ...state,
+    analysis: {
+      ...state.analysis,
+      components: {
+        ...legacyComponents,
+        hooks: legacyComponents.hooks ?? [],
+        mcp_servers: legacyComponents.mcp_servers ?? [],
+      },
+      // Also migrate trigger_understanding in same pattern
+    },
+  };
+}
+```
+
+When adding new component types, update `migrateState()` to provide default values for legacy state files.
