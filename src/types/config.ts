@@ -213,6 +213,7 @@ export interface TokenEstimatesConfig {
   per_agent: number;
   per_command: number;
   per_hook: number;
+  per_mcp_server: number;
   semantic_gen_max_tokens: number;
 }
 

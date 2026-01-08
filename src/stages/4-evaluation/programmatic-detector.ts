@@ -2,7 +2,7 @@
  * Programmatic Detector - 100% confidence detection from tool captures.
  *
  * Primary detection method using real-time captures from PreToolUse hooks.
- * Parses Skill, Task, and SlashCommand tool calls for deterministic
+ * Parses Skill, Task, SlashCommand, and MCP tool calls for deterministic
  * component identification.
  *
  * Detection priority:
@@ -10,6 +10,8 @@
  * 2. Direct command invocation in user message (/command syntax)
  * 3. Tool calls parsed from transcript (fallback)
  */
+
+import { isMcpTool, parseMcpToolName } from "../3-execution/hook-capture.js";
 
 import type {
   ComponentType,
@@ -116,6 +118,19 @@ export function detectFromCaptures(
         evidence: `SlashCommand invoked: ${capture.input.skill}`,
         timestamp: capture.timestamp,
       });
+    } else if (isMcpTool(capture.name)) {
+      // MCP tool invocation (mcp__<server>__<tool> pattern)
+      const parsed = parseMcpToolName(capture.name);
+      if (parsed) {
+        detections.push({
+          component_type: "mcp_server",
+          component_name: parsed.serverName,
+          confidence: 100,
+          tool_name: capture.name,
+          evidence: `MCP tool invoked: ${capture.name} (server: ${parsed.serverName}, tool: ${parsed.toolName})`,
+          timestamp: capture.timestamp,
+        });
+      }
     }
   }
 
@@ -172,6 +187,19 @@ export function detectFromTranscript(
           evidence: `SlashCommand invoked: ${tc.input.skill}`,
           timestamp: 0,
         });
+      } else if (isMcpTool(tc.name)) {
+        // MCP tool invocation from transcript
+        const parsed = parseMcpToolName(tc.name);
+        if (parsed) {
+          detections.push({
+            component_type: "mcp_server",
+            component_name: parsed.serverName,
+            confidence: 100,
+            tool_name: tc.name,
+            evidence: `MCP tool invoked: ${tc.name} (server: ${parsed.serverName}, tool: ${parsed.toolName})`,
+            timestamp: 0,
+          });
+        }
       }
     }
   }
@@ -438,15 +466,38 @@ export function wasExpectedHookTriggered(
 }
 
 /**
- * Detect all components including hooks.
+ * Check if expected MCP server was used.
  *
- * Extended version of detectAllComponents that also handles hook detection.
+ * @param detections - Programmatic detections
+ * @param expectedServerName - Expected MCP server name
+ * @returns True if expected MCP server's tools were invoked
+ *
+ * @example
+ * ```typescript
+ * const used = wasExpectedMcpServerUsed(detections, "github");
+ * ```
+ */
+export function wasExpectedMcpServerUsed(
+  detections: ProgrammaticDetection[],
+  expectedServerName: string,
+): boolean {
+  return detections.some(
+    (d) =>
+      d.component_type === "mcp_server" &&
+      d.component_name === expectedServerName,
+  );
+}
+
+/**
+ * Detect all components including hooks and MCP servers.
+ *
+ * Extended version of detectAllComponents that also handles hook and MCP detection.
  *
  * @param captures - Tool captures from execution
  * @param transcript - Execution transcript
  * @param scenario - Test scenario
  * @param hookResponses - Optional hook response captures
- * @returns Array of all detected components including hooks
+ * @returns Array of all detected components including hooks and MCP servers
  */
 export function detectAllComponentsWithHooks(
   captures: ToolCapture[],
@@ -454,7 +505,7 @@ export function detectAllComponentsWithHooks(
   scenario: TestScenario,
   hookResponses?: HookResponseCapture[],
 ): ProgrammaticDetection[] {
-  // Get standard component detections
+  // Get standard component detections (now includes MCP servers)
   const detections = detectAllComponents(captures, transcript, scenario);
 
   // Add hook detections if this is a hook scenario and we have responses

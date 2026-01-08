@@ -23,7 +23,12 @@ export type ScenarioType =
 /**
  * Component type being tested.
  */
-export type ComponentType = "skill" | "agent" | "command" | "hook";
+export type ComponentType =
+  | "skill"
+  | "agent"
+  | "command"
+  | "hook"
+  | "mcp_server";
 
 /**
  * Setup message for proactive scenarios.

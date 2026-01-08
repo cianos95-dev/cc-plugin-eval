@@ -43,6 +43,7 @@ export const TOKENS_PER_SCENARIO: Record<ComponentType, number> = {
   agent: DEFAULT_TUNING.token_estimates.per_agent,
   command: DEFAULT_TUNING.token_estimates.per_command,
   hook: DEFAULT_TUNING.token_estimates.per_hook,
+  mcp_server: DEFAULT_TUNING.token_estimates.per_mcp_server,
 };
 
 /**

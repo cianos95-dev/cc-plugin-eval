@@ -31,6 +31,15 @@ export type {
   HookComponent,
 } from "./components.js";
 
+// MCP types
+export type {
+  McpServerType,
+  McpToolDefinition,
+  McpServerConfig,
+  McpConfigFile,
+  McpComponent,
+} from "./mcp.js";
+
 // Scenario types
 export type {
   ScenarioType,
@@ -111,6 +120,7 @@ export type {
   AgentTriggerInfo,
   CommandTriggerInfo,
   HookTriggerInfo,
+  McpTriggerInfo,
   AnalysisOutput,
   PipelineState,
 } from "./state.js";

@@ -112,6 +112,7 @@ describe("getResolvedTuning", () => {
         per_agent: 900,
         per_command: 350,
         per_hook: 400,
+        per_mcp_server: 400,
         semantic_gen_max_tokens: 1200,
       },
       limits: {

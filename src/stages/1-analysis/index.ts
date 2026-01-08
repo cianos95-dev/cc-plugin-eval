@@ -13,6 +13,7 @@ import {
   parseArgumentHint,
 } from "./command-analyzer.js";
 import { analyzeHook } from "./hook-analyzer.js";
+import { analyzeMcpServers } from "./mcp-analyzer.js";
 import {
   discoverAgentFiles,
   discoverCommandFiles,
@@ -30,6 +31,7 @@ import type {
   AgentTriggerInfo,
   CommandTriggerInfo,
   HookTriggerInfo,
+  McpTriggerInfo,
   SkillTriggerInfo,
 } from "../../types/index.js";
 
@@ -80,9 +82,13 @@ export async function runAnalysis(config: EvalConfig): Promise<AnalysisOutput> {
     : [];
   const hooks =
     config.scope.hooks && paths.hooks ? analyzeHook(paths.hooks) : [];
+  const mcpServers =
+    config.scope.mcp_servers && paths.mcpServers
+      ? analyzeMcpServers(paths.mcpServers)
+      : [];
 
   logger.info(
-    `Analyzed: ${String(skills.length)} skills, ${String(agents.length)} agents, ${String(commands.length)} commands, ${String(hooks.length)} hooks`,
+    `Analyzed: ${String(skills.length)} skills, ${String(agents.length)} agents, ${String(commands.length)} commands, ${String(hooks.length)} hooks, ${String(mcpServers.length)} MCP servers`,
   );
 
   // 6. Build trigger understanding
@@ -120,6 +126,16 @@ export async function runAnalysis(config: EvalConfig): Promise<AnalysisOutput> {
     };
   }
 
+  const mcpTriggers: Record<string, McpTriggerInfo> = {};
+  for (const mcp of mcpServers) {
+    mcpTriggers[mcp.name] = {
+      serverType: mcp.serverType,
+      authRequired: mcp.authRequired,
+      envVars: mcp.envVars,
+      knownTools: mcp.tools.map((t) => t.name),
+    };
+  }
+
   // 7. Create plugin load result (simulated for now, real SDK integration in Stage 3)
   const pluginLoadResult: PluginLoadResult = {
     loaded: true,
@@ -129,7 +145,11 @@ export async function runAnalysis(config: EvalConfig): Promise<AnalysisOutput> {
     registered_commands: commands.map((c) => c.name),
     registered_skills: skills.map((s) => s.name),
     registered_agents: agents.map((a) => a.name),
-    mcp_servers: [],
+    mcp_servers: mcpServers.map((m) => ({
+      name: m.name,
+      status: m.authRequired ? "needs-auth" : "pending",
+      tools: m.tools.map((t) => t.name),
+    })),
     session_id: `analysis-${String(Date.now())}`,
     diagnostics: {
       manifest_found: true,
@@ -139,7 +159,7 @@ export async function runAnalysis(config: EvalConfig): Promise<AnalysisOutput> {
         agents: agents.length,
         commands: commands.length,
         hooks: paths.hooks !== null,
-        mcp_servers: paths.mcpServers !== null ? 1 : 0,
+        mcp_servers: mcpServers.length,
       },
       load_duration_ms: 0,
     },
@@ -153,12 +173,14 @@ export async function runAnalysis(config: EvalConfig): Promise<AnalysisOutput> {
       agents,
       commands,
       hooks,
+      mcp_servers: mcpServers,
     },
     trigger_understanding: {
       skills: skillTriggers,
       agents: agentTriggers,
       commands: commandTriggers,
       hooks: hookTriggers,
+      mcp_servers: mcpTriggers,
     },
   };
 
@@ -199,3 +221,10 @@ export {
   parseMatcherToTools,
   inferExpectedBehavior,
 } from "./hook-analyzer.js";
+export {
+  analyzeMcp,
+  analyzeMcpServers,
+  inferServerType,
+  inferAuthRequired,
+  extractEnvVars,
+} from "./mcp-analyzer.js";

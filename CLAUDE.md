@@ -93,12 +93,12 @@ cc-plugin-eval run -p ./plugin --output junit-xml  # json, yaml, junit-xml, tap
 Stage 1: Analysis → Stage 2: Generation → Stage 3: Execution → Stage 4: Evaluation
 ```
 
-| Stage             | Purpose                                                                   | Output            |
-| ----------------- | ------------------------------------------------------------------------- | ----------------- |
-| **1. Analysis**   | Parse plugin structure, extract triggers                                  | `analysis.json`   |
-| **2. Generation** | Create test scenarios (LLM for skills/agents, deterministic for commands) | `scenarios.json`  |
-| **3. Execution**  | Run scenarios via Claude Agent SDK with tool capture                      | `transcripts/`    |
-| **4. Evaluation** | Programmatic detection first, LLM judge for quality                       | `evaluation.json` |
+| Stage             | Purpose                                                                             | Output            |
+| ----------------- | ----------------------------------------------------------------------------------- | ----------------- |
+| **1. Analysis**   | Parse plugin structure, extract triggers                                            | `analysis.json`   |
+| **2. Generation** | Create test scenarios (LLM for skills/agents, deterministic for commands/hooks/MCP) | `scenarios.json`  |
+| **3. Execution**  | Run scenarios via Claude Agent SDK with tool capture                                | `transcripts/`    |
+| **4. Evaluation** | Programmatic detection first, LLM judge for quality                                 | `evaluation.json` |
 
 ### Key Directory Structure
 
@@ -126,7 +126,7 @@ tests/
 
 ### Detection Strategy
 
-**Programmatic detection is primary** - parse `Skill`, `Task`, and `SlashCommand` tool calls from transcripts for 100% confidence detection. For hooks, detect `SDKHookResponseMessage` events from the Agent SDK. LLM judge is secondary, used only for quality assessment and edge cases where programmatic detection fails.
+**Programmatic detection is primary** - parse `Skill`, `Task`, `SlashCommand`, and MCP tool calls (pattern: `mcp__<server>__<tool>`) from transcripts for 100% confidence detection. For hooks, detect `SDKHookResponseMessage` events from the Agent SDK. For MCP servers, detect tool invocations via `isMcpTool()` and `parseMcpToolName()` utilities. LLM judge is secondary, used only for quality assessment and edge cases where programmatic detection fails.
 
 ### Hooks Evaluation
 
@@ -157,6 +157,38 @@ Hooks evaluation foundation includes:
 
 - Session lifecycle hooks (SessionStart, SessionEnd) fire once per session
 - Detection relies on SDK emitting `hook_response` messages
+
+### MCP Servers Evaluation
+
+**Status**: Integrated into pipeline (PR #63). Enable with `scope.mcp_servers: true` in config.
+
+MCP (Model Context Protocol) servers provide external tool integration. Evaluation tests whether MCP servers register tools correctly and respond to invocations.
+
+- **Stage 1 (Analysis)**: `mcp-analyzer.ts` parses .mcp.json and extracts MCP server configurations
+  - Supports stdio, sse, http, websocket transport types
+  - Infers auth requirements from environment variable patterns (TOKEN, KEY, SECRET, etc.)
+  - Extracts server configs but tools are discovered at runtime
+
+- **Stage 2 (Generation)**: `mcp-scenario-generator.ts` generates test scenarios **deterministically** (like hooks, not LLM-based)
+  - Server-type-to-prompt mapping for predictable MCP tool triggering
+  - Generates direct, variation, negative, and auth-required scenarios
+  - Zero LLM cost for MCP scenario generation
+
+- **Stage 3 (Execution)**: MCP tool capture via existing PreToolUse hooks
+  - Leverages existing `isMcpTool()` and `parseMcpToolName()` from `hook-capture.ts`
+  - MCP tools follow pattern: `mcp__<server>__<tool>`
+  - SDK automatically loads and connects to MCP servers
+
+- **Stage 4 (Evaluation)**: Programmatic MCP detection
+  - `detectFromCaptures()` and `detectFromTranscript()` detect MCP tool invocations
+  - `wasExpectedMcpServerUsed()` matches by server name
+  - 100% confidence detection from tool captures
+
+**Known Limitations**:
+
+- Tool schemas not validated (would require JSON Schema library)
+- Per-tool scenario generation deferred to future iteration
+- Cross-component conflict detection (MCP + skill) deferred
 
 ### Two SDK Integration Points
 

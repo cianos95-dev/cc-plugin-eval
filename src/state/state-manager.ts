@@ -219,13 +219,14 @@ function migrateState(state: PipelineState): PipelineState {
     return state;
   }
 
-  // Migrate by adding default hooks fields
+  // Migrate by adding default hooks and mcp_servers fields
   // Use type assertion to handle partial legacy state
   const legacyComponents = state.analysis.components as {
     skills: typeof state.analysis.components.skills;
     agents: typeof state.analysis.components.agents;
     commands: typeof state.analysis.components.commands;
     hooks?: typeof state.analysis.components.hooks;
+    mcp_servers?: typeof state.analysis.components.mcp_servers;
   };
 
   const legacyTriggers = state.analysis.trigger_understanding as {
@@ -233,6 +234,7 @@ function migrateState(state: PipelineState): PipelineState {
     agents: typeof state.analysis.trigger_understanding.agents;
     commands: typeof state.analysis.trigger_understanding.commands;
     hooks?: typeof state.analysis.trigger_understanding.hooks;
+    mcp_servers?: typeof state.analysis.trigger_understanding.mcp_servers;
   };
 
   return {
@@ -242,10 +244,12 @@ function migrateState(state: PipelineState): PipelineState {
       components: {
         ...legacyComponents,
         hooks: legacyComponents.hooks ?? [],
+        mcp_servers: legacyComponents.mcp_servers ?? [],
       },
       trigger_understanding: {
         ...legacyTriggers,
         hooks: legacyTriggers.hooks ?? {},
+        mcp_servers: legacyTriggers.mcp_servers ?? {},
       },
     },
   };

@@ -12,6 +12,7 @@ import type {
   HookExpectedBehavior,
   SkillComponent,
 } from "./components.js";
+import type { McpComponent, McpServerType } from "./mcp.js";
 import type { PluginLoadResult } from "./plugin.js";
 import type { TestScenario } from "./scenario.js";
 import type { ExecutionResult } from "./transcript.js";
@@ -60,6 +61,16 @@ export interface HookTriggerInfo {
 }
 
 /**
+ * Trigger understanding for MCP servers.
+ */
+export interface McpTriggerInfo {
+  serverType: McpServerType;
+  authRequired: boolean;
+  envVars: string[];
+  knownTools: string[];
+}
+
+/**
  * Output from Stage 1: Analysis.
  */
 export interface AnalysisOutput {
@@ -70,12 +81,14 @@ export interface AnalysisOutput {
     agents: AgentComponent[];
     commands: CommandComponent[];
     hooks: HookComponent[];
+    mcp_servers: McpComponent[];
   };
   trigger_understanding: {
     skills: Record<string, SkillTriggerInfo>;
     agents: Record<string, AgentTriggerInfo>;
     commands: Record<string, CommandTriggerInfo>;
     hooks: Record<string, HookTriggerInfo>;
+    mcp_servers: Record<string, McpTriggerInfo>;
   };
 }
 

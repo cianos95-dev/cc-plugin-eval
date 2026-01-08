@@ -90,6 +90,7 @@ export const DEFAULT_TUNING: TuningConfig = {
     per_agent: 800,
     per_command: 300,
     per_hook: 400,
+    per_mcp_server: 400,
     semantic_gen_max_tokens: 1000,
   },
   limits: {

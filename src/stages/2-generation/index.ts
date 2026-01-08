@@ -1,20 +1,7 @@
 /**
  * Stage 2: Scenario Generation
  *
- * Generates diverse test scenarios for each plugin component.
- *
- * For Skills/Agents (LLM-based):
- * - Direct trigger (exact phrase)
- * - Paraphrased trigger (same intent, different words)
- * - Edge case trigger (unusual but valid)
- * - Negative control (should NOT trigger)
- * - Semantic similarity (synonyms/related phrases)
- *
- * For Commands (Deterministic - NO LLM):
- * - Basic invocation (/plugin:command)
- * - With arguments (/plugin:command arg1 arg2)
- * - With file references (/plugin:command @file.md)
- * - Negative (natural language should NOT trigger)
+ * Parses plugin structure and understands triggering conditions.
  */
 
 import { logger } from "../../utils/logging.js";
@@ -32,6 +19,7 @@ import {
 } from "./cost-estimator.js";
 import { calculateDiversityMetrics } from "./diversity-manager.js";
 import { generateAllHookScenarios } from "./hook-scenario-generator.js";
+import { generateAllMcpScenarios } from "./mcp-scenario-generator.js";
 import {
   generateAllSkillScenarios,
   createFallbackSkillScenarios,
@@ -65,7 +53,13 @@ export interface GenerationOutput {
  * Generation progress callback.
  */
 export type GenerationProgressCallback = (
-  stage: "skills" | "agents" | "commands" | "hooks" | "semantic",
+  stage:
+    | "skills"
+    | "agents"
+    | "commands"
+    | "hooks"
+    | "mcp_servers"
+    | "semantic",
   completed: number,
   total: number,
   current?: string,
@@ -228,6 +222,23 @@ export async function runGeneration(
     logger.success(`Generated ${String(hookScenarios.length)} hook scenarios`);
   }
 
+  // Generate MCP server scenarios (deterministic - no LLM)
+  if (config.scope.mcp_servers && analysis.components.mcp_servers.length > 0) {
+    logger.info(
+      `Generating scenarios for ${String(analysis.components.mcp_servers.length)} MCP servers...`,
+    );
+
+    const mcpScenarios = generateAllMcpScenarios(
+      analysis.components.mcp_servers,
+    );
+    allScenarios.push(...mcpScenarios);
+
+    onProgress?.("mcp_servers", 1, 1);
+    logger.success(
+      `Generated ${String(mcpScenarios.length)} MCP server scenarios`,
+    );
+  }
+
   // Calculate diversity metrics
   const metrics = calculateDiversityMetrics(allScenarios);
 
@@ -261,6 +272,13 @@ export {
   getExpectedHookScenarioCount,
   getToolPrompt,
 } from "./hook-scenario-generator.js";
+
+export {
+  generateAllMcpScenarios,
+  getExpectedMcpScenarioCount,
+  getMcpToolPrompt,
+  generateMcpScenarios,
+} from "./mcp-scenario-generator.js";
 
 export {
   generateAllSkillScenarios,
