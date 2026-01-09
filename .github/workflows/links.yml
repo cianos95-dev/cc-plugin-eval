@@ -21,7 +21,7 @@ concurrency:
 
 permissions:
   contents: read
-  issues: write # Required by peter-evans/create-issue-from-file on failure
+  issues: write # Required for creating issue on failure
 
 jobs:
   linkChecker:
@@ -55,6 +55,6 @@ jobs:
 
       - name: Create issue for broken links
         if: failure()
-        run: gh issue create --title "Broken links detected" --body-file ./lychee/out.md --label "bug,documentation"
+        run: gh issue create --title "Broken links detected" --body-file ./lychee/out.md
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
