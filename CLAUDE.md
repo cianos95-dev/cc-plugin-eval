@@ -41,6 +41,53 @@ npm run clean              # Removes dist/ and coverage/
 
 **Test behavior**: Tests run in parallel with randomized order (catches order-dependent bugs). Default timeout is 30s per test. CI retries failed tests twice before failing.
 
+## End-to-End (E2E) Tests
+
+E2E tests exercise the complete 4-stage pipeline with real Anthropic SDK calls. They are gated to prevent accidental API costs during regular test runs.
+
+### Running E2E Tests Locally
+
+```bash
+# Run E2E tests (requires ANTHROPIC_API_KEY in .env)
+RUN_E2E_TESTS=true npm test -- tests/e2e/
+
+# With custom cost budget
+RUN_E2E_TESTS=true E2E_MAX_COST_USD=2.00 npm test -- tests/e2e/
+```
+
+### E2E Environment Variables
+
+| Variable           | Description                | Default |
+| ------------------ | -------------------------- | ------- |
+| `RUN_E2E_TESTS`    | Enable E2E tests           | `false` |
+| `E2E_MAX_COST_USD` | Maximum total cost per run | `5.00`  |
+
+### E2E CI Workflow
+
+E2E tests run via `.github/workflows/e2e-tests.yml`:
+
+- **Schedule**: Daily at 2 AM UTC
+- **Manual trigger**: Available via workflow_dispatch
+- **Models**: Uses same Sonnet models as pipeline defaults
+- **Cost budget**: ~$5.00 per run, ~$150/month
+- **Failure notification**: Creates GitHub issue on scheduled failures
+
+### E2E Test Structure
+
+```text
+tests/e2e/
+├── helpers.ts       # Config factories, cost tracking utilities
+└── pipeline.test.ts # Full pipeline integration tests
+```
+
+**Test categories**:
+
+- Stage 1 (Analysis only): No API cost
+- Stage 1-2 (Analysis + Generation): Minimal cost
+- Stage 1-3 (Analysis + Generation + Execution): Real SDK calls
+- Stage 1-4 (Full pipeline): Complete evaluation cycle
+- Cost tracking validation: Verifies estimates vs actuals
+
 ## Additional Linters
 
 Run before committing:
@@ -120,6 +167,7 @@ tests/
 ├── unit/                 # Unit tests (mirror src/ structure)
 │   └── stages/           # Per-stage test files
 ├── integration/          # Integration tests
+├── e2e/                  # End-to-end tests (real SDK calls)
 ├── mocks/                # Mock implementations for testing
 └── fixtures/             # Test data and mock plugins
 ```

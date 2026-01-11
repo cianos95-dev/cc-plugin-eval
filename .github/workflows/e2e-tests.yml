@@ -1,0 +1,143 @@
+# End-to-End Integration Tests
+#
+# Runs the full 4-stage pipeline with real Anthropic SDK calls.
+# Uses same models as pipeline defaults (Sonnet) for accurate testing.
+# Scheduled daily and available for manual triggering.
+#
+# Cost budget: ~$5.00 per run maximum
+# Estimated monthly cost: ~$150 (30 daily runs)
+
+name: E2E Tests
+
+on:
+  # Manual trigger with optional parameters
+  workflow_dispatch:
+    inputs:
+      max_cost_usd:
+        description: "Maximum cost in USD"
+        required: false
+        default: "5.00"
+
+  # Daily schedule at 2 AM UTC
+  schedule:
+    - cron: "0 2 * * *"
+
+# Prevent concurrent E2E runs to avoid cost multiplication
+concurrency:
+  group: e2e-tests
+  cancel-in-progress: true
+
+# Explicit permissions for security (principle of least privilege)
+permissions:
+  contents: read
+  issues: write
+
+env:
+  NODE_VERSION: "20"
+
+jobs:
+  e2e:
+    name: E2E Pipeline Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    # Only run if we have the API key secret
+    if: github.event_name == 'workflow_dispatch' || github.event_name == 'schedule'
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Setup Node.js
+        uses: actions/setup-node@395ad3262231945c25e8478fd5baf05154b1d79f # v6.1.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build project
+        run: npm run build
+
+      - name: Run E2E tests
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          RUN_E2E_TESTS: "true"
+          E2E_MAX_COST_USD: ${{ github.event.inputs.max_cost_usd || '5.00' }}
+        run: |
+          echo "Running E2E tests with:"
+          echo "  Max cost: $E2E_MAX_COST_USD"
+          echo ""
+
+          # Run only E2E tests (they are gated by RUN_E2E_TESTS)
+          npm test -- --reporter=verbose tests/e2e/
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: e2e-test-results
+          path: |
+            coverage/test-report.html
+            coverage/test-report.junit.xml
+            results/
+          retention-days: 14
+
+      - name: Report E2E status
+        if: always()
+        run: |
+          if [ "${{ job.status }}" == "success" ]; then
+            echo "✅ E2E tests passed successfully"
+          else
+            echo "❌ E2E tests failed"
+            echo "Check the test logs and artifacts for details"
+          fi
+
+  notify-failure:
+    name: Notify on Failure
+    runs-on: ubuntu-latest
+    needs: e2e
+    if: failure() && github.event_name == 'schedule'
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Create or update failure issue
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          RUN_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+          TITLE="Scheduled E2E tests failed"
+
+          # Check for existing open issue with same title
+          EXISTING=$(gh issue list \
+            --search "in:title \"${TITLE}\"" \
+            --state open \
+            --limit 1 \
+            --json number \
+            --jq '.[0].number')
+
+          if [ -z "$EXISTING" ]; then
+            # Create new issue (semantic labeler will add labels automatically)
+            gh issue create \
+              --title "${TITLE}" \
+              --body "## E2E Test Failure
+
+          The scheduled E2E tests failed on ${TIMESTAMP}.
+
+          **Workflow run:** ${RUN_URL}
+
+          Please investigate the failure and fix any issues.
+
+          ---
+          *This issue was automatically created by the E2E test workflow.*"
+          else
+            # Comment on existing issue
+            gh issue comment "$EXISTING" \
+              --body "Another E2E failure occurred on ${TIMESTAMP}.
+
+          **Workflow run:** ${RUN_URL}"
+          fi
