@@ -29,6 +29,19 @@ vi.mock("../../../src/utils/logging.js", () => ({
   },
 }));
 
+// Mock node:fs for findLatestRun and listRuns tests
+vi.mock("node:fs", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("node:fs")>();
+  return {
+    ...actual,
+    existsSync: vi.fn(actual.existsSync),
+    readdirSync: vi.fn(actual.readdirSync),
+    readFileSync: vi.fn(actual.readFileSync),
+  };
+});
+
+import { existsSync, readdirSync, readFileSync } from "node:fs";
+
 import {
   generateRunId,
   getStateFilePath,
@@ -36,6 +49,8 @@ import {
   createPipelineState,
   saveState,
   loadState,
+  findLatestRun,
+  listRuns,
   updateStateAfterAnalysis,
   updateStateAfterGeneration,
   updateStateAfterExecution,
@@ -920,5 +935,271 @@ describe("formatState", () => {
     const result = formatState(state);
 
     expect(result).toContain("Error: Pipeline failed due to timeout");
+  });
+});
+
+describe("findLatestRun", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("returns null when plugin directory does not exist", () => {
+    vi.mocked(existsSync).mockReturnValue(false);
+
+    const result = findLatestRun("nonexistent-plugin");
+
+    expect(result).toBeNull();
+    expect(existsSync).toHaveBeenCalledWith("results/nonexistent-plugin");
+  });
+
+  it("returns null when no run directories exist", () => {
+    vi.mocked(existsSync).mockReturnValue(true);
+    vi.mocked(readdirSync).mockReturnValue([]);
+
+    const result = findLatestRun("empty-plugin");
+
+    expect(result).toBeNull();
+  });
+
+  it("skips directories that don't match run ID pattern", () => {
+    vi.mocked(existsSync).mockReturnValue(true);
+    vi.mocked(readdirSync).mockReturnValue([
+      { name: "temp", isDirectory: () => true },
+      { name: ".DS_Store", isDirectory: () => false },
+      { name: "invalid-folder", isDirectory: () => true },
+    ] as unknown as ReturnType<typeof readdirSync>);
+
+    const result = findLatestRun("test-plugin");
+
+    expect(result).toBeNull();
+  });
+
+  it("skips run directories without state.json", () => {
+    vi.mocked(existsSync).mockImplementation((path) => {
+      if (path === "results/test-plugin") return true;
+      // No state.json files exist
+      return false;
+    });
+    vi.mocked(readdirSync).mockReturnValue([
+      { name: "20240101-120000-abcd", isDirectory: () => true },
+      { name: "20240102-120000-efgh", isDirectory: () => true },
+    ] as unknown as ReturnType<typeof readdirSync>);
+
+    const result = findLatestRun("test-plugin");
+
+    expect(result).toBeNull();
+  });
+
+  it("returns most recent run with valid state file", () => {
+    vi.mocked(existsSync).mockImplementation((path) => {
+      if (path === "results/test-plugin") return true;
+      // Most recent run missing state.json
+      if (path === "results/test-plugin/20240103-120000-ijkl/state.json")
+        return false;
+      // Second most recent has state.json
+      if (path === "results/test-plugin/20240102-120000-efgh/state.json")
+        return true;
+      return false;
+    });
+    vi.mocked(readdirSync).mockReturnValue([
+      { name: "20240101-120000-abcd", isDirectory: () => true },
+      { name: "20240102-120000-efgh", isDirectory: () => true },
+      { name: "20240103-120000-ijkl", isDirectory: () => true },
+    ] as unknown as ReturnType<typeof readdirSync>);
+
+    const result = findLatestRun("test-plugin");
+
+    // Should return 2nd most recent since most recent has no state file
+    expect(result).toBe("20240102-120000-efgh");
+  });
+
+  it("filters out non-directory entries", () => {
+    vi.mocked(existsSync).mockImplementation((path) => {
+      if (path === "results/test-plugin") return true;
+      if (path === "results/test-plugin/20240101-120000-abcd/state.json")
+        return true;
+      return false;
+    });
+    vi.mocked(readdirSync).mockReturnValue([
+      { name: "20240101-120000-abcd", isDirectory: () => true },
+      { name: "20240102-120000-efgh.txt", isDirectory: () => false },
+    ] as unknown as ReturnType<typeof readdirSync>);
+
+    const result = findLatestRun("test-plugin");
+
+    expect(result).toBe("20240101-120000-abcd");
+  });
+});
+
+describe("listRuns", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("returns empty array when plugin directory does not exist", () => {
+    vi.mocked(existsSync).mockReturnValue(false);
+
+    const result = listRuns("nonexistent-plugin");
+
+    expect(result).toEqual([]);
+    expect(existsSync).toHaveBeenCalledWith("results/nonexistent-plugin");
+  });
+
+  it("skips non-directory entries", () => {
+    vi.mocked(existsSync).mockImplementation((path) => {
+      if (path === "results/test-plugin") return true;
+      if (path === "results/test-plugin/20240101-120000-abcd/state.json")
+        return true;
+      return false;
+    });
+    vi.mocked(readdirSync).mockReturnValue([
+      { name: "20240101-120000-abcd", isDirectory: () => true },
+      { name: "some-file.txt", isDirectory: () => false },
+      { name: "another-file.json", isDirectory: () => false },
+    ] as unknown as ReturnType<typeof readdirSync>);
+    vi.mocked(readFileSync).mockReturnValue(
+      JSON.stringify({
+        stage: "complete",
+        timestamp: "2024-01-01T12:00:00.000Z",
+      }),
+    );
+
+    const result = listRuns("test-plugin");
+
+    expect(result).toHaveLength(1);
+    expect(result[0]?.runId).toBe("20240101-120000-abcd");
+  });
+
+  it("skips directories with invalid run ID format", () => {
+    vi.mocked(existsSync).mockImplementation((path) => {
+      if (path === "results/test-plugin") return true;
+      if (path === "results/test-plugin/20240101-120000-abcd/state.json")
+        return true;
+      return false;
+    });
+    vi.mocked(readdirSync).mockReturnValue([
+      { name: "20240101-120000-abcd", isDirectory: () => true },
+      { name: "temp-folder", isDirectory: () => true },
+      { name: "invalid-format", isDirectory: () => true },
+      { name: "backup", isDirectory: () => true },
+    ] as unknown as ReturnType<typeof readdirSync>);
+    vi.mocked(readFileSync).mockReturnValue(
+      JSON.stringify({
+        stage: "analysis",
+        timestamp: "2024-01-01T12:00:00.000Z",
+      }),
+    );
+
+    const result = listRuns("test-plugin");
+
+    expect(result).toHaveLength(1);
+    expect(result[0]?.runId).toBe("20240101-120000-abcd");
+  });
+
+  it("skips runs without state.json", () => {
+    vi.mocked(existsSync).mockImplementation((path) => {
+      if (path === "results/test-plugin") return true;
+      if (path === "results/test-plugin/20240101-120000-abcd/state.json")
+        return true;
+      // Second run has no state.json
+      if (path === "results/test-plugin/20240102-120000-efgh/state.json")
+        return false;
+      return false;
+    });
+    vi.mocked(readdirSync).mockReturnValue([
+      { name: "20240101-120000-abcd", isDirectory: () => true },
+      { name: "20240102-120000-efgh", isDirectory: () => true },
+    ] as unknown as ReturnType<typeof readdirSync>);
+    vi.mocked(readFileSync).mockReturnValue(
+      JSON.stringify({
+        stage: "complete",
+        timestamp: "2024-01-01T12:00:00.000Z",
+      }),
+    );
+
+    const result = listRuns("test-plugin");
+
+    expect(result).toHaveLength(1);
+    expect(result[0]?.runId).toBe("20240101-120000-abcd");
+  });
+
+  it("skips runs with corrupted state files", () => {
+    vi.mocked(existsSync).mockImplementation((path) => {
+      if (path === "results/test-plugin") return true;
+      // Both runs have state.json
+      return String(path).endsWith("state.json");
+    });
+    vi.mocked(readdirSync).mockReturnValue([
+      { name: "20240101-120000-abcd", isDirectory: () => true },
+      { name: "20240102-120000-efgh", isDirectory: () => true },
+    ] as unknown as ReturnType<typeof readdirSync>);
+    vi.mocked(readFileSync).mockImplementation((path) => {
+      if (String(path).includes("20240101")) {
+        return JSON.stringify({
+          stage: "complete",
+          timestamp: "2024-01-01T12:00:00.000Z",
+        });
+      }
+      // Second run has corrupted JSON
+      return "{ invalid json }}}";
+    });
+
+    const result = listRuns("test-plugin");
+
+    expect(result).toHaveLength(1);
+    expect(result[0]?.runId).toBe("20240101-120000-abcd");
+  });
+
+  it("handles state files with missing fields using defaults", () => {
+    vi.mocked(existsSync).mockImplementation((path) => {
+      if (path === "results/test-plugin") return true;
+      return String(path).endsWith("state.json");
+    });
+    vi.mocked(readdirSync).mockReturnValue([
+      { name: "20240101-120000-abcd", isDirectory: () => true },
+    ] as unknown as ReturnType<typeof readdirSync>);
+    // State file missing stage and timestamp fields
+    vi.mocked(readFileSync).mockReturnValue(
+      JSON.stringify({
+        run_id: "20240101-120000-abcd",
+        plugin_name: "test-plugin",
+      }),
+    );
+
+    const result = listRuns("test-plugin");
+
+    expect(result).toHaveLength(1);
+    expect(result[0]?.runId).toBe("20240101-120000-abcd");
+    // Should use defaults when fields are missing
+    expect(result[0]?.stage).toBe("pending");
+    expect(result[0]?.timestamp).toBe("");
+  });
+
+  it("sorts runs in reverse chronological order", () => {
+    vi.mocked(existsSync).mockImplementation((path) => {
+      if (path === "results/test-plugin") return true;
+      return String(path).endsWith("state.json");
+    });
+    vi.mocked(readdirSync).mockReturnValue([
+      { name: "20240101-120000-abcd", isDirectory: () => true },
+      { name: "20240103-120000-ijkl", isDirectory: () => true },
+      { name: "20240102-120000-efgh", isDirectory: () => true },
+    ] as unknown as ReturnType<typeof readdirSync>);
+    vi.mocked(readFileSync).mockImplementation((path) => {
+      const match = String(path).match(/(\d{8}-\d{6})/);
+      const runId = match ? match[1] : "";
+      return JSON.stringify({
+        stage: "complete",
+        timestamp: `2024-01-0${runId.charAt(6)}T12:00:00.000Z`,
+      });
+    });
+
+    const result = listRuns("test-plugin");
+
+    expect(result).toHaveLength(3);
+    // Most recent first
+    expect(result[0]?.runId).toBe("20240103-120000-ijkl");
+    expect(result[1]?.runId).toBe("20240102-120000-efgh");
+    expect(result[2]?.runId).toBe("20240101-120000-abcd");
   });
 });

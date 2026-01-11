@@ -505,3 +505,164 @@ describe("createEmptyMetrics", () => {
     expect(Object.keys(metrics.by_component)).toHaveLength(0);
   });
 });
+
+describe("calculateEvalMetrics - repetition_stats", () => {
+  it("should include repetition_stats when numReps and flakyScenarios provided", () => {
+    const results = [
+      {
+        result: createEvalResult({ scenario_id: "s1", triggered: true }),
+        scenario: createScenario({ id: "s1", expected_trigger: true }),
+        execution: createExecResult({ scenario_id: "s1" }),
+      },
+      {
+        result: createEvalResult({ scenario_id: "s2", triggered: false }),
+        scenario: createScenario({ id: "s2", expected_trigger: true }),
+        execution: createExecResult({ scenario_id: "s2" }),
+      },
+    ];
+
+    const executions = results.map((r) => r.execution);
+
+    const metrics = calculateEvalMetrics(results, executions, {
+      numReps: 3,
+      flakyScenarios: ["s2"], // s2 had inconsistent results across reps
+    });
+
+    expect(metrics.repetition_stats).toBeDefined();
+    expect(metrics.repetition_stats?.reps_per_scenario).toBe(3);
+    expect(metrics.repetition_stats?.flaky_scenarios).toEqual(["s2"]);
+    // 1 out of 2 scenarios is consistent
+    expect(metrics.repetition_stats?.consistency_rate).toBe(0.5);
+  });
+
+  it("should not include repetition_stats when numReps is 1", () => {
+    const results = [
+      {
+        result: createEvalResult({ triggered: true }),
+        scenario: createScenario({ expected_trigger: true }),
+        execution: createExecResult(),
+      },
+    ];
+
+    const metrics = calculateEvalMetrics(
+      results,
+      results.map((r) => r.execution),
+      {
+        numReps: 1,
+        flakyScenarios: [],
+      },
+    );
+
+    expect(metrics.repetition_stats).toBeUndefined();
+  });
+
+  it("should not include repetition_stats when flakyScenarios not provided", () => {
+    const results = [
+      {
+        result: createEvalResult({ triggered: true }),
+        scenario: createScenario({ expected_trigger: true }),
+        execution: createExecResult(),
+      },
+    ];
+
+    const metrics = calculateEvalMetrics(
+      results,
+      results.map((r) => r.execution),
+      {
+        numReps: 3,
+        // flakyScenarios not provided
+      },
+    );
+
+    expect(metrics.repetition_stats).toBeUndefined();
+  });
+
+  it("should calculate 100% consistency when no flaky scenarios", () => {
+    const results = [
+      {
+        result: createEvalResult({ scenario_id: "s1", triggered: true }),
+        scenario: createScenario({ id: "s1", expected_trigger: true }),
+        execution: createExecResult({ scenario_id: "s1" }),
+      },
+      {
+        result: createEvalResult({ scenario_id: "s2", triggered: true }),
+        scenario: createScenario({ id: "s2", expected_trigger: true }),
+        execution: createExecResult({ scenario_id: "s2" }),
+      },
+    ];
+
+    const metrics = calculateEvalMetrics(
+      results,
+      results.map((r) => r.execution),
+      {
+        numReps: 5,
+        flakyScenarios: [], // No flaky scenarios
+      },
+    );
+
+    expect(metrics.repetition_stats).toBeDefined();
+    expect(metrics.repetition_stats?.consistency_rate).toBe(1);
+    expect(metrics.repetition_stats?.flaky_scenarios).toEqual([]);
+  });
+});
+
+describe("formatMetrics - semantic_stats", () => {
+  it("should include semantic stats section when present", () => {
+    const metrics = createEmptyMetrics();
+    metrics.semantic_stats = {
+      total_semantic_scenarios: 10,
+      semantic_trigger_rate: 0.85,
+      variations_by_type: {
+        paraphrase: { count: 5, trigger_rate: 0.8 },
+        negative: { count: 5, trigger_rate: 0.9 },
+      },
+    };
+
+    const formatted = formatMetrics(metrics);
+
+    expect(formatted).toContain("Semantic Testing:");
+    expect(formatted).toContain("Total:            10");
+    expect(formatted).toContain("Trigger Rate:     85.0%");
+  });
+
+  it("should omit semantic stats section when undefined", () => {
+    const metrics = createEmptyMetrics();
+    // No semantic_stats field
+
+    const formatted = formatMetrics(metrics);
+
+    expect(formatted).not.toContain("Semantic Testing:");
+  });
+});
+
+describe("calculateComponentMetrics - edge cases", () => {
+  it("should handle single-item arrays correctly", () => {
+    const results = [
+      {
+        result: createEvalResult({
+          triggered: true,
+          quality_score: 9,
+        }),
+        scenario: createScenario({
+          expected_component: "lonely-skill",
+          expected_trigger: true,
+        }),
+        execution: createExecResult(),
+      },
+    ];
+
+    const metrics = calculateComponentMetrics(results);
+
+    expect(metrics["lonely-skill"]).toBeDefined();
+    expect(metrics["lonely-skill"]?.scenarios_count).toBe(1);
+    expect(metrics["lonely-skill"]?.trigger_rate).toBe(1);
+    expect(metrics["lonely-skill"]?.avg_quality).toBe(9);
+    expect(metrics["lonely-skill"]?.accuracy).toBe(1);
+  });
+
+  it("should handle empty results array", () => {
+    const metrics = calculateComponentMetrics([]);
+
+    expect(Object.keys(metrics)).toHaveLength(0);
+  });
+});
