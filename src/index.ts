@@ -8,6 +8,7 @@
 import "./env.js";
 
 import { existsSync, readdirSync } from "node:fs";
+import { createRequire } from "node:module";
 import { join } from "node:path";
 
 import chalk from "chalk";
@@ -43,6 +44,13 @@ import {
 } from "./utils/index.js";
 
 import type { EvalMetrics } from "./types/index.js";
+
+// =============================================================================
+// Package Version
+// =============================================================================
+
+const require = createRequire(import.meta.url);
+const packageJson = require("../package.json") as { version: string };
 
 // =============================================================================
 // Helper Functions
@@ -307,7 +315,7 @@ program.configureHelp({
 program
   .name("cc-plugin-eval")
   .description("Claude Code plugin component triggering evaluation framework")
-  .version("0.1.0");
+  .version(packageJson.version);
 
 /**
  * Extract CLI options from commander options object.
