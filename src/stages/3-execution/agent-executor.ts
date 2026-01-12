@@ -389,8 +389,8 @@ export async function executeScenarioWithCheckpoint(
         hookCollector.processMessage(message);
 
         // Capture user message ID for potential rewind
-        if (isUserMessage(message) && message.id) {
-          userMessageId = message.id;
+        if (isUserMessage(message) && "uuid" in message) {
+          userMessageId = message.uuid;
         }
 
         // Capture errors

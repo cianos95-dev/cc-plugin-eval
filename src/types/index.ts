@@ -93,6 +93,7 @@ export type {
   MarketplaceConfig,
   ScopeConfig,
   ReasoningEffort,
+  SessionStrategy,
   GenerationConfig,
   ExecutionConfig,
   DetectionMode,

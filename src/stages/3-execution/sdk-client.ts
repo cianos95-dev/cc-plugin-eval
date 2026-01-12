@@ -7,18 +7,27 @@
 
 import {
   query,
+  unstable_v2_createSession,
   type HookCallback as SDKHookCallback,
   type HookCallbackMatcher,
   type PreToolUseHookInput as SDKPreToolUseHookInput,
   type PermissionMode,
   type SettingSource,
+  type SDKUserMessage as SDKUserMessageType,
+  type SDKSession as SDKSessionType,
+  type SDKSessionOptions,
 } from "@anthropic-ai/claude-agent-sdk";
 
 // Re-export types for use in other modules
 export type { PermissionMode, SettingSource };
 
 // Re-export the query function for use throughout Stage 3
-export { query };
+export { query, unstable_v2_createSession };
+
+// Re-export SDK types
+export type SDKUserMessage = SDKUserMessageType;
+export type SDKSession = SDKSessionType;
+export type { SDKSessionOptions };
 
 // Re-export types from the SDK
 // Note: The SDK may not export all types, so we define compatible interfaces
@@ -30,18 +39,6 @@ export { query };
 export interface SDKMessage {
   type: string;
   [key: string]: unknown;
-}
-
-/**
- * SDK user message.
- */
-export interface SDKUserMessage extends SDKMessage {
-  type: "user";
-  id?: string;
-  message: {
-    role: "user";
-    content: string;
-  };
 }
 
 /**
@@ -155,6 +152,7 @@ export interface QueryOptions {
   model?: string;
   maxTurns?: number;
   persistSession?: boolean;
+  continue?: boolean;
   maxBudgetUsd?: number;
   abortSignal?: AbortSignal;
   permissionMode?: PermissionMode;
@@ -170,7 +168,7 @@ export interface QueryOptions {
  * Query input for the SDK.
  */
 export interface QueryInput {
-  prompt: string;
+  prompt: string | AsyncIterable<SDKUserMessage>;
   options?: QueryOptions;
 }
 

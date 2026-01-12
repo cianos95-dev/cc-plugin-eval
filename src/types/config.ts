@@ -39,6 +39,16 @@ export interface ScopeConfig {
 export type ReasoningEffort = "none" | "low" | "medium" | "high";
 
 /**
+ * Session strategy for execution.
+ * Controls how sessions are managed across scenarios.
+ *
+ * - "isolated": Each scenario runs in a fresh session (default, safest)
+ * - "batched_by_component": Scenarios testing the same component share a session
+ *   with /clear between them (faster, ~80% less startup overhead)
+ */
+export type SessionStrategy = "isolated" | "batched_by_component";
+
+/**
  * Generation stage configuration.
  */
 export interface GenerationConfig {
@@ -63,8 +73,17 @@ export interface ExecutionConfig {
   timeout_ms: number;
   /** Stop if cost exceeds */
   max_budget_usd: number;
-  /** Prevent cross-contamination */
+  /**
+   * @deprecated Use session_strategy instead. This field is ignored when session_strategy is set.
+   * Prevent cross-contamination (maps to session_strategy: "isolated" when true)
+   */
   session_isolation: boolean;
+  /**
+   * Session management strategy.
+   * - "isolated": Each scenario runs in a fresh session (default, safest)
+   * - "batched_by_component": Scenarios testing the same component share a session
+   */
+  session_strategy?: SessionStrategy;
   /** Automate without prompts */
   permission_bypass: boolean;
   /** null = all tools, or list for restrictions */

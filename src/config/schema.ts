@@ -105,6 +105,14 @@ export const ScopeConfigSchema = z.object({
 export const ReasoningEffortSchema = z.enum(["none", "low", "medium", "high"]);
 
 /**
+ * Session strategy schema.
+ */
+export const SessionStrategySchema = z.enum([
+  "isolated",
+  "batched_by_component",
+]);
+
+/**
  * Generation configuration schema.
  */
 export const GenerationConfigSchema = z.object({
@@ -127,6 +135,8 @@ export const ExecutionConfigSchema = z.object({
   timeout_ms: z.number().int().min(5000).max(300000).default(60000),
   max_budget_usd: z.number().min(0.1).max(1000).default(10.0),
   session_isolation: z.boolean().default(true),
+  /** Session strategy - when set, takes precedence over session_isolation */
+  session_strategy: SessionStrategySchema.optional(),
   permission_bypass: z.boolean().default(true),
   allowed_tools: z.array(z.string()).optional(),
   disallowed_tools: z.array(z.string()).optional(),

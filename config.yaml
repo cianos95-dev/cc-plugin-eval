@@ -173,10 +173,19 @@ generation:
 #       - 50+ - Comprehensive testing
 #     Default: 10.0
 #
-#   session_isolation - Prevent state leakage between scenarios
+#   session_strategy - Session management strategy (replaces session_isolation)
 #     Possible values:
-#       - true - Each scenario runs in fresh session (recommended)
-#       - false - Reuse sessions (faster but risks contamination)
+#       - "isolated" - Each scenario runs in fresh session (default, safest)
+#       - "batched_by_component" - Scenarios testing the same component share
+#         a session with /clear between them (~80% faster startup)
+#     Trade-off: Batched mode reduces overhead but carries cross-contamination
+#     risk between scenarios testing the same component.
+#     Default: "isolated"
+#
+#   session_isolation - [DEPRECATED] Use session_strategy instead
+#     Possible values:
+#       - true - Each scenario runs in fresh session (maps to "isolated")
+#       - false - Reuse sessions (ignored when session_strategy is set)
 #     Default: true
 #
 #   permission_bypass - Automatically approve permission prompts
@@ -228,7 +237,7 @@ execution:
   max_turns: 5
   timeout_ms: 60000
   max_budget_usd: 10.0
-  session_isolation: true
+  session_strategy: "isolated"
   permission_bypass: true
   allowed_tools: null
   disallowed_tools:

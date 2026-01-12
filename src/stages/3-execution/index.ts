@@ -40,6 +40,12 @@ import {
   verifyPluginLoad,
 } from "./plugin-loader.js";
 import { consoleProgress } from "./progress-reporters.js";
+import {
+  groupScenariosByComponent,
+  logBatchStats,
+  resolveSessionStrategy,
+  executeBatch,
+} from "./session-batching.js";
 
 import type {
   AnalysisOutput,
@@ -218,8 +224,195 @@ interface ExecuteAllOptions {
 
 /**
  * Execute all scenarios in parallel.
+ *
+ * When session_strategy is "batched_by_component", scenarios are grouped
+ * by component and executed sequentially within each batch to reuse sessions.
  */
 async function executeAllScenarios(
+  options: ExecuteAllOptions,
+): Promise<ParallelResult<ExecutionResult>> {
+  const {
+    scenarios,
+    pluginPath,
+    pluginName,
+    config,
+    useCheckpointing,
+    queryFn,
+    progress,
+  } = options;
+
+  // Determine session strategy
+  const sessionStrategy = resolveSessionStrategy(config.execution);
+
+  // If batched mode, group scenarios and log stats
+  if (sessionStrategy === "batched_by_component") {
+    const groups = groupScenariosByComponent(
+      scenarios,
+      config.execution.additional_plugins,
+    );
+    logBatchStats(groups, scenarios.length);
+
+    // Execute batches with session reuse
+    return executeBatchedScenarios({
+      groups,
+      pluginPath,
+      pluginName,
+      config,
+      useCheckpointing,
+      queryFn,
+      progress,
+    });
+  }
+
+  // Isolated mode: execute scenarios in parallel (original behavior)
+  return executeAllScenariosIsolated(options);
+}
+
+/**
+ * Options for batched scenario execution.
+ */
+interface BatchedExecutionOptions {
+  groups: Map<string, TestScenario[]>;
+  pluginPath: string;
+  pluginName: string;
+  config: EvalConfig;
+  useCheckpointing: boolean;
+  queryFn?: QueryFunction | undefined;
+  progress?: ProgressCallbacks | undefined;
+}
+
+/**
+ * Execute scenarios in batched mode.
+ *
+ * Scenarios are grouped by component and executed in batches with session reuse.
+ * Batches are processed in parallel up to max_concurrent.
+ */
+async function executeBatchedScenarios(
+  options: BatchedExecutionOptions,
+): Promise<ParallelResult<ExecutionResult>> {
+  const {
+    groups,
+    pluginPath,
+    pluginName,
+    config,
+    useCheckpointing,
+    queryFn,
+    progress,
+  } = options;
+
+  // Note: checkpointing is not compatible with session reuse
+  if (useCheckpointing) {
+    logger.warn(
+      "File checkpointing is not compatible with session batching. Falling back to isolated execution.",
+    );
+    // Fall back to isolated execution for each scenario
+    return executeAllScenariosIsolated({
+      scenarios: Array.from(groups.values()).flat(),
+      pluginPath,
+      pluginName,
+      config,
+      useCheckpointing: true,
+      queryFn,
+      progress,
+    });
+  }
+
+  // Flatten groups into array of batches
+  const batches = Array.from(groups.entries());
+  const allResults: ExecutionResult[] = [];
+  const errors: { index: number; error: Error }[] = [];
+  let completedCount = 0;
+  let globalIndex = 0; // Track global scenario index for error reporting
+  const totalScenarios = batches.reduce(
+    (sum, [_, scenarios]) => sum + scenarios.length,
+    0,
+  );
+
+  // Create rate limiter if configured
+  const rps = config.execution.requests_per_second;
+  const rateLimiter =
+    rps !== null && rps !== undefined ? createRateLimiter(rps) : null;
+
+  if (rateLimiter) {
+    logger.info(`Rate limiting enabled: ${String(rps)} requests/second`);
+  }
+
+  // Process batches in parallel with session reuse
+  const batchResults = await parallel({
+    items: batches,
+    concurrency: config.max_concurrent,
+    fn: async ([batchKey, batchScenarios], _batchIndex) => {
+      logger.debug(
+        `Starting batch: ${batchKey} (${String(batchScenarios.length)} scenarios)`,
+      );
+
+      // Execute all scenarios in this batch with session reuse
+      const executeBatchWithOptions = async (): Promise<ExecutionResult[]> =>
+        executeBatch({
+          scenarios: batchScenarios,
+          pluginPath,
+          pluginName,
+          config: config.execution,
+          additionalPlugins: config.execution.additional_plugins,
+          queryFn,
+          onScenarioComplete: (result, _index) => {
+            completedCount++;
+            progress?.onScenarioComplete?.(
+              result,
+              completedCount,
+              totalScenarios,
+            );
+            logger.progress(
+              completedCount,
+              totalScenarios,
+              `${result.scenario_id}: ${result.errors.length === 0 ? "passed" : "failed"}`,
+            );
+          },
+        });
+
+      try {
+        const batchResults = rateLimiter
+          ? await rateLimiter(executeBatchWithOptions)
+          : await executeBatchWithOptions();
+
+        return batchResults;
+      } catch (err) {
+        const error = err instanceof Error ? err : new Error(String(err));
+        logger.error(`Batch ${batchKey} failed: ${error.message}`);
+
+        // Record error for each scenario in the batch
+        for (const scenario of batchScenarios) {
+          const scenarioIndex = globalIndex++;
+          errors.push({ index: scenarioIndex, error });
+          progress?.onError?.(error, scenario);
+        }
+
+        return [];
+      }
+    },
+    onError: (error, [batchKey, _scenarios]) => {
+      logger.error(`Batch failed: ${batchKey}: ${error.message}`);
+    },
+    continueOnError: true,
+  });
+
+  // Flatten batch results
+  for (const batch of batchResults.results) {
+    allResults.push(...batch);
+  }
+
+  return {
+    results: allResults,
+    errors,
+    successCount: allResults.length,
+    errorCount: errors.length,
+  };
+}
+
+/**
+ * Execute scenarios in isolated mode (backward compatibility helper).
+ */
+async function executeAllScenariosIsolated(
   options: ExecuteAllOptions,
 ): Promise<ParallelResult<ExecutionResult>> {
   const {
