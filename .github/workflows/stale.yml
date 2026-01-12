@@ -38,7 +38,8 @@ jobs:
           days-before-close: 7
           stale-issue-label: "stale"
           stale-pr-label: "stale"
-          exempt-issue-labels: "pinned,security,roadmap"
-          exempt-pr-labels: "pinned,security"
+          exempt-issue-labels: "pinned,security,roadmap,bug,priority:critical,status:in-progress,status:blocked"
+          exempt-pr-labels: "pinned,security,status:in-progress,status:blocked"
+          exempt-all-issue-assignees: true
           operations-per-run: 100
           enable-statistics: true
