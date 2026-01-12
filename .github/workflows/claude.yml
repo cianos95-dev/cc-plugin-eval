@@ -62,4 +62,4 @@ jobs:
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           use_commit_signing: true
-          claude_args: "--max-turns 20"
+          claude_args: '--max-turns 20 --allowedTools "Bash(gh:*),Bash(npm run:*),Bash(npm test),Bash(npx:*)"'

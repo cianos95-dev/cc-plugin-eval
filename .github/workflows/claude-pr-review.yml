@@ -63,9 +63,10 @@ jobs:
             - Repository: ${{ github.repository }}
             - PR #${{ github.event.pull_request.number }}: ${{ github.event.pull_request.title }}
             - Author: ${{ github.event.pull_request.user.login }}
+            - Dependencies: Already installed (node_modules available)
 
             ## Instructions
-            1. Get the PR diff to understand what changed
+            1. Run `gh pr diff ${{ github.event.pull_request.number }}` to view the PR changes
             2. Run `npm run typecheck` to check for TypeScript errors
             3. Run `npm run lint` to check for ESLint issues
             4. Run `npx prettier --check "src/**/*.ts"` to verify formatting
