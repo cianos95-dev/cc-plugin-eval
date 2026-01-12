@@ -34,12 +34,14 @@ jobs:
         with:
           persist-credentials: false
 
+      # Static key: lychee handles staleness via --max-cache-age 1d
+      # Split restore/save pattern ensures cache is saved even on failure
       - name: Restore lychee cache
-        uses: actions/cache@9255dc7a253b0ccc959486e2bca901246202afeb # v5.0.1
+        id: restore-cache
+        uses: actions/cache/restore@9255dc7a253b0ccc959486e2bca901246202afeb # v5.0.1
         with:
           path: .lycheecache
-          key: cache-lychee-${{ github.sha }}
-          restore-keys: cache-lychee-
+          key: cache-lychee-v1
 
       - name: Link Checker
         uses: lycheeverse/lychee-action@a8c4c7cb88f0c7386610c35eb25108e448569cb0 # v2.7.0
@@ -54,6 +56,13 @@ jobs:
           fail: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Save lychee cache
+        uses: actions/cache/save@9255dc7a253b0ccc959486e2bca901246202afeb # v5.0.1
+        if: always()
+        with:
+          path: .lycheecache
+          key: cache-lychee-v1
 
       - name: Create issue for broken links
         if: failure()
