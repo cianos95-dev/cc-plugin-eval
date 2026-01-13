@@ -32,6 +32,7 @@ coverage:
         target: 75% # New code should be well-tested
         threshold: 5% # More lenient for patches
         base: auto
+        if_ci_failed: error
 
   # ---------------------------------------------------------------------------
   # Ignore Patterns
@@ -44,24 +45,20 @@ coverage:
     - "**/*.d.ts" # TypeScript declaration files
 
 # =============================================================================
+# GitHub Checks
+# Inline coverage annotations in PR diffs
+# =============================================================================
+github_checks:
+  annotations: true
+
+# =============================================================================
 # PR Comments
 # Configure how coverage is displayed in PR comments
 # =============================================================================
 comment:
-  layout: "header, diff, footer"
+  layout: "header, diff, files, footer"
   behavior: default
   require_changes: true # Only comment if coverage changes
   require_base: true # Require base report for comparison
   require_head: true # Require head report
-
-# =============================================================================
-# Parsers
-# File parsing configuration
-# =============================================================================
-parsers:
-  gcov:
-    branch_detection:
-      conditional: true
-      loop: true
-      macro: false
-      method: false
+  only_pulls: true # Only comment on PRs, not push commits

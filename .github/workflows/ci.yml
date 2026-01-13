@@ -1,6 +1,7 @@
 name: CI
 
 on:
+  workflow_dispatch:
   push:
     branches: [main]
     paths:
@@ -55,6 +56,8 @@ jobs:
         with:
           path: node_modules
           key: ${{ runner.os }}-node-${{ hashFiles('.nvmrc') }}-modules-${{ hashFiles('package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-node-${{ hashFiles('.nvmrc') }}-modules-
 
       - name: Install dependencies
         if: steps.node-modules-cache.outputs.cache-hit != 'true'
@@ -84,6 +87,8 @@ jobs:
         with:
           path: node_modules
           key: ${{ runner.os }}-node-${{ hashFiles('.nvmrc') }}-modules-${{ hashFiles('package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-node-${{ hashFiles('.nvmrc') }}-modules-
 
       - name: Install dependencies
         if: steps.node-modules-cache.outputs.cache-hit != 'true'
@@ -113,6 +118,8 @@ jobs:
         with:
           path: node_modules
           key: ${{ runner.os }}-node-${{ hashFiles('.nvmrc') }}-modules-${{ hashFiles('package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-node-${{ hashFiles('.nvmrc') }}-modules-
 
       - name: Install dependencies
         if: steps.node-modules-cache.outputs.cache-hit != 'true'
@@ -142,6 +149,8 @@ jobs:
         with:
           path: node_modules
           key: ${{ runner.os }}-node-${{ hashFiles('.nvmrc') }}-modules-${{ hashFiles('package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-node-${{ hashFiles('.nvmrc') }}-modules-
 
       - name: Install dependencies
         if: steps.node-modules-cache.outputs.cache-hit != 'true'
@@ -157,7 +166,7 @@ jobs:
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         if: always()
         with:
-          name: coverage-report
+          name: coverage-report-${{ github.run_id }}-${{ github.run_attempt }}
           path: coverage/
           retention-days: 7
           compression-level: 9
@@ -165,17 +174,20 @@ jobs:
 
       - name: Log coverage artifact URL
         if: always() && steps.upload-coverage.outputs.artifact-url
-        run: 'echo "Coverage artifact: ${{ steps.upload-coverage.outputs.artifact-url }}"'
+        run: |
+          echo "Coverage artifact: ${{ steps.upload-coverage.outputs.artifact-url }}"
+          echo "### Coverage Report" >> "$GITHUB_STEP_SUMMARY"
+          echo "[Download Coverage Artifact](${{ steps.upload-coverage.outputs.artifact-url }})" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@671740ac38dd9b0130fbe1cec585b89eea48d3de # v5.5.2
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
-          slug: sjnims/cc-plugin-eval
           files: ./coverage/lcov.info
           disable_search: true
           name: coverage-${{ github.run_id }}
           fail_ci_if_error: ${{ github.actor != 'dependabot[bot]' }}
+          handle_no_reports_found: true
           verbose: true
 
       - name: Upload test results to Codecov
@@ -183,12 +195,12 @@ jobs:
         uses: codecov/codecov-action@671740ac38dd9b0130fbe1cec585b89eea48d3de # v5.5.2
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
-          slug: sjnims/cc-plugin-eval
           files: ./coverage/test-report.junit.xml
           disable_search: true
           report_type: test_results
           name: test-results-${{ github.run_id }}
           fail_ci_if_error: ${{ github.actor != 'dependabot[bot]' }}
+          handle_no_reports_found: true
 
   build:
     name: Build
@@ -212,6 +224,8 @@ jobs:
         with:
           path: node_modules
           key: ${{ runner.os }}-node-${{ hashFiles('.nvmrc') }}-modules-${{ hashFiles('package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-node-${{ hashFiles('.nvmrc') }}-modules-
 
       - name: Install dependencies
         if: steps.node-modules-cache.outputs.cache-hit != 'true'

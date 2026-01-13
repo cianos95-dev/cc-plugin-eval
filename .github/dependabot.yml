@@ -35,9 +35,6 @@ updates:
         update-types:
           - "minor"
           - "patch"
-    ignore:
-      - dependency-name: "actions/checkout"
-        update-types: ["version-update:semver-patch"]
     open-pull-requests-limit: 5
 
   # npm - Keep Node.js dependencies up to date
