@@ -24,6 +24,7 @@ npm run typecheck      # tsc --noEmit
 npm run test           # All tests (Vitest)
 npm run test:watch     # Watch mode
 npm run test:coverage  # With coverage
+npm run test:ui        # Visual test UI (opens browser)
 
 # Single test file
 npx vitest run tests/unit/stages/1-analysis/skill-analyzer.test.ts
@@ -79,17 +80,6 @@ cc-plugin-eval run -p ./plugin --fast    # Re-run failed scenarios only
 - Hooks detected via `SDKHookResponseMessage` events from Agent SDK
 - LLM judge is secondary, used only for quality assessment
 
-### Stage 4 Batching
-
-**Anthropic Batches API integration** for cost savings:
-
-- When total LLM judge calls >= `batch_threshold` (default 50), uses Batches API for **50% cost savings** via async processing
-- Configure `batch_timeout_ms` (default 30 min) for max wait time
-- Configure `poll_interval_ms` (default 30 sec) for status polling
-- Set `force_synchronous: true` to bypass batching for testing
-- Multi-sampling fully supported with batch aggregation
-- Graceful fallback to synchronous evaluation when below threshold
-
 ### Two SDK Integration Points
 
 | SDK                              | Stages | Purpose                               |
@@ -105,6 +95,14 @@ cc-plugin-eval run -p ./plugin --fast    # Re-run failed scenarios only
 4. Transcripts saved per scenario for Stage 4 analysis
 
 **No code changes needed in Stage 3** when adding new component types - tool capture is universal.
+
+### Stage 4 Batching
+
+When total LLM judge calls >= `batch_threshold` (default 50), uses Anthropic Batches API for **50% cost savings**. Configure via `batch_threshold`, `poll_interval_ms`, or `force_synchronous: true` to bypass.
+
+### Prompt Caching
+
+Stages 2 and 4 use Anthropic's prompt caching for repeated system prompts, reducing costs when generating scenarios or running LLM judgments across multiple components.
 
 ## Configuration
 
@@ -123,7 +121,7 @@ Main config: `config.yaml`. Key settings:
 - Import order: builtin → external → internal → parent → sibling (alphabetized)
 - Prefix unused parameters with `_`
 - Use `type` imports for type-only imports
-- Coverage thresholds: 78% lines/statements, 75% functions, 65% branches
+- Coverage thresholds (in `vitest.config.ts`): 78% lines/statements, 75% functions, 65% branches
 
 ## Key Files
 
@@ -137,6 +135,7 @@ Main config: `config.yaml`. Key settings:
 | `src/utils/concurrency.ts`   | Semaphore-based concurrency, rate limiter                      |
 | `src/utils/sanitizer.ts`     | PII redaction for logs                                         |
 | `src/state/state-manager.ts` | State checkpointing and resume, state migration                |
+| `tsconfig.eslint.json`       | ESLint-specific tsconfig (includes tests)                      |
 
 ## Adding New Component Types
 
@@ -163,81 +162,17 @@ Choose pattern based on triggering mechanism:
 7. Add state migration in `src/state/state-manager.ts` (provide defaults for legacy state)
 8. Add tests
 
-### State Migration Pattern
+### State Migration
 
-```typescript
-// src/state/state-manager.ts - when adding new component types
-function migrateState(state: PipelineState): PipelineState {
-  const legacyComponents = state.analysis.components as {
-    skills: SkillComponent[];
-    agents: AgentComponent[];
-    commands: CommandComponent[];
-    hooks?: HookComponent[]; // Added PR #58
-    mcp_servers?: McpComponent[]; // Added PR #63
-  };
+When adding new component types, update `migrateState()` in `src/state/state-manager.ts` to provide defaults (e.g., `hooks: legacyComponents.hooks ?? []`) so existing state files remain compatible.
 
-  return {
-    ...state,
-    analysis: {
-      ...state.analysis,
-      components: {
-        ...legacyComponents,
-        hooks: legacyComponents.hooks ?? [],
-        mcp_servers: legacyComponents.mcp_servers ?? [],
-      },
-    },
-  };
-}
-```
+### Resume Handlers
 
-## Implementation Patterns
-
-### Custom Error Classes with Cause Chains
-
-```typescript
-// src/config/loader.ts
-export class ConfigLoadError extends Error {
-  override readonly cause?: Error | undefined;
-  constructor(message: string, cause?: Error) {
-    super(message);
-    this.name = "ConfigLoadError";
-    this.cause = cause;
-  }
-}
-```
-
-### Type Guards for Tool Detection
-
-```typescript
-// src/stages/4-evaluation/programmatic-detector.ts
-function isSkillInput(input: unknown): input is SkillToolInput {
-  return (
-    typeof input === "object" &&
-    input !== null &&
-    "skill" in input &&
-    typeof (input as SkillToolInput).skill === "string"
-  );
-}
-```
-
-### Handler Map for Stage-Based Resume
-
-```typescript
-// src/index.ts - polymorphic dispatch based on pipeline stage
-const resumeHandlers: Record<PipelineStage, ResumeHandler> = {
-  pending: resumeFromAnalysis,
-  analysis: resumeFromAnalysis,
-  generation: resumeFromGeneration,
-  execution: resumeFromExecution,
-  evaluation: resumeFromEvaluation,
-  complete: resumeFromEvaluation,
-};
-// State files: results/<plugin-name>/<run-id>/state.json
-```
+The CLI uses a handler map in `src/index.ts` for stage-based resume. State files are stored at `results/<plugin-name>/<run-id>/state.json`.
 
 ## Component-Specific Notes
 
-### Hooks (PR #58)
+### Hooks
 
 Enable: `scope.hooks: true`
 
@@ -246,7 +181,7 @@ Enable: `scope.hooks: true`
 - Scenarios generated deterministically via tool-to-prompt mapping
 - Limitation: Session lifecycle hooks (SessionStart, SessionEnd) fire once per session
 
-### MCP Servers (PR #63)
+### MCP Servers
 
 Enable: `scope.mcp_servers: true`
 
@@ -254,3 +189,13 @@ Enable: `scope.mcp_servers: true`
 - Scenarios generated deterministically (zero LLM cost)
 - SDK auto-connects to servers defined in `.mcp.json`
 - Limitation: Tool schemas not validated
+
+## Implementation Patterns
+
+### Custom Error Classes
+
+Use cause chains for error context (see `src/config/loader.ts:ConfigLoadError`).
+
+### Type Guards
+
+Use type guards for tool detection in `src/stages/4-evaluation/programmatic-detector.ts` (e.g., `isSkillInput()`, `isTaskInput()`).
