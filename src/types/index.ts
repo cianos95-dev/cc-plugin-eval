@@ -87,6 +87,13 @@ export type {
   MetaJudgmentResult,
 } from "./evaluation.js";
 
+// Evaluation Zod schemas (runtime validation)
+export {
+  CitationSchema,
+  HighlightWithCitationSchema,
+  JudgeResponseSchema,
+} from "./evaluation.js";
+
 // Config types
 export type {
   PluginConfig,

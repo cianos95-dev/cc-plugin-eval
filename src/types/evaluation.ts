@@ -3,6 +3,8 @@
  * Represents detection results, judgments, and metrics.
  */
 
+import { z } from "zod";
+
 import type { ComponentType } from "./scenario.js";
 
 /**
@@ -52,12 +54,30 @@ export interface Citation {
 }
 
 /**
+ * Zod schema for Citation validation.
+ */
+export const CitationSchema = z.object({
+  message_id: z.string(),
+  quoted_text: z.string(),
+  position: z.tuple([z.number(), z.number()]),
+  tool_call_id: z.string().optional(),
+});
+
+/**
  * Highlight with citation for grounding.
  */
 export interface HighlightWithCitation {
   description: string;
   citation: Citation;
 }
+
+/**
+ * Zod schema for HighlightWithCitation validation.
+ */
+export const HighlightWithCitationSchema = z.object({
+  description: z.string(),
+  citation: CitationSchema,
+});
 
 /**
  * LLM judge response.
@@ -70,6 +90,21 @@ export interface JudgeResponse {
   highlights?: HighlightWithCitation[];
   summary: string;
 }
+
+/**
+ * Zod schema for JudgeResponse validation.
+ *
+ * Provides runtime validation to complement structured output API guarantees.
+ * Use with .parse() for strict validation or .safeParse() for error handling.
+ */
+export const JudgeResponseSchema = z.object({
+  quality_score: z.number().min(0).max(10),
+  response_relevance: z.number().min(0).max(10),
+  trigger_accuracy: z.enum(["correct", "incorrect", "partial"]),
+  issues: z.array(z.string()),
+  highlights: z.array(HighlightWithCitationSchema).optional(),
+  summary: z.string(),
+});
 
 /**
  * Multi-sample judgment result.

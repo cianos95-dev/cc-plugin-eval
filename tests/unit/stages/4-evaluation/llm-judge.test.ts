@@ -496,6 +496,58 @@ describe("evaluateWithLLMJudge", () => {
     ).rejects.toThrow("Failed to parse structured output");
   });
 
+  it("should throw on Zod validation failure (invalid quality_score)", async () => {
+    // Valid JSON but quality_score > 10 violates Zod schema constraint
+    const invalidResponse = JSON.stringify({
+      quality_score: 15, // Exceeds max(10)
+      response_relevance: 8,
+      trigger_accuracy: "correct",
+      issues: [],
+      summary: "Test summary",
+    });
+    const mockClient = createMockClient(invalidResponse);
+    const scenario = createScenario();
+    const transcript = createTranscript();
+    const detections = createDetections([]);
+    const config = createConfig();
+
+    await expect(
+      evaluateWithLLMJudge(
+        mockClient,
+        scenario,
+        transcript,
+        detections,
+        config,
+      ),
+    ).rejects.toThrow("Failed to parse structured output");
+  });
+
+  it("should throw on Zod validation failure (invalid trigger_accuracy)", async () => {
+    // Valid JSON but trigger_accuracy not in enum violates Zod schema
+    const invalidResponse = JSON.stringify({
+      quality_score: 8,
+      response_relevance: 8,
+      trigger_accuracy: "invalid_value", // Not in enum
+      issues: [],
+      summary: "Test summary",
+    });
+    const mockClient = createMockClient(invalidResponse);
+    const scenario = createScenario();
+    const transcript = createTranscript();
+    const detections = createDetections([]);
+    const config = createConfig();
+
+    await expect(
+      evaluateWithLLMJudge(
+        mockClient,
+        scenario,
+        transcript,
+        detections,
+        config,
+      ),
+    ).rejects.toThrow("Failed to parse structured output");
+  });
+
   it("should throw when no text block in response", async () => {
     const mockClient = {
       beta: {
