@@ -66,6 +66,68 @@ export type GenerationProgressCallback = (
 ) => void;
 
 /**
+ * Options for LLM-based component scenario generation.
+ */
+interface LLMComponentGenerationOptions<T> {
+  /** Component type for logging */
+  componentType: "skills" | "agents";
+  /** Components to generate scenarios for */
+  components: T[];
+  /** LLM-based generator function */
+  generator: (
+    onProgress: (completed: number, total: number, current?: string) => void,
+  ) => Promise<TestScenario[]>;
+  /** Fallback generator for when LLM fails */
+  createFallback: (component: T) => TestScenario[];
+  /** Progress callback */
+  onProgress?: GenerationProgressCallback | undefined;
+}
+
+/**
+ * Generate scenarios for LLM-based components with fallback handling.
+ *
+ * Handles the common pattern of:
+ * 1. Attempting LLM generation
+ * 2. Falling back to deterministic scenarios on failure or empty results
+ *
+ * @param options - Generation options
+ * @returns Generated scenarios
+ */
+async function generateLLMComponentScenarios<T>(
+  options: LLMComponentGenerationOptions<T>,
+): Promise<TestScenario[]> {
+  const { componentType, components, generator, createFallback, onProgress } =
+    options;
+
+  logger.info(
+    `Generating scenarios for ${String(components.length)} ${componentType}...`,
+  );
+
+  try {
+    const scenarios = await generator((completed, total, current) => {
+      onProgress?.(componentType, completed, total, current);
+    });
+
+    if (scenarios.length > 0) {
+      logger.success(
+        `Generated ${String(scenarios.length)} ${componentType} scenarios`,
+      );
+      return scenarios;
+    }
+
+    // Fall back to deterministic scenarios
+    logger.warn("LLM generation failed, using fallback scenarios");
+    return components.flatMap(createFallback);
+  } catch (error) {
+    logger.error(
+      `${componentType.charAt(0).toUpperCase() + componentType.slice(1)} generation failed: ${String(error)}`,
+    );
+    // Fall back to deterministic scenarios
+    return components.flatMap(createFallback);
+  }
+}
+
+/**
  * Run Stage 2: Scenario Generation.
  *
  * @param analysis - Output from Stage 1
@@ -120,125 +182,68 @@ export async function runGeneration(
 
   // Generate skill scenarios (LLM-based)
   if (config.scope.skills && analysis.components.skills.length > 0) {
-    logger.info(
-      `Generating scenarios for ${String(analysis.components.skills.length)} skills...`,
-    );
-
-    try {
-      const skillScenarios = await generateAllSkillScenarios(
-        client,
-        analysis.components.skills,
-        config.generation,
-        (completed, total, skill) => {
-          onProgress?.("skills", completed, total, skill);
-        },
-        config.max_concurrent,
-      );
-
-      if (skillScenarios.length > 0) {
-        allScenarios.push(...skillScenarios);
-        logger.success(
-          `Generated ${String(skillScenarios.length)} skill scenarios`,
-        );
-      } else {
-        // Fall back to deterministic scenarios
-        logger.warn("LLM generation failed, using fallback scenarios");
-        for (const skill of analysis.components.skills) {
-          allScenarios.push(...createFallbackSkillScenarios(skill));
-        }
-      }
-    } catch (error) {
-      logger.error(`Skill generation failed: ${String(error)}`);
-      // Fall back to deterministic scenarios
-      for (const skill of analysis.components.skills) {
-        allScenarios.push(...createFallbackSkillScenarios(skill));
-      }
-    }
+    const skillScenarios = await generateLLMComponentScenarios({
+      componentType: "skills",
+      components: analysis.components.skills,
+      generator: async (onProgress) =>
+        generateAllSkillScenarios(
+          client,
+          analysis.components.skills,
+          config.generation,
+          onProgress,
+          config.max_concurrent,
+        ),
+      createFallback: createFallbackSkillScenarios,
+      onProgress,
+    });
+    allScenarios.push(...skillScenarios);
   }
 
   // Generate agent scenarios (LLM-based)
   if (config.scope.agents && analysis.components.agents.length > 0) {
-    logger.info(
-      `Generating scenarios for ${String(analysis.components.agents.length)} agents...`,
-    );
-
-    try {
-      const agentScenarios = await generateAllAgentScenarios(
-        client,
-        analysis.components.agents,
-        config.generation,
-        (completed, total, agent) => {
-          onProgress?.("agents", completed, total, agent);
-        },
-        config.max_concurrent,
-      );
-
-      if (agentScenarios.length > 0) {
-        allScenarios.push(...agentScenarios);
-        logger.success(
-          `Generated ${String(agentScenarios.length)} agent scenarios`,
-        );
-      } else {
-        // Fall back to deterministic scenarios
-        logger.warn("LLM generation failed, using fallback scenarios");
-        for (const agent of analysis.components.agents) {
-          allScenarios.push(...createFallbackAgentScenarios(agent));
-        }
-      }
-    } catch (error) {
-      logger.error(`Agent generation failed: ${String(error)}`);
-      // Fall back to deterministic scenarios
-      for (const agent of analysis.components.agents) {
-        allScenarios.push(...createFallbackAgentScenarios(agent));
-      }
-    }
+    const agentScenarios = await generateLLMComponentScenarios({
+      componentType: "agents",
+      components: analysis.components.agents,
+      generator: async (onProgress) =>
+        generateAllAgentScenarios(
+          client,
+          analysis.components.agents,
+          config.generation,
+          onProgress,
+          config.max_concurrent,
+        ),
+      createFallback: createFallbackAgentScenarios,
+      onProgress,
+    });
+    allScenarios.push(...agentScenarios);
   }
 
   // Generate command scenarios (deterministic - no LLM)
   if (config.scope.commands && analysis.components.commands.length > 0) {
-    logger.info(
-      `Generating scenarios for ${String(analysis.components.commands.length)} commands...`,
-    );
-
     const commandScenarios = generateAllCommandScenarios(
       analysis.components.commands,
     );
     allScenarios.push(...commandScenarios);
 
     onProgress?.("commands", 1, 1);
-    logger.success(
-      `Generated ${String(commandScenarios.length)} command scenarios`,
-    );
   }
 
   // Generate hook scenarios (deterministic - no LLM)
   if (config.scope.hooks && analysis.components.hooks.length > 0) {
-    logger.info(
-      `Generating scenarios for ${String(analysis.components.hooks.length)} hooks...`,
-    );
-
     const hookScenarios = generateAllHookScenarios(analysis.components.hooks);
     allScenarios.push(...hookScenarios);
 
     onProgress?.("hooks", 1, 1);
-    logger.success(`Generated ${String(hookScenarios.length)} hook scenarios`);
   }
 
   // Generate MCP server scenarios (deterministic - no LLM)
   if (config.scope.mcp_servers && analysis.components.mcp_servers.length > 0) {
-    logger.info(
-      `Generating scenarios for ${String(analysis.components.mcp_servers.length)} MCP servers...`,
-    );
-
     const mcpScenarios = generateAllMcpScenarios(
       analysis.components.mcp_servers,
     );
     allScenarios.push(...mcpScenarios);
 
     onProgress?.("mcp_servers", 1, 1);
-    logger.success(
-      `Generated ${String(mcpScenarios.length)} MCP server scenarios`,
-    );
   }
 
   // Calculate diversity metrics
