@@ -134,8 +134,29 @@ Main config: `config.yaml`. Key settings:
 | `src/utils/retry.ts`         | Retry with exponential backoff                                 |
 | `src/utils/concurrency.ts`   | Semaphore-based concurrency, rate limiter                      |
 | `src/utils/sanitizer.ts`     | PII redaction for logs                                         |
+| `src/utils/logging.ts`       | Centralized logger (chalk-based, respects verbose/debug flags) |
+| `src/utils/file-io.ts`       | File I/O helpers (JSON/YAML read/write, mkdir)                 |
 | `src/state/state-manager.ts` | State checkpointing and resume, state migration                |
 | `tsconfig.eslint.json`       | ESLint-specific tsconfig (includes tests)                      |
+
+### Stage Entry Points
+
+| File                               | Purpose                                    |
+| ---------------------------------- | ------------------------------------------ |
+| `src/stages/1-analysis/index.ts`   | Orchestrates all analyzers, returns output |
+| `src/stages/2-generation/index.ts` | Orchestrates scenario generators           |
+| `src/stages/3-execution/index.ts`  | Runs Agent SDK, captures tool calls        |
+| `src/stages/4-evaluation/index.ts` | Runs detection and LLM judge               |
+
+### Frequently Modified Files
+
+| File                                               | When to modify                                |
+| -------------------------------------------------- | --------------------------------------------- |
+| `src/stages/4-evaluation/programmatic-detector.ts` | Adding new component detection patterns       |
+| `src/stages/2-generation/*-scenario-generator.ts`  | Changing scenario generation logic            |
+| `src/stages/1-analysis/*-analyzer.ts`              | Adding new component parsing                  |
+| `src/config/schema.ts`                             | Adding/changing config options                |
+| `src/types/state.ts`                               | Extending pipeline state (triggers migration) |
 
 ## Adding New Component Types
 
