@@ -13,6 +13,8 @@
     "dev": "tsc --watch",
     "lint": "eslint src/",
     "lint:fix": "eslint src/ --fix",
+    "format": "npx prettier --write \"src/**/*.ts\" \"tests/**/*.ts\"",
+    "format:check": "npx prettier --check \"src/**/*.ts\" \"tests/**/*.ts\"",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",

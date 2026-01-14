@@ -8,6 +8,7 @@ import Anthropic from "@anthropic-ai/sdk";
 
 import { DEFAULT_TUNING, getResolvedTuning } from "../../config/defaults.js";
 import { calculateCost, formatCost } from "../../config/pricing.js";
+import { logger } from "../../utils/logging.js";
 
 import { TOKENS_PER_SCENARIO } from "./batch-calculator.js";
 
@@ -59,10 +60,25 @@ export function resolveModelId(shortName: string): string {
  * Disables SDK built-in retries to avoid compounding with our custom retry logic.
  * All retries are handled by withRetry() in src/utils/retry.ts.
  *
- * @returns Anthropic client instance with retries disabled
+ * Configures SDK logging based on ANTHROPIC_DEBUG environment variable:
+ * - When ANTHROPIC_DEBUG=true: debug level logging for verbose SDK output
+ * - Otherwise: warn level logging (only warnings and errors)
+ *
+ * @returns Anthropic client instance with retries disabled and logging configured
  */
 export function createAnthropicClient(): Anthropic {
-  return new Anthropic({ maxRetries: 0 });
+  const logLevel = process.env["ANTHROPIC_DEBUG"] === "true" ? "debug" : "warn";
+
+  return new Anthropic({
+    maxRetries: 0,
+    logLevel,
+    logger: {
+      debug: (msg: string) => logger.debug(`[Anthropic SDK] ${msg}`),
+      info: (msg: string) => logger.info(`[Anthropic SDK] ${msg}`),
+      warn: (msg: string) => logger.warn(`[Anthropic SDK] ${msg}`),
+      error: (msg: string) => logger.error(`[Anthropic SDK] ${msg}`),
+    },
+  });
 }
 
 /**

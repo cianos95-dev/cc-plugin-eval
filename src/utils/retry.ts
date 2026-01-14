@@ -1,9 +1,19 @@
 /**
  * Retry utility with exponential backoff.
  * Handles transient API errors gracefully.
+ *
+ * Uses typed Anthropic SDK error classes for accurate error detection:
+ * - Transient errors (will retry): RateLimitError, InternalServerError,
+ *   APIConnectionError, APIConnectionTimeoutError
+ * - Non-transient errors (will not retry): AuthenticationError,
+ *   BadRequestError, PermissionDeniedError, NotFoundError
  */
 
+import Anthropic from "@anthropic-ai/sdk";
+
 import { DEFAULT_TUNING } from "../config/defaults.js";
+
+import { logger } from "./logging.js";
 
 import type { TuningConfig } from "../types/index.js";
 
@@ -28,8 +38,27 @@ export interface RetryOptions {
 }
 
 /**
+ * Default retry callback that logs errors with request IDs.
+ *
+ * @param error - The error that caused the retry
+ * @param attempt - The retry attempt number (1-indexed)
+ * @param delayMs - The delay before the next retry in milliseconds
+ */
+function defaultOnRetry(
+  error: unknown,
+  attempt: number,
+  delayMs: number,
+): void {
+  const formattedError = formatErrorWithRequestId(error);
+  logger.warn(
+    `Retry attempt ${String(attempt)}: ${formattedError} (waiting ${String(delayMs)}ms)`,
+  );
+}
+
+/**
  * Default retry options.
  * Values are sourced from DEFAULT_TUNING for centralized configuration.
+ * Includes default logging callback that captures request IDs for debugging.
  */
 export const DEFAULT_RETRY_OPTIONS: RetryOptions = {
   maxRetries: DEFAULT_TUNING.retry.max_retries,
@@ -38,6 +67,7 @@ export const DEFAULT_RETRY_OPTIONS: RetryOptions = {
   backoffMultiplier: DEFAULT_TUNING.retry.backoff_multiplier,
   jitterFactor: DEFAULT_TUNING.retry.jitter_factor,
   isRetryable: isTransientError,
+  onRetry: defaultOnRetry,
 };
 
 /**
@@ -56,62 +86,130 @@ export function createRetryOptionsFromTuning(
     backoffMultiplier: tuning.retry.backoff_multiplier,
     jitterFactor: tuning.retry.jitter_factor,
     isRetryable: isTransientError,
+    onRetry: defaultOnRetry,
   };
+}
+
+/**
+ * Check if an SDK error is a transient error type.
+ *
+ * @param error - The error to check
+ * @returns true if transient, false if non-transient, undefined if not an SDK error
+ */
+function checkSdkErrorType(error: unknown): boolean | undefined {
+  // Transient SDK errors - should retry
+  if (error instanceof Anthropic.RateLimitError) {
+    return true;
+  }
+  if (error instanceof Anthropic.InternalServerError) {
+    return true;
+  }
+  if (error instanceof Anthropic.APIConnectionError) {
+    return true;
+  }
+  if (error instanceof Anthropic.APIConnectionTimeoutError) {
+    return true;
+  }
+
+  // Non-transient SDK errors - should NOT retry
+  if (error instanceof Anthropic.AuthenticationError) {
+    return false;
+  }
+  if (error instanceof Anthropic.BadRequestError) {
+    return false;
+  }
+  if (error instanceof Anthropic.PermissionDeniedError) {
+    return false;
+  }
+  if (error instanceof Anthropic.NotFoundError) {
+    return false;
+  }
+
+  // For other APIError subtypes, check status code
+  if (error instanceof Anthropic.APIError) {
+    const status = error.status as number;
+    return status === 429 || (status >= 500 && status < 600);
+  }
+
+  return undefined; // Not an SDK error
+}
+
+/**
+ * Check if an error message indicates a transient error.
+ *
+ * @param message - The lowercase error message
+ * @returns true if transient
+ */
+function isTransientErrorMessage(message: string): boolean {
+  // Rate limiting
+  if (message.includes("rate limit") || message.includes("too many requests")) {
+    return true;
+  }
+
+  // Server errors (5xx)
+  if (
+    message.includes("500") ||
+    message.includes("502") ||
+    message.includes("503") ||
+    message.includes("504")
+  ) {
+    return true;
+  }
+
+  // Network errors
+  if (
+    message.includes("network") ||
+    message.includes("timeout") ||
+    message.includes("econnreset") ||
+    message.includes("econnrefused") ||
+    message.includes("socket hang up")
+  ) {
+    return true;
+  }
+
+  // Anthropic-specific transient errors
+  if (
+    message.includes("overloaded") ||
+    message.includes("temporarily unavailable")
+  ) {
+    return true;
+  }
+
+  return false;
 }
 
 /**
  * Determine if an error is transient and retryable.
  *
+ * Uses Anthropic SDK typed error classes for accurate detection:
+ * - Transient (will retry): RateLimitError, InternalServerError,
+ *   APIConnectionError, APIConnectionTimeoutError
+ * - Non-transient (will not retry): AuthenticationError, BadRequestError,
+ *   PermissionDeniedError, NotFoundError
+ *
+ * Falls back to message-based detection for non-SDK errors.
+ *
  * @param error - The error to check
  * @returns True if the error is transient
  */
 export function isTransientError(error: unknown): boolean {
+  // Check Anthropic SDK typed errors first (most reliable)
+  const sdkResult = checkSdkErrorType(error);
+  if (sdkResult !== undefined) {
+    return sdkResult;
+  }
+
+  // Fallback to message-based detection for non-SDK errors
   if (error instanceof Error) {
-    const message = error.message.toLowerCase();
-
-    // Rate limiting
-    if (
-      message.includes("rate limit") ||
-      message.includes("too many requests")
-    ) {
-      return true;
-    }
-
-    // Server errors (5xx)
-    if (
-      message.includes("500") ||
-      message.includes("502") ||
-      message.includes("503") ||
-      message.includes("504")
-    ) {
-      return true;
-    }
-
-    // Network errors
-    if (
-      message.includes("network") ||
-      message.includes("timeout") ||
-      message.includes("econnreset") ||
-      message.includes("econnrefused") ||
-      message.includes("socket hang up")
-    ) {
-      return true;
-    }
-
-    // Anthropic-specific transient errors
-    if (
-      message.includes("overloaded") ||
-      message.includes("temporarily unavailable")
-    ) {
+    if (isTransientErrorMessage(error.message.toLowerCase())) {
       return true;
     }
   }
 
-  // Check for status code in error object
+  // Check for status code in error object (fallback for plain objects)
   const errorWithStatus = error as { status?: number; statusCode?: number };
   const status = errorWithStatus.status ?? errorWithStatus.statusCode;
   if (typeof status === "number") {
-    // Retry on rate limit (429) and server errors (5xx)
     return status === 429 || (status >= 500 && status < 600);
   }
 
@@ -261,4 +359,118 @@ export function createRetryWrapper(
   options: Partial<RetryOptions> = {},
 ): <T>(fn: () => Promise<T>) => Promise<T> {
   return async <T>(fn: () => Promise<T>): Promise<T> => withRetry(fn, options);
+}
+
+/**
+ * Error with optional requestID property.
+ */
+interface ErrorWithRequestId {
+  requestID?: string;
+  headers?: HeadersObject;
+}
+
+/**
+ * Extract request ID from an Anthropic SDK error.
+ *
+ * Request IDs are critical for Anthropic support tickets and debugging.
+ * They can be found in:
+ * - error.requestID (direct property on APIError)
+ * - error.headers.get("request-id") (from HTTP response headers)
+ *
+ * @param error - The error to extract request ID from
+ * @returns The request ID string, or null if not found
+ */
+export function extractRequestId(error: unknown): string | null {
+  if (error === null || error === undefined) {
+    return null;
+  }
+
+  if (typeof error !== "object") {
+    return null;
+  }
+
+  const errorObj = error as ErrorWithRequestId;
+
+  // Check for direct requestID property (Anthropic SDK APIError)
+  if (typeof errorObj.requestID === "string" && errorObj.requestID.length > 0) {
+    return errorObj.requestID;
+  }
+
+  // Check for request-id in headers
+  if (errorObj.headers) {
+    // Handle Headers-like object (Anthropic SDK uses this)
+    if (typeof errorObj.headers.get === "function") {
+      const requestId = errorObj.headers.get("request-id");
+      if (typeof requestId === "string" && requestId.length > 0) {
+        return requestId;
+      }
+    } else {
+      // Handle plain object headers
+      const plainHeaders = errorObj.headers as Record<string, string>;
+      const requestId = plainHeaders["request-id"];
+      if (typeof requestId === "string" && requestId.length > 0) {
+        return requestId;
+      }
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Format an error message with request ID if available.
+ *
+ * For Anthropic SDK APIError instances, includes:
+ * - The error message
+ * - HTTP status code (if available)
+ * - Request ID (if available)
+ *
+ * @param error - The error to format
+ * @returns Formatted error message string
+ */
+export function formatErrorWithRequestId(error: unknown): string {
+  if (error === null) {
+    return "null";
+  }
+  if (error === undefined) {
+    return "undefined";
+  }
+
+  // Handle non-Error values
+  if (typeof error === "string") {
+    return error;
+  }
+
+  if (!(error instanceof Error)) {
+    // For objects, try to get a meaningful string representation
+    if (typeof error === "object") {
+      const objWithMessage = error as { message?: unknown };
+      if (typeof objWithMessage.message === "string") {
+        return objWithMessage.message;
+      }
+      return JSON.stringify(error);
+    }
+    // At this point, error is a primitive (number, boolean, bigint, symbol)
+    // String() is safe for all these types
+    return String(error as string | number | boolean | bigint | symbol);
+  }
+
+  // Extract components
+  const message = error.message;
+  const requestId = extractRequestId(error);
+
+  // Check if it's an APIError with status
+  const apiError = error as { status?: number };
+  const status = typeof apiError.status === "number" ? apiError.status : null;
+
+  // Build formatted message
+  if (status !== null && requestId !== null) {
+    return `${message} (status: ${String(status)}) [request: ${requestId}]`;
+  } else if (requestId !== null) {
+    return `${message} [request: ${requestId}]`;
+  } else if (status !== null) {
+    return `${message} (status: ${String(status)})`;
+  }
+
+  return message;
 }

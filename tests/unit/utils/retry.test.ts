@@ -1,10 +1,13 @@
+import Anthropic from "@anthropic-ai/sdk";
 import { describe, expect, it, vi } from "vitest";
 
 import {
   calculateDelay,
   createRetryOptionsFromTuning,
   createRetryWrapper,
+  extractRequestId,
   extractRetryAfter,
+  formatErrorWithRequestId,
   isTransientError,
   withRetry,
 } from "../../../src/utils/retry.js";
@@ -145,6 +148,37 @@ describe("withRetry", () => {
       expect.any(Number),
     );
   });
+
+  it("uses default onRetry callback that logs with request ID", async () => {
+    // Spy on console.warn to capture log output (logger.warn uses console.warn)
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    const errorWithRequestId = new Anthropic.RateLimitError(
+      429,
+      {
+        type: "error",
+        error: { type: "rate_limit_error", message: "Rate limited" },
+      },
+      "Rate limited",
+      new Headers({ "request-id": "req_default_test_123" }),
+    );
+
+    const fn = vi
+      .fn()
+      .mockRejectedValueOnce(errorWithRequestId)
+      .mockResolvedValueOnce("success");
+
+    // Don't provide onRetry - should use default
+    await withRetry(fn, { initialDelayMs: 10, maxRetries: 3 });
+
+    // Verify console.warn was called with request ID in message
+    expect(warnSpy).toHaveBeenCalled();
+    const logMessage = warnSpy.mock.calls[0]?.[0] as string;
+    expect(logMessage).toContain("req_default_test_123");
+    expect(logMessage).toContain("Retry attempt 1");
+
+    warnSpy.mockRestore();
+  });
 });
 
 describe("createRetryWrapper", () => {
@@ -273,5 +307,202 @@ describe("withRetry retry-after integration", () => {
     // Delay should be at least 10000ms (from retry-after)
     const [, , delay] = onRetry.mock.calls[0] as [unknown, unknown, number];
     expect(delay).toBeGreaterThanOrEqual(10000);
+  });
+});
+
+describe("isTransientError with SDK error types", () => {
+  it("identifies RateLimitError as transient", () => {
+    const error = new Anthropic.RateLimitError(
+      429,
+      {
+        type: "error",
+        error: { type: "rate_limit_error", message: "Rate limited" },
+      },
+      "Rate limited",
+      new Headers({ "request-id": "req_123" }),
+    );
+    expect(isTransientError(error)).toBe(true);
+  });
+
+  it("identifies InternalServerError as transient", () => {
+    const error = new Anthropic.InternalServerError(
+      500,
+      {
+        type: "error",
+        error: { type: "server_error", message: "Internal error" },
+      },
+      "Internal server error",
+      new Headers({ "request-id": "req_456" }),
+    );
+    expect(isTransientError(error)).toBe(true);
+  });
+
+  it("identifies APIConnectionError as transient", () => {
+    const error = new Anthropic.APIConnectionError({
+      message: "Network failed",
+    });
+    expect(isTransientError(error)).toBe(true);
+  });
+
+  it("identifies APIConnectionTimeoutError as transient", () => {
+    const error = new Anthropic.APIConnectionTimeoutError({
+      message: "Timeout",
+    });
+    expect(isTransientError(error)).toBe(true);
+  });
+
+  it("returns false for AuthenticationError (non-transient)", () => {
+    const error = new Anthropic.AuthenticationError(
+      401,
+      {
+        type: "error",
+        error: { type: "authentication_error", message: "Invalid API key" },
+      },
+      "Invalid API key",
+      new Headers({ "request-id": "req_789" }),
+    );
+    expect(isTransientError(error)).toBe(false);
+  });
+
+  it("returns false for BadRequestError (non-transient)", () => {
+    const error = new Anthropic.BadRequestError(
+      400,
+      {
+        type: "error",
+        error: { type: "invalid_request_error", message: "Bad request" },
+      },
+      "Bad request",
+      new Headers({ "request-id": "req_abc" }),
+    );
+    expect(isTransientError(error)).toBe(false);
+  });
+
+  it("returns false for PermissionDeniedError (non-transient)", () => {
+    const error = new Anthropic.PermissionDeniedError(
+      403,
+      {
+        type: "error",
+        error: { type: "permission_error", message: "Permission denied" },
+      },
+      "Permission denied",
+      new Headers({ "request-id": "req_def" }),
+    );
+    expect(isTransientError(error)).toBe(false);
+  });
+
+  it("identifies generic APIError with 5xx status as transient", () => {
+    const error = new Anthropic.APIError(
+      503,
+      {
+        type: "error",
+        error: { type: "api_error", message: "Service unavailable" },
+      },
+      "Service unavailable",
+      new Headers({ "request-id": "req_503" }),
+    );
+    expect(isTransientError(error)).toBe(true);
+  });
+
+  it("returns false for generic APIError with 4xx status (non-transient)", () => {
+    const error = new Anthropic.APIError(
+      422,
+      {
+        type: "error",
+        error: { type: "api_error", message: "Unprocessable entity" },
+      },
+      "Unprocessable entity",
+      new Headers({ "request-id": "req_422" }),
+    );
+    expect(isTransientError(error)).toBe(false);
+  });
+});
+
+describe("extractRequestId", () => {
+  it("extracts request ID from APIError", () => {
+    const error = new Anthropic.RateLimitError(
+      429,
+      {
+        type: "error",
+        error: { type: "rate_limit_error", message: "Rate limited" },
+      },
+      "Rate limited",
+      new Headers({ "request-id": "req_test_123" }),
+    );
+    expect(extractRequestId(error)).toBe("req_test_123");
+  });
+
+  it("extracts request ID from error with requestID property", () => {
+    // Some SDK versions expose requestID directly
+    const error = Object.assign(new Error("Test error"), {
+      requestID: "req_direct_456",
+    });
+    expect(extractRequestId(error)).toBe("req_direct_456");
+  });
+
+  it("extracts request ID from headers get method", () => {
+    const error = {
+      headers: {
+        get: (name: string) =>
+          name === "request-id" ? "req_headers_789" : null,
+      },
+      message: "Error",
+    };
+    expect(extractRequestId(error)).toBe("req_headers_789");
+  });
+
+  it("returns null for errors without request ID", () => {
+    const error = new Error("Plain error");
+    expect(extractRequestId(error)).toBeNull();
+  });
+
+  it("returns null for non-error values", () => {
+    expect(extractRequestId(null)).toBeNull();
+    expect(extractRequestId(undefined)).toBeNull();
+    expect(extractRequestId("string error")).toBeNull();
+  });
+});
+
+describe("formatErrorWithRequestId", () => {
+  it("formats error with request ID", () => {
+    const error = new Anthropic.RateLimitError(
+      429,
+      {
+        type: "error",
+        error: { type: "rate_limit_error", message: "Rate limited" },
+      },
+      "Rate limited",
+      new Headers({ "request-id": "req_format_123" }),
+    );
+    const formatted = formatErrorWithRequestId(error);
+    expect(formatted).toContain("Rate limited");
+    expect(formatted).toContain("req_format_123");
+  });
+
+  it("formats error without request ID", () => {
+    const error = new Error("Plain error message");
+    const formatted = formatErrorWithRequestId(error);
+    expect(formatted).toBe("Plain error message");
+    expect(formatted).not.toContain("[request:");
+  });
+
+  it("handles non-Error values", () => {
+    expect(formatErrorWithRequestId("string error")).toBe("string error");
+    expect(formatErrorWithRequestId(null)).toBe("null");
+    expect(formatErrorWithRequestId(undefined)).toBe("undefined");
+  });
+
+  it("includes status code for APIError", () => {
+    const error = new Anthropic.InternalServerError(
+      500,
+      {
+        type: "error",
+        error: { type: "server_error", message: "Server error" },
+      },
+      "Server error",
+      new Headers({ "request-id": "req_status_456" }),
+    );
+    const formatted = formatErrorWithRequestId(error);
+    expect(formatted).toContain("500");
+    expect(formatted).toContain("req_status_456");
   });
 });

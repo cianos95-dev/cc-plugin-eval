@@ -522,6 +522,8 @@ describe("formatPipelineCostEstimate", () => {
 describe("createAnthropicClient", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    // Reset environment variable
+    delete process.env.ANTHROPIC_DEBUG;
   });
 
   it("should create an Anthropic client instance", () => {
@@ -529,6 +531,53 @@ describe("createAnthropicClient", () => {
 
     expect(Anthropic).toHaveBeenCalledTimes(1);
     expect(client).toBeDefined();
+  });
+
+  it("should disable SDK built-in retries", () => {
+    createAnthropicClient();
+
+    expect(Anthropic).toHaveBeenCalledWith(
+      expect.objectContaining({
+        maxRetries: 0,
+      }),
+    );
+  });
+
+  it("should use warn log level by default", () => {
+    createAnthropicClient();
+
+    expect(Anthropic).toHaveBeenCalledWith(
+      expect.objectContaining({
+        logLevel: "warn",
+      }),
+    );
+  });
+
+  it("should use debug log level when ANTHROPIC_DEBUG is set", () => {
+    process.env.ANTHROPIC_DEBUG = "true";
+
+    createAnthropicClient();
+
+    expect(Anthropic).toHaveBeenCalledWith(
+      expect.objectContaining({
+        logLevel: "debug",
+      }),
+    );
+  });
+
+  it("should configure custom logger", () => {
+    createAnthropicClient();
+
+    expect(Anthropic).toHaveBeenCalledWith(
+      expect.objectContaining({
+        logger: expect.objectContaining({
+          debug: expect.any(Function),
+          info: expect.any(Function),
+          warn: expect.any(Function),
+          error: expect.any(Function),
+        }),
+      }),
+    );
   });
 });
 
