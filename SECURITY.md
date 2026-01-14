@@ -43,7 +43,7 @@ This tool executes LLM-generated scenarios against the Claude Agent SDK. Built-i
 - **Disallowed tools**: Configure `execution.disallowed_tools` in `config.yaml` to block dangerous tools (e.g., `Write`, `Edit`, `Bash`)
 - **Budget limits**: Set `execution.max_budget_usd` to cap API spending
 - **Timeout limits**: Set `execution.timeout_ms` to prevent runaway executions
-- **Session isolation**: Enable `execution.session_isolation` to prevent cross-scenario contamination
+- **Session strategy**: Set `execution.session_strategy: "isolated"` to prevent cross-scenario contamination
 
 ### API Key Security
 
