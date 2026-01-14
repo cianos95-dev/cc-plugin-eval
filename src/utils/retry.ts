@@ -233,8 +233,11 @@ interface ErrorWithHeaders {
 /**
  * Extract retry-after delay from error headers.
  *
+ * Checks headers in order of preference:
+ * 1. retry-after-ms - Anthropic's preferred header (milliseconds, 0-60000ms)
+ * 2. retry-after - RFC standard (seconds)
+ *
  * Handles both plain object headers and Headers-like objects (from Anthropic SDK).
- * The retry-after value is expected to be in seconds and is converted to milliseconds.
  *
  * @param error - The error that may contain retry-after header
  * @returns Delay in milliseconds, or null if not present/invalid
@@ -246,14 +249,31 @@ export function extractRetryAfter(error: unknown): number | null {
     return null;
   }
 
-  let retryAfterValue: string | null | undefined;
+  const headers = errorWithHeaders.headers;
 
-  // Handle Headers-like object (Anthropic SDK uses this)
-  if (typeof errorWithHeaders.headers.get === "function") {
-    retryAfterValue = errorWithHeaders.headers.get("retry-after");
+  // Check retry-after-ms first (Anthropic's preferred header, milliseconds)
+  let retryAfterMsValue: string | null | undefined;
+  if (typeof headers.get === "function") {
+    retryAfterMsValue = headers.get("retry-after-ms");
   } else {
-    // Handle plain object headers
-    const plainHeaders = errorWithHeaders.headers as Record<string, string>;
+    const plainHeaders = headers as Record<string, string>;
+    retryAfterMsValue = plainHeaders["retry-after-ms"];
+  }
+
+  if (retryAfterMsValue) {
+    const ms = parseInt(retryAfterMsValue, 10);
+    // Validate range: 0-60000ms (per Anthropic SDK)
+    if (!isNaN(ms) && ms >= 0 && ms <= 60000) {
+      return ms; // Already in milliseconds
+    }
+  }
+
+  // Fall back to retry-after (seconds)
+  let retryAfterValue: string | null | undefined;
+  if (typeof headers.get === "function") {
+    retryAfterValue = headers.get("retry-after");
+  } else {
+    const plainHeaders = headers as Record<string, string>;
     retryAfterValue = plainHeaders["retry-after"];
   }
 

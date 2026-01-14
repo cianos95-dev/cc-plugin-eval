@@ -480,6 +480,219 @@ describe("pollBatchCompletion", () => {
       expired: 0,
     });
   });
+
+  it("should abort immediately when signal is already aborted", async () => {
+    const mockClient = createMockClient();
+    const controller = new AbortController();
+    controller.abort(); // Abort before polling starts
+
+    await expect(
+      pollBatchCompletion(mockClient, "batch_abc123", {
+        pollIntervalMs: 100,
+        timeoutMs: 60000,
+        signal: controller.signal,
+      }),
+    ).rejects.toThrow("Batch polling aborted");
+
+    // Should not have called retrieve since abort was immediate
+    expect(mockClient.messages.batches.retrieve).not.toHaveBeenCalled();
+  });
+
+  it("should abort during polling loop when signal is aborted", async () => {
+    const mockClient = createMockClient();
+    const controller = new AbortController();
+
+    mockClient.messages.batches.retrieve.mockResolvedValue({
+      id: "batch_abc123",
+      processing_status: "in_progress",
+      request_counts: {
+        processing: 5,
+        succeeded: 0,
+        errored: 0,
+        canceled: 0,
+        expired: 0,
+      },
+    });
+
+    // Abort after first poll
+    mockClient.messages.batches.retrieve.mockImplementationOnce(async () => {
+      controller.abort();
+      return {
+        id: "batch_abc123",
+        processing_status: "in_progress",
+        request_counts: {
+          processing: 5,
+          succeeded: 0,
+          errored: 0,
+          canceled: 0,
+          expired: 0,
+        },
+      };
+    });
+
+    await expect(
+      pollBatchCompletion(mockClient, "batch_abc123", {
+        pollIntervalMs: 100,
+        timeoutMs: 60000,
+        signal: controller.signal,
+      }),
+    ).rejects.toThrow("Batch polling aborted");
+
+    // Should have called retrieve once
+    expect(mockClient.messages.batches.retrieve).toHaveBeenCalledTimes(1);
+  });
+
+  it("should call cancelBatch when polling is aborted", async () => {
+    const mockClient = createMockClient();
+    const controller = new AbortController();
+
+    mockClient.messages.batches.retrieve.mockImplementationOnce(async () => {
+      controller.abort();
+      return {
+        id: "batch_abc123",
+        processing_status: "in_progress",
+        request_counts: {
+          processing: 5,
+          succeeded: 0,
+          errored: 0,
+          canceled: 0,
+          expired: 0,
+        },
+      };
+    });
+
+    mockClient.messages.batches.cancel.mockResolvedValue({
+      id: "batch_abc123",
+      processing_status: "canceling",
+      request_counts: {
+        processing: 5,
+        succeeded: 0,
+        errored: 0,
+        canceled: 0,
+        expired: 0,
+      },
+    });
+
+    await expect(
+      pollBatchCompletion(mockClient, "batch_abc123", {
+        pollIntervalMs: 100,
+        timeoutMs: 60000,
+        signal: controller.signal,
+        cancelOnAbort: true,
+      }),
+    ).rejects.toThrow("Batch polling aborted");
+
+    // Should have called cancel
+    expect(mockClient.messages.batches.cancel).toHaveBeenCalledWith(
+      "batch_abc123",
+    );
+  });
+
+  it("should work without signal (backwards compatible)", async () => {
+    const mockClient = createMockClient();
+    mockClient.messages.batches.retrieve.mockResolvedValue({
+      id: "batch_abc123",
+      processing_status: "ended",
+      request_counts: {
+        processing: 0,
+        succeeded: 5,
+        errored: 0,
+        canceled: 0,
+        expired: 0,
+      },
+    });
+
+    const result = await pollBatchCompletion(mockClient, "batch_abc123", {
+      pollIntervalMs: 1000,
+      timeoutMs: 60000,
+      // No signal provided
+    });
+
+    expect(result.processing_status).toBe("ended");
+  });
+
+  it("should abort after sleep and call cancelBatch when cancelOnAbort is true", async () => {
+    const mockClient = createMockClient();
+    const controller = new AbortController();
+
+    // First retrieve returns in_progress, abort happens during sleep
+    mockClient.messages.batches.retrieve.mockResolvedValue({
+      id: "batch_abc123",
+      processing_status: "in_progress",
+      request_counts: {
+        processing: 5,
+        succeeded: 0,
+        errored: 0,
+        canceled: 0,
+        expired: 0,
+      },
+    });
+
+    mockClient.messages.batches.cancel.mockResolvedValue({
+      id: "batch_abc123",
+      processing_status: "canceling",
+      request_counts: {
+        processing: 5,
+        succeeded: 0,
+        errored: 0,
+        canceled: 0,
+        expired: 0,
+      },
+    });
+
+    // Abort during sleep (after retrieve completes but before next iteration)
+    const { sleep } = await import("../../../../src/utils/retry.js");
+    vi.mocked(sleep).mockImplementationOnce(async () => {
+      controller.abort();
+    });
+
+    await expect(
+      pollBatchCompletion(mockClient, "batch_abc123", {
+        pollIntervalMs: 100,
+        timeoutMs: 60000,
+        signal: controller.signal,
+        cancelOnAbort: true,
+      }),
+    ).rejects.toThrow("Batch polling aborted");
+
+    // Should have called retrieve once and cancel once
+    expect(mockClient.messages.batches.retrieve).toHaveBeenCalledTimes(1);
+    expect(mockClient.messages.batches.cancel).toHaveBeenCalledWith(
+      "batch_abc123",
+    );
+  });
+
+  it("should only call cancelBatch once even if abort is detected at multiple points", async () => {
+    const mockClient = createMockClient();
+    const controller = new AbortController();
+
+    // Abort before even starting
+    controller.abort();
+
+    mockClient.messages.batches.cancel.mockResolvedValue({
+      id: "batch_abc123",
+      processing_status: "canceling",
+      request_counts: {
+        processing: 0,
+        succeeded: 0,
+        errored: 0,
+        canceled: 0,
+        expired: 0,
+      },
+    });
+
+    await expect(
+      pollBatchCompletion(mockClient, "batch_abc123", {
+        pollIntervalMs: 100,
+        timeoutMs: 60000,
+        signal: controller.signal,
+        cancelOnAbort: true,
+      }),
+    ).rejects.toThrow("Batch polling aborted");
+
+    // Should have called cancel exactly once (not multiple times)
+    expect(mockClient.messages.batches.cancel).toHaveBeenCalledTimes(1);
+  });
 });
 
 describe("collectBatchResults", () => {

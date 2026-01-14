@@ -64,6 +64,10 @@ export interface PollOptions {
   pollIntervalMs: number;
   /** Maximum time to wait for batch completion in milliseconds */
   timeoutMs: number;
+  /** Optional AbortSignal for graceful cancellation */
+  signal?: AbortSignal;
+  /** Whether to call cancelBatch when abort signal is triggered (default: false) */
+  cancelOnAbort?: boolean;
   /** Optional callback for progress updates */
   onProgress?: (
     counts: Anthropic.Messages.Batches.MessageBatchRequestCounts,
@@ -249,8 +253,24 @@ export async function pollBatchCompletion(
   batchId: string,
   options: PollOptions,
 ): Promise<Anthropic.Messages.Batches.MessageBatch> {
-  const { pollIntervalMs, timeoutMs, onProgress } = options;
+  const { pollIntervalMs, timeoutMs, signal, cancelOnAbort, onProgress } =
+    options;
   const startTime = Date.now();
+  let cancelInitiated = false;
+
+  // Helper to handle abort with optional batch cancellation
+  const handleAbort = async (): Promise<never> => {
+    if (cancelOnAbort && !cancelInitiated) {
+      cancelInitiated = true;
+      await client.messages.batches.cancel(batchId);
+    }
+    throw new Error("Batch polling aborted");
+  };
+
+  // Check if already aborted before starting
+  if (signal?.aborted) {
+    return handleAbort();
+  }
 
   // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- Infinite loop is intentional
   while (true) {
@@ -264,6 +284,11 @@ export async function pollBatchCompletion(
       return batch;
     }
 
+    // Check for abort after retrieve (may have been triggered during await)
+    if (signal?.aborted) {
+      return handleAbort();
+    }
+
     // Check timeout
     const elapsed = Date.now() - startTime;
     if (elapsed >= timeoutMs) {
@@ -274,6 +299,11 @@ export async function pollBatchCompletion(
 
     // Wait before next poll
     await sleep(pollIntervalMs);
+
+    // Check for abort after sleep
+    if (signal?.aborted) {
+      return handleAbort();
+    }
   }
 }
 

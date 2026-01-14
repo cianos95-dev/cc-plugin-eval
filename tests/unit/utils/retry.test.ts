@@ -242,6 +242,109 @@ describe("createRetryOptionsFromTuning", () => {
 });
 
 describe("extractRetryAfter", () => {
+  it("extracts retry-after-ms first (Anthropic preferred header)", () => {
+    const error = {
+      headers: {
+        get: (name: string) => {
+          if (name === "retry-after-ms") return "5000";
+          if (name === "retry-after") return "10";
+          return null;
+        },
+      },
+      message: "Rate limit",
+    };
+    // Should use retry-after-ms (5000ms) not retry-after (10s = 10000ms)
+    expect(extractRetryAfter(error)).toBe(5000);
+  });
+
+  it("extracts retry-after-ms from plain object headers", () => {
+    const error = {
+      headers: {
+        "retry-after-ms": "3000",
+        "retry-after": "10",
+      },
+      message: "Rate limit",
+    };
+    // Should use retry-after-ms (3000ms) not retry-after (10s = 10000ms)
+    expect(extractRetryAfter(error)).toBe(3000);
+  });
+
+  it("falls back to retry-after when retry-after-ms is not present", () => {
+    const error = {
+      headers: {
+        get: (name: string) => (name === "retry-after" ? "5" : null),
+      },
+      message: "Rate limit",
+    };
+    expect(extractRetryAfter(error)).toBe(5000); // 5 seconds in ms
+  });
+
+  it("validates retry-after-ms is within 0-60000ms range", () => {
+    // Above range - should fall back to retry-after
+    const errorAboveRange = {
+      headers: {
+        get: (name: string) => {
+          if (name === "retry-after-ms") return "70000"; // Above 60000
+          if (name === "retry-after") return "5";
+          return null;
+        },
+      },
+      message: "Rate limit",
+    };
+    expect(extractRetryAfter(errorAboveRange)).toBe(5000); // Falls back to retry-after
+
+    // Negative - should fall back to retry-after
+    const errorNegative = {
+      headers: {
+        get: (name: string) => {
+          if (name === "retry-after-ms") return "-1000";
+          if (name === "retry-after") return "3";
+          return null;
+        },
+      },
+      message: "Rate limit",
+    };
+    expect(extractRetryAfter(errorNegative)).toBe(3000); // Falls back to retry-after
+
+    // At max boundary - should be accepted
+    const errorAtMax = {
+      headers: {
+        get: (name: string) => {
+          if (name === "retry-after-ms") return "60000";
+          return null;
+        },
+      },
+      message: "Rate limit",
+    };
+    expect(extractRetryAfter(errorAtMax)).toBe(60000);
+
+    // At zero - should be accepted
+    const errorAtZero = {
+      headers: {
+        get: (name: string) => {
+          if (name === "retry-after-ms") return "0";
+          return null;
+        },
+      },
+      message: "Rate limit",
+    };
+    expect(extractRetryAfter(errorAtZero)).toBe(0);
+  });
+
+  it("handles invalid retry-after-ms gracefully", () => {
+    const error = {
+      headers: {
+        get: (name: string) => {
+          if (name === "retry-after-ms") return "invalid";
+          if (name === "retry-after") return "5";
+          return null;
+        },
+      },
+      message: "Rate limit",
+    };
+    expect(extractRetryAfter(error)).toBe(5000); // Falls back to retry-after
+  });
+
   it("extracts retry-after from error headers (seconds)", () => {
     const error = {
       headers: { "retry-after": "5" },
