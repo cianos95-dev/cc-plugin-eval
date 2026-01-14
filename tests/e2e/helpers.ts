@@ -99,6 +99,9 @@ export function createE2EExecutionConfig(
     max_turns: 2,
     timeout_ms: 60000, // 60 second timeout per scenario
     max_budget_usd: E2E_DEFAULT_BUDGET_USD,
+    // E2E tests use isolated sessions for test predictability and to avoid
+    // cross-test state contamination. Production defaults to batched_by_component
+    // for performance. Set session_strategy: "batched_by_component" for batching.
     session_isolation: true,
     permission_bypass: true,
     disallowed_tools: ["Write", "Edit", "Bash"], // Block file modifications

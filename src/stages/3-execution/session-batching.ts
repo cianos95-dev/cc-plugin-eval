@@ -52,7 +52,7 @@ export function resolveSessionStrategy(
   }
 
   // Fall back to session_isolation for backward compatibility
-  // true (default) = isolated, false = batched_by_component
+  // true = isolated, false (default) = batched_by_component
   // eslint-disable-next-line @typescript-eslint/no-deprecated
   return config.session_isolation ? "isolated" : "batched_by_component";
 }
