@@ -27,6 +27,7 @@ import type { QueryFunction } from "./agent-executor.js";
 import type {
   ExecutionConfig,
   ExecutionResult,
+  HookResponseCapture,
   SessionStrategy,
   TestScenario,
   ToolCapture,
@@ -162,6 +163,169 @@ interface BuildScenarioQueryInputOptions {
   enableFileCheckpointing?: boolean | undefined;
   /** Enable MCP server discovery via settingSources */
   enableMcpDiscovery?: boolean | undefined;
+}
+
+/**
+ * Options for executing a scenario with retry.
+ */
+interface ExecuteScenarioWithRetryOptions {
+  /** The scenario to execute */
+  scenario: TestScenario;
+  /** Current scenario index in batch */
+  scenarioIndex: number;
+  /** Total scenarios in batch */
+  totalScenarios: number;
+  /** Plugin references to load */
+  plugins: PluginReference[];
+  /** Tools to allow */
+  allowedTools: string[];
+  /** Execution configuration */
+  config: ExecutionConfig;
+  /** Enable file checkpointing */
+  useCheckpointing: boolean;
+  /** Enable MCP server discovery */
+  enableMcpDiscovery?: boolean | undefined;
+  /** Abort controller for timeout */
+  controller: AbortController;
+  /** Start time for logging */
+  startTime: number;
+  /** Plugin name for logging */
+  pluginName: string;
+  /** Query function (for testing) */
+  queryFn?: QueryFunction | undefined;
+}
+
+/**
+ * Result from executing a scenario with retry.
+ */
+interface ExecuteScenarioWithRetryResult {
+  /** Messages collected during execution */
+  messages: SDKMessage[];
+  /** Tools detected via PreToolUse hooks */
+  detectedTools: ToolCapture[];
+  /** Hook responses collected */
+  hookResponses: HookResponseCapture[];
+  /** Errors encountered */
+  errors: TranscriptErrorEvent[];
+  /** User message ID for file checkpointing */
+  userMessageId: string | undefined;
+}
+
+/**
+ * Execute a single scenario with retry support.
+ *
+ * Handles query building, execution, message collection, hook processing,
+ * and file checkpointing rewind.
+ *
+ * @param options - Scenario execution options
+ * @returns Execution result with messages, tools, hooks, and errors
+ */
+async function executeScenarioWithRetry(
+  options: ExecuteScenarioWithRetryOptions,
+): Promise<ExecuteScenarioWithRetryResult> {
+  const {
+    scenario,
+    scenarioIndex,
+    totalScenarios,
+    plugins,
+    allowedTools,
+    config,
+    useCheckpointing,
+    enableMcpDiscovery,
+    controller,
+    startTime,
+    pluginName,
+    queryFn,
+  } = options;
+
+  const scenarioMessages: SDKMessage[] = [];
+  const scenarioErrors: TranscriptErrorEvent[] = [];
+  const detectedTools: ToolCapture[] = [];
+  const hookCollector = createHookResponseCollector();
+  let userMessageId: string | undefined;
+
+  logger.debug(
+    `Batch: executing scenario ${String(scenarioIndex + 1)}/${String(totalScenarios)}: ${scenario.id}`,
+  );
+
+  // Build query input
+  const queryInput = buildScenarioQueryInput({
+    scenario,
+    plugins,
+    allowedTools,
+    disallowedTools: config.disallowed_tools,
+    model: config.model,
+    maxTurns: config.max_turns,
+    maxBudgetUsd: config.max_budget_usd,
+    isFirst: scenarioIndex === 0,
+    abortSignal: controller.signal,
+    onToolCapture: (capture) => detectedTools.push(capture),
+    onStderr: (data) => {
+      const elapsed = Date.now() - startTime;
+      console.error(
+        `[Batch ${pluginName} ${String(elapsed)}ms] SDK stderr:`,
+        data.trim(),
+      );
+    },
+    enableFileCheckpointing: useCheckpointing,
+    enableMcpDiscovery,
+  });
+
+  // Execute with retry for transient errors
+  // Keep reference to query object for rewindFiles
+  let queryObject: Awaited<ReturnType<typeof executeQuery>> | undefined;
+  await withRetry(async () => {
+    const q = queryFn ? queryFn(queryInput) : executeQuery(queryInput);
+    queryObject = q;
+
+    for await (const message of q) {
+      scenarioMessages.push(message);
+      hookCollector.processMessage(message);
+
+      // Capture the FIRST user message ID for file checkpointing.
+      // We only need the first because we want to rewind to the state
+      // before the scenario prompt, not any follow-up messages.
+      // Note: /clear commands are sent via a separate query object
+      // (sendClearCommand), so they don't appear in this iteration.
+      if (message.type === "user" && !userMessageId) {
+        // SDK may use 'id' or 'uuid' for the message identifier
+        const msgId =
+          (message as { id?: string }).id ??
+          (message as { uuid?: string }).uuid;
+        if (msgId) {
+          userMessageId = msgId;
+        }
+      }
+
+      // Capture errors
+      if (isErrorMessage(message)) {
+        scenarioErrors.push({
+          type: "error",
+          error_type: "api_error",
+          message: message.error ?? "Unknown error",
+          timestamp: Date.now(),
+          recoverable: false,
+        });
+      }
+    }
+
+    // Rewind file changes after scenario execution if checkpointing is enabled.
+    // This works with persistSession: true because the SDK maintains file
+    // checkpoints per message ID, independent of session state. The rewind
+    // happens BEFORE /clear is sent, ensuring filesystem is reset while
+    // keeping the session alive for the next scenario.
+    if (useCheckpointing && userMessageId) {
+      await rewindFileChanges(queryObject, userMessageId, scenario.id);
+    }
+  });
+
+  return {
+    messages: scenarioMessages,
+    detectedTools,
+    hookResponses: hookCollector.responses,
+    errors: scenarioErrors,
+    userMessageId,
+  };
 }
 
 /**
@@ -385,99 +549,35 @@ export async function executeBatch(
   // Process each scenario in the batch
   for (const scenario of scenarios) {
     const scenarioIndex = results.length;
-    const scenarioMessages: SDKMessage[] = [];
-    const scenarioErrors: TranscriptErrorEvent[] = [];
-    const detectedTools: ToolCapture[] = [];
-    const hookCollector = createHookResponseCollector();
-    let userMessageId: string | undefined;
 
     // Create abort controller for this scenario
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), config.timeout_ms);
 
     try {
-      logger.debug(
-        `Batch: executing scenario ${String(scenarioIndex + 1)}/${String(scenarios.length)}: ${scenario.id}`,
-      );
-
-      // Build query input
-      const queryInput = buildScenarioQueryInput({
+      // Execute scenario with retry support
+      const executionResult = await executeScenarioWithRetry({
         scenario,
+        scenarioIndex,
+        totalScenarios: scenarios.length,
         plugins,
         allowedTools,
-        disallowedTools: config.disallowed_tools,
-        model: config.model,
-        maxTurns: config.max_turns,
-        maxBudgetUsd: config.max_budget_usd,
-        isFirst: scenarioIndex === 0,
-        abortSignal: controller.signal,
-        onToolCapture: (capture) => detectedTools.push(capture),
-        onStderr: (data) => {
-          const elapsed = Date.now() - startTime;
-          console.error(
-            `[Batch ${pluginName} ${String(elapsed)}ms] SDK stderr:`,
-            data.trim(),
-          );
-        },
-        enableFileCheckpointing: useCheckpointing,
+        config,
+        useCheckpointing,
         enableMcpDiscovery: options.enableMcpDiscovery,
-      });
-
-      // Execute with retry for transient errors
-      // Keep reference to query object for rewindFiles
-      let queryObject: Awaited<ReturnType<typeof executeQuery>> | undefined;
-      await withRetry(async () => {
-        const q = queryFn ? queryFn(queryInput) : executeQuery(queryInput);
-        queryObject = q;
-
-        for await (const message of q) {
-          scenarioMessages.push(message);
-          hookCollector.processMessage(message);
-
-          // Capture the FIRST user message ID for file checkpointing.
-          // We only need the first because we want to rewind to the state
-          // before the scenario prompt, not any follow-up messages.
-          // Note: /clear commands are sent via a separate query object
-          // (sendClearCommand), so they don't appear in this iteration.
-          if (message.type === "user" && !userMessageId) {
-            // SDK may use 'id' or 'uuid' for the message identifier
-            const msgId =
-              (message as { id?: string }).id ??
-              (message as { uuid?: string }).uuid;
-            if (msgId) {
-              userMessageId = msgId;
-            }
-          }
-
-          // Capture errors
-          if (isErrorMessage(message)) {
-            scenarioErrors.push({
-              type: "error",
-              error_type: "api_error",
-              message: message.error ?? "Unknown error",
-              timestamp: Date.now(),
-              recoverable: false,
-            });
-          }
-        }
-
-        // Rewind file changes after scenario execution if checkpointing is enabled.
-        // This works with persistSession: true because the SDK maintains file
-        // checkpoints per message ID, independent of session state. The rewind
-        // happens BEFORE /clear is sent, ensuring filesystem is reset while
-        // keeping the session alive for the next scenario.
-        if (useCheckpointing && userMessageId) {
-          await rewindFileChanges(queryObject, userMessageId, scenario.id);
-        }
+        controller,
+        startTime,
+        pluginName,
+        queryFn,
       });
 
       // Build result for this scenario
       const result = buildScenarioResult(
         scenario,
-        scenarioMessages,
-        detectedTools,
-        hookCollector.responses,
-        scenarioErrors,
+        executionResult.messages,
+        executionResult.detectedTools,
+        executionResult.hookResponses,
+        executionResult.errors,
         pluginName,
         config.model,
       );
@@ -509,15 +609,13 @@ export async function executeBatch(
         recoverable: false,
       };
 
-      scenarioErrors.push(errorEvent);
-
-      // Build result with error
+      // Build result with error (empty messages/tools since execution failed)
       const result = buildScenarioResult(
         scenario,
-        scenarioMessages,
-        detectedTools,
-        hookCollector.responses,
-        scenarioErrors,
+        [],
+        [],
+        [],
+        [errorEvent],
         pluginName,
         config.model,
       );

@@ -360,5 +360,70 @@ describe("session-batching", () => {
       expect(rewindFilesMock).toHaveBeenCalledTimes(1);
       expect(capturedMessageIds[0]).toBe("first-user-msg");
     });
+
+    it("returns empty arrays for messages/tools when execution throws", async () => {
+      const scenarios = [
+        createBatchScenario("fail-scenario", "skill:test"),
+        createBatchScenario("second-scenario", "skill:test"),
+      ];
+
+      let callCount = 0;
+      const throwingQueryFn = () => {
+        callCount++;
+        // First scenario throws, second succeeds
+        if (callCount === 1) {
+          throw new Error("Execution failed");
+        }
+        // Return a minimal async iterable for the second scenario
+        return {
+          [Symbol.asyncIterator]: async function* () {
+            yield { type: "result", total_cost_usd: 0, duration_ms: 100 };
+          },
+        };
+      };
+
+      const results = await executeBatch({
+        scenarios,
+        pluginPath: "/path/to/plugin",
+        pluginName: "test-plugin",
+        config: createMockExecutionConfig(),
+        queryFn: throwingQueryFn,
+      });
+
+      // Both scenarios should have results
+      expect(results).toHaveLength(2);
+
+      // First scenario should have empty arrays and an error
+      expect(results[0]?.detected_tools).toEqual([]);
+      expect(results[0]?.hook_responses).toEqual([]);
+      expect(results[0]?.errors).toHaveLength(1);
+      expect(results[0]?.errors[0]?.error_type).toBe("api_error");
+      expect(results[0]?.errors[0]?.message).toBe("Execution failed");
+
+      // Second scenario should succeed (batch continues after error)
+      expect(results[1]?.errors).toHaveLength(0);
+    });
+
+    it("handles timeout errors with correct error_type", async () => {
+      const scenarios = [createBatchScenario("timeout-scenario", "skill:test")];
+
+      const timeoutQueryFn = () => {
+        const abortError = new Error("The operation was aborted");
+        abortError.name = "AbortError";
+        throw abortError;
+      };
+
+      const results = await executeBatch({
+        scenarios,
+        pluginPath: "/path/to/plugin",
+        pluginName: "test-plugin",
+        config: createMockExecutionConfig(),
+        queryFn: timeoutQueryFn,
+      });
+
+      expect(results).toHaveLength(1);
+      expect(results[0]?.errors).toHaveLength(1);
+      expect(results[0]?.errors[0]?.error_type).toBe("timeout");
+    });
   });
 });
