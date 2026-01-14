@@ -27,6 +27,7 @@ import {
   type PostToolUseFailureHookConfig,
   type HookCallback,
   type SettingSource,
+  type ModelUsage,
 } from "./sdk-client.js";
 import {
   buildTranscript,
@@ -212,6 +213,9 @@ function buildQueryInput(
       abortSignal,
       permissionMode: "bypassPermissions",
       allowDangerouslySkipPermissions: true,
+      ...(config.max_thinking_tokens !== undefined
+        ? { maxThinkingTokens: config.max_thinking_tokens }
+        : {}),
       hooks: {
         PreToolUse: hooks.preToolUse,
         PostToolUse: hooks.postToolUse,
@@ -235,14 +239,35 @@ function extractResultMetrics(messages: SDKMessage[]): {
   durationMs: number;
   numTurns: number;
   permissionDenials: string[];
+  modelUsage?: Record<string, ModelUsage>;
+  cacheReadTokens: number;
+  cacheCreationTokens: number;
 } {
   const resultMsg = messages.find(isResultMessage);
+
+  // Calculate aggregate cache tokens from modelUsage
+  const modelUsage = resultMsg?.modelUsage;
+  const cacheReadTokens = modelUsage
+    ? Object.values(modelUsage).reduce(
+        (sum, m) => sum + (m.cacheReadInputTokens ?? 0),
+        0,
+      )
+    : 0;
+  const cacheCreationTokens = modelUsage
+    ? Object.values(modelUsage).reduce(
+        (sum, m) => sum + (m.cacheCreationInputTokens ?? 0),
+        0,
+      )
+    : 0;
 
   return {
     costUsd: resultMsg?.total_cost_usd ?? 0,
     durationMs: resultMsg?.duration_ms ?? 0,
     numTurns: resultMsg?.num_turns ?? 0,
     permissionDenials: resultMsg?.permission_denials ?? [],
+    ...(modelUsage !== undefined ? { modelUsage } : {}),
+    cacheReadTokens,
+    cacheCreationTokens,
   };
 }
 
@@ -390,6 +415,11 @@ export async function executeScenario(
     num_turns: metrics.numTurns,
     permission_denials: metrics.permissionDenials,
     errors,
+    ...(metrics.modelUsage !== undefined
+      ? { model_usage: metrics.modelUsage }
+      : {}),
+    cache_read_tokens: metrics.cacheReadTokens,
+    cache_creation_tokens: metrics.cacheCreationTokens,
   };
 }
 
@@ -544,6 +574,11 @@ export async function executeScenarioWithCheckpoint(
     num_turns: metrics.numTurns,
     permission_denials: metrics.permissionDenials,
     errors,
+    ...(metrics.modelUsage !== undefined
+      ? { model_usage: metrics.modelUsage }
+      : {}),
+    cache_read_tokens: metrics.cacheReadTokens,
+    cache_creation_tokens: metrics.cacheCreationTokens,
   };
 }
 

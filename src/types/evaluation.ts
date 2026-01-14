@@ -189,6 +189,18 @@ export interface RepetitionStats {
 }
 
 /**
+ * Cache usage statistics for cost analysis.
+ */
+export interface CacheStats {
+  /** Total cache read tokens across all scenarios */
+  total_cache_read_tokens: number;
+  /** Total cache creation tokens across all scenarios */
+  total_cache_creation_tokens: number;
+  /** Cache hit rate (read tokens / total input tokens) */
+  cache_hit_rate: number;
+}
+
+/**
  * Aggregate evaluation metrics.
  */
 export interface EvalMetrics {
@@ -221,6 +233,9 @@ export interface EvalMetrics {
 
   /** Repetition statistics */
   repetition_stats?: RepetitionStats;
+
+  /** Cache usage statistics */
+  cache_stats?: CacheStats;
 }
 
 /**

@@ -4,6 +4,22 @@
  */
 
 /**
+ * Per-model usage metrics from SDK.
+ * Tracks token usage and costs for each model used in a scenario.
+ * All fields are optional as the SDK may not provide all values.
+ */
+export interface ModelUsage {
+  inputTokens?: number;
+  outputTokens?: number;
+  cacheReadInputTokens?: number;
+  cacheCreationInputTokens?: number;
+  webSearchRequests?: number;
+  costUSD?: number;
+  contextWindow?: number;
+  maxOutputTokens?: number;
+}
+
+/**
  * Tool call captured during execution.
  */
 export interface ToolCapture {
@@ -153,4 +169,10 @@ export interface ExecutionResult {
   errors: TranscriptErrorEvent[];
   /** Captured hook responses from SDK messages */
   hook_responses?: HookResponseCapture[];
+  /** Per-model usage breakdown (from SDK modelUsage) */
+  model_usage?: Record<string, ModelUsage>;
+  /** Total cache read tokens across all models */
+  cache_read_tokens?: number;
+  /** Total cache creation tokens across all models */
+  cache_creation_tokens?: number;
 }

@@ -17,8 +17,11 @@ import {
   type SDKUserMessage as SDKUserMessageType,
 } from "@anthropic-ai/claude-agent-sdk";
 
+// Import types from the types layer
+import type { ModelUsage } from "../../types/transcript.js";
+
 // Re-export types for use in other modules
-export type { PermissionMode, SettingSource };
+export type { PermissionMode, SettingSource, ModelUsage };
 
 // Re-export the query function for use throughout Stage 3
 export { query };
@@ -74,6 +77,8 @@ export interface SDKResultMessage extends SDKMessage {
   duration_ms?: number;
   num_turns?: number;
   permission_denials?: string[];
+  /** Per-model usage breakdown. Keys are model IDs. */
+  modelUsage?: Record<string, ModelUsage>;
 }
 
 /**
@@ -179,6 +184,8 @@ export interface QueryOptions {
   permissionMode?: PermissionMode;
   allowDangerouslySkipPermissions?: boolean;
   enableFileCheckpointing?: boolean;
+  /** Limit extended thinking tokens to reduce cost. */
+  maxThinkingTokens?: number;
   hooks?: {
     PreToolUse?: HookCallbackMatcher[];
     PostToolUse?: HookCallbackMatcher[];

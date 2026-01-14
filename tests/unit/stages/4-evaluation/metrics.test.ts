@@ -635,6 +635,33 @@ describe("formatMetrics - semantic_stats", () => {
   });
 });
 
+describe("formatMetrics - cache_stats", () => {
+  it("should include cache stats section when present", () => {
+    const metrics = createEmptyMetrics();
+    metrics.cache_stats = {
+      total_cache_read_tokens: 5000,
+      total_cache_creation_tokens: 1000,
+      cache_hit_rate: 0.75,
+    };
+
+    const formatted = formatMetrics(metrics);
+
+    expect(formatted).toContain("Cache Performance:");
+    expect(formatted).toContain("Hit Rate:         75.0%");
+    expect(formatted).toContain("Tokens Read:      5000");
+    expect(formatted).toContain("Tokens Created:   1000");
+  });
+
+  it("should omit cache stats section when undefined", () => {
+    const metrics = createEmptyMetrics();
+    // No cache_stats field
+
+    const formatted = formatMetrics(metrics);
+
+    expect(formatted).not.toContain("Cache Performance:");
+  });
+});
+
 describe("calculateComponentMetrics - edge cases", () => {
   it("should handle single-item arrays correctly", () => {
     const results = [
@@ -664,5 +691,155 @@ describe("calculateComponentMetrics - edge cases", () => {
     const metrics = calculateComponentMetrics([]);
 
     expect(Object.keys(metrics)).toHaveLength(0);
+  });
+});
+
+describe("calculateEvalMetrics - cache_stats", () => {
+  it("should return undefined cache_stats when no cache data present", () => {
+    const results = [
+      {
+        result: createEvalResult({ triggered: true }),
+        scenario: createScenario({ expected_trigger: true }),
+        execution: createExecResult({
+          cache_read_tokens: 0,
+          cache_creation_tokens: 0,
+        }),
+      },
+    ];
+
+    const metrics = calculateEvalMetrics(results, [results[0].execution]);
+
+    expect(metrics.cache_stats).toBeUndefined();
+  });
+
+  it("should calculate correct cache hit rate with valid data", () => {
+    const results = [
+      {
+        result: createEvalResult({ triggered: true }),
+        scenario: createScenario({ expected_trigger: true }),
+        execution: createExecResult({
+          cache_read_tokens: 500,
+          cache_creation_tokens: 100,
+          model_usage: {
+            "claude-sonnet-4": {
+              inputTokens: 1000,
+              outputTokens: 200,
+            },
+          },
+        }),
+      },
+    ];
+
+    const metrics = calculateEvalMetrics(results, [results[0].execution]);
+
+    expect(metrics.cache_stats).toBeDefined();
+    expect(metrics.cache_stats?.total_cache_read_tokens).toBe(500);
+    expect(metrics.cache_stats?.total_cache_creation_tokens).toBe(100);
+    // Cache hit rate = 500 / 1000 = 0.5
+    expect(metrics.cache_stats?.cache_hit_rate).toBe(0.5);
+  });
+
+  it("should return 0 cache hit rate when input tokens are zero", () => {
+    const results = [
+      {
+        result: createEvalResult({ triggered: true }),
+        scenario: createScenario({ expected_trigger: true }),
+        execution: createExecResult({
+          cache_read_tokens: 500,
+          cache_creation_tokens: 100,
+          // No model_usage means zero input tokens
+        }),
+      },
+    ];
+
+    const metrics = calculateEvalMetrics(results, [results[0].execution]);
+
+    expect(metrics.cache_stats).toBeDefined();
+    expect(metrics.cache_stats?.cache_hit_rate).toBe(0);
+  });
+
+  it("should aggregate cache tokens across multiple executions", () => {
+    const exec1 = createExecResult({
+      scenario_id: "test-1",
+      cache_read_tokens: 300,
+      cache_creation_tokens: 50,
+      model_usage: {
+        "claude-sonnet-4": { inputTokens: 600 },
+      },
+    });
+    const exec2 = createExecResult({
+      scenario_id: "test-2",
+      cache_read_tokens: 200,
+      cache_creation_tokens: 50,
+      model_usage: {
+        "claude-sonnet-4": { inputTokens: 400 },
+      },
+    });
+
+    const results = [
+      {
+        result: createEvalResult({ scenario_id: "test-1", triggered: true }),
+        scenario: createScenario({ id: "test-1", expected_trigger: true }),
+        execution: exec1,
+      },
+      {
+        result: createEvalResult({ scenario_id: "test-2", triggered: true }),
+        scenario: createScenario({ id: "test-2", expected_trigger: true }),
+        execution: exec2,
+      },
+    ];
+
+    const metrics = calculateEvalMetrics(results, [exec1, exec2]);
+
+    expect(metrics.cache_stats).toBeDefined();
+    // 300 + 200 = 500
+    expect(metrics.cache_stats?.total_cache_read_tokens).toBe(500);
+    // 50 + 50 = 100
+    expect(metrics.cache_stats?.total_cache_creation_tokens).toBe(100);
+    // 500 / (600 + 400) = 0.5
+    expect(metrics.cache_stats?.cache_hit_rate).toBe(0.5);
+  });
+
+  it("should handle mixed executions with and without cache data", () => {
+    const execWithCache = createExecResult({
+      scenario_id: "test-1",
+      cache_read_tokens: 400,
+      cache_creation_tokens: 100,
+      model_usage: {
+        "claude-sonnet-4": { inputTokens: 800 },
+      },
+    });
+    const execWithoutCache = createExecResult({
+      scenario_id: "test-2",
+      cache_read_tokens: 0,
+      cache_creation_tokens: 0,
+      model_usage: {
+        "claude-sonnet-4": { inputTokens: 200 },
+      },
+    });
+
+    const results = [
+      {
+        result: createEvalResult({ scenario_id: "test-1", triggered: true }),
+        scenario: createScenario({ id: "test-1", expected_trigger: true }),
+        execution: execWithCache,
+      },
+      {
+        result: createEvalResult({ scenario_id: "test-2", triggered: true }),
+        scenario: createScenario({ id: "test-2", expected_trigger: true }),
+        execution: execWithoutCache,
+      },
+    ];
+
+    const metrics = calculateEvalMetrics(results, [
+      execWithCache,
+      execWithoutCache,
+    ]);
+
+    expect(metrics.cache_stats).toBeDefined();
+    expect(metrics.cache_stats?.total_cache_read_tokens).toBe(400);
+    expect(metrics.cache_stats?.total_cache_creation_tokens).toBe(100);
+    // 400 / (800 + 200) = 0.4
+    expect(metrics.cache_stats?.cache_hit_rate).toBe(0.4);
   });
 });

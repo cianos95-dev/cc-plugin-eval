@@ -6,6 +6,7 @@
  */
 
 import type {
+  CacheStats,
   ComponentMetrics,
   EvalMetrics,
   EvaluationResult,
@@ -295,6 +296,51 @@ export function calculateRepetitionStats(
 }
 
 /**
+ * Calculate cache usage statistics from executions.
+ *
+ * @param executions - Execution results with cache token data
+ * @returns Cache statistics or undefined if no cache data
+ */
+function calculateCacheStats(
+  executions: ExecutionResult[],
+): CacheStats | undefined {
+  // Sum cache tokens across all executions
+  const totalCacheReadTokens = executions.reduce(
+    (sum, e) => sum + (e.cache_read_tokens ?? 0),
+    0,
+  );
+  const totalCacheCreationTokens = executions.reduce(
+    (sum, e) => sum + (e.cache_creation_tokens ?? 0),
+    0,
+  );
+
+  // Calculate total input tokens from modelUsage
+  let totalInputTokens = 0;
+  for (const exec of executions) {
+    if (exec.model_usage) {
+      for (const usage of Object.values(exec.model_usage)) {
+        totalInputTokens += usage.inputTokens ?? 0;
+      }
+    }
+  }
+
+  // Only return stats if we have cache data
+  if (totalCacheReadTokens === 0 && totalCacheCreationTokens === 0) {
+    return undefined;
+  }
+
+  // Calculate cache hit rate (cache reads / total input tokens)
+  const cacheHitRate =
+    totalInputTokens > 0 ? totalCacheReadTokens / totalInputTokens : 0;
+
+  return {
+    total_cache_read_tokens: totalCacheReadTokens,
+    total_cache_creation_tokens: totalCacheCreationTokens,
+    cache_hit_rate: cacheHitRate,
+  };
+}
+
+/**
  * Calculate all evaluation metrics.
  *
  * @param results - Results with scenario context
@@ -377,6 +423,8 @@ export function calculateEvalMetrics(
         )
       : undefined;
 
+  const cacheStats = calculateCacheStats(executions);
+
   const result: EvalMetrics = {
     total_scenarios: evalResults.length,
     triggered_count: evalResults.filter((r) => r.triggered).length,
@@ -406,6 +454,9 @@ export function calculateEvalMetrics(
   }
   if (repetitionStats !== undefined) {
     result.repetition_stats = repetitionStats;
+  }
+  if (cacheStats !== undefined) {
+    result.cache_stats = cacheStats;
   }
 
   return result;
@@ -473,6 +524,20 @@ export function formatMetrics(metrics: EvalMetrics): string {
     );
     lines.push(
       `  Consensus Rate:   ${(metrics.multi_sample_stats.consensus_rate * 100).toFixed(1)}%`,
+    );
+  }
+
+  if (metrics.cache_stats) {
+    lines.push("");
+    lines.push("Cache Performance:");
+    lines.push(
+      `  Hit Rate:         ${(metrics.cache_stats.cache_hit_rate * 100).toFixed(1)}%`,
+    );
+    lines.push(
+      `  Tokens Read:      ${String(metrics.cache_stats.total_cache_read_tokens)}`,
+    );
+    lines.push(
+      `  Tokens Created:   ${String(metrics.cache_stats.total_cache_creation_tokens)}`,
     );
   }
 

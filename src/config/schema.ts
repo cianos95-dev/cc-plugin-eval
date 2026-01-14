@@ -144,6 +144,13 @@ export const ExecutionConfigSchema = z.object({
   additional_plugins: z.array(z.string()).default([]),
   /** Rate limit API calls (requests per second). null = no limit. */
   requests_per_second: z.number().min(0.1).max(100).nullish(),
+  /**
+   * Limit extended thinking tokens to reduce cost. undefined = no limit.
+   * Typical values:
+   * - 1000-5000: Simple plugin trigger evaluation
+   * - 10000-30000: Complex reasoning or multi-step tasks
+   */
+  max_thinking_tokens: z.number().int().min(100).max(100000).optional(),
 });
 
 /**

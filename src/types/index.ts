@@ -55,6 +55,7 @@ export type {
 
 // Transcript types
 export type {
+  ModelUsage,
   ToolCapture,
   HookResponseCapture,
   TranscriptMetadata,
@@ -84,6 +85,7 @@ export type {
   MultiSampleStats,
   SemanticStats,
   RepetitionStats,
+  CacheStats,
   EvalMetrics,
   MetaJudgmentResult,
 } from "./evaluation.js";

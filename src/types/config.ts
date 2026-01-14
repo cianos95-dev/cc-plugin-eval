@@ -96,6 +96,13 @@ export interface ExecutionConfig {
   additional_plugins: string[];
   /** Rate limit API calls (requests per second). null/undefined = no limit. */
   requests_per_second?: number | null;
+  /**
+   * Limit extended thinking tokens to reduce cost. undefined = no limit.
+   * Typical values:
+   * - 1000-5000: Simple plugin trigger evaluation
+   * - 10000-30000: Complex reasoning or multi-step tasks
+   */
+  max_thinking_tokens?: number;
 }
 
 /**
