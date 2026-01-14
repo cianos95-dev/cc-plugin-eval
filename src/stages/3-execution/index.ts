@@ -130,6 +130,7 @@ export async function runExecution(
     pluginPath,
     config: config.execution,
     queryFn,
+    enableMcpDiscovery: config.scope.mcp_servers,
   });
 
   logger.info(formatPluginLoadResult(loadResult));
@@ -169,6 +170,7 @@ export async function runExecution(
     useCheckpointing,
     queryFn,
     progress,
+    enableMcpDiscovery: config.scope.mcp_servers,
   });
 
   // Filter out any undefined results from failed executions
@@ -220,6 +222,7 @@ interface ExecuteAllOptions {
   useCheckpointing: boolean;
   queryFn?: QueryFunction | undefined;
   progress?: ProgressCallbacks | undefined;
+  enableMcpDiscovery?: boolean | undefined;
 }
 
 /**
@@ -239,6 +242,7 @@ async function executeAllScenarios(
     useCheckpointing,
     queryFn,
     progress,
+    enableMcpDiscovery,
   } = options;
 
   // Determine session strategy
@@ -261,6 +265,7 @@ async function executeAllScenarios(
       useCheckpointing,
       queryFn,
       progress,
+      enableMcpDiscovery,
     });
   }
 
@@ -279,6 +284,7 @@ interface BatchedExecutionOptions {
   useCheckpointing: boolean;
   queryFn?: QueryFunction | undefined;
   progress?: ProgressCallbacks | undefined;
+  enableMcpDiscovery?: boolean | undefined;
 }
 
 /**
@@ -298,6 +304,7 @@ async function executeBatchedScenarios(
     useCheckpointing,
     queryFn,
     progress,
+    enableMcpDiscovery,
   } = options;
 
   // Flatten groups into array of batches
@@ -339,6 +346,7 @@ async function executeBatchedScenarios(
           additionalPlugins: config.execution.additional_plugins,
           queryFn,
           useCheckpointing,
+          enableMcpDiscovery,
           onScenarioComplete: (result, _index) => {
             completedCount++;
             progress?.onScenarioComplete?.(
@@ -407,6 +415,7 @@ async function executeAllScenariosIsolated(
     useCheckpointing,
     queryFn,
     progress,
+    enableMcpDiscovery,
   } = options;
 
   const executeFn = useCheckpointing
@@ -437,6 +446,7 @@ async function executeAllScenariosIsolated(
           config: config.execution,
           additionalPlugins: config.execution.additional_plugins,
           queryFn,
+          enableMcpDiscovery,
         });
 
       const result = rateLimiter

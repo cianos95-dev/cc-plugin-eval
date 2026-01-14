@@ -16,6 +16,7 @@ import {
   type PluginReference,
   type QueryInput,
   type SDKMessage,
+  type SettingSource,
 } from "./sdk-client.js";
 import {
   buildTranscript,
@@ -119,6 +120,16 @@ export interface BatchExecutionOptions {
     | undefined;
   /** Enable file checkpointing to revert file changes after each scenario */
   useCheckpointing?: boolean | undefined;
+  /**
+   * Enable MCP server discovery via settingSources.
+   * When true (default), uses settingSources: ["project"] which enables
+   * the SDK to discover MCP servers from .mcp.json files.
+   * When false, uses settingSources: [] to skip MCP discovery and
+   * avoid the 60-second MCP channel closure timeout.
+   *
+   * @default true
+   */
+  enableMcpDiscovery?: boolean | undefined;
 }
 
 /**
@@ -149,6 +160,8 @@ interface BuildScenarioQueryInputOptions {
   onStderr: (data: string) => void;
   /** Enable file checkpointing for rewind support */
   enableFileCheckpointing?: boolean | undefined;
+  /** Enable MCP server discovery via settingSources */
+  enableMcpDiscovery?: boolean | undefined;
 }
 
 /**
@@ -173,13 +186,17 @@ function buildScenarioQueryInput(
     onToolCapture,
     onStderr,
     enableFileCheckpointing,
+    enableMcpDiscovery = true,
   } = options;
+
+  // Determine settingSources based on MCP discovery option
+  const settingSources: SettingSource[] = enableMcpDiscovery ? ["project"] : [];
 
   return {
     prompt: scenario.user_prompt,
     options: {
       plugins,
-      settingSources: ["project"],
+      settingSources,
       allowedTools,
       ...(disallowedTools ? { disallowedTools } : {}),
       model,
@@ -234,6 +251,8 @@ interface SendClearCommandOptions {
   abortSignal: AbortSignal;
   /** Query function (for testing) */
   queryFn?: QueryFunction | undefined;
+  /** Enable MCP server discovery via settingSources */
+  enableMcpDiscovery?: boolean | undefined;
 }
 
 /**
@@ -244,7 +263,17 @@ interface SendClearCommandOptions {
 async function sendClearCommand(
   options: SendClearCommandOptions,
 ): Promise<void> {
-  const { plugins, allowedTools, model, abortSignal, queryFn } = options;
+  const {
+    plugins,
+    allowedTools,
+    model,
+    abortSignal,
+    queryFn,
+    enableMcpDiscovery = true,
+  } = options;
+
+  // Determine settingSources based on MCP discovery option
+  const settingSources: SettingSource[] = enableMcpDiscovery ? ["project"] : [];
 
   logger.debug("Batch: sending /clear to reset conversation");
 
@@ -252,7 +281,7 @@ async function sendClearCommand(
     prompt: "/clear",
     options: {
       plugins,
-      settingSources: ["project"],
+      settingSources,
       allowedTools,
       model,
       maxTurns: 1,
@@ -391,6 +420,7 @@ export async function executeBatch(
           );
         },
         enableFileCheckpointing: useCheckpointing,
+        enableMcpDiscovery: options.enableMcpDiscovery,
       });
 
       // Execute with retry for transient errors
@@ -466,6 +496,7 @@ export async function executeBatch(
           model: config.model,
           abortSignal: controller.signal,
           queryFn,
+          enableMcpDiscovery: options.enableMcpDiscovery,
         });
       }
     } catch (err) {

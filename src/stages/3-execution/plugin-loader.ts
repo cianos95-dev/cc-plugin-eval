@@ -16,6 +16,7 @@ import {
   type SDKSystemMessage,
   type QueryInput,
   type QueryObject,
+  type SettingSource,
 } from "./sdk-client.js";
 
 import type {
@@ -81,6 +82,16 @@ export interface PluginLoaderOptions {
   queryFn?: QueryFunction | undefined;
   /** Load timeout in milliseconds */
   timeoutMs?: number | undefined;
+  /**
+   * Enable MCP server discovery via settingSources.
+   * When true (default), uses settingSources: ["project"] which enables
+   * the SDK to discover MCP servers from .mcp.json files.
+   * When false, uses settingSources: [] to skip MCP discovery and
+   * avoid the 60-second MCP channel closure timeout.
+   *
+   * @default true
+   */
+  enableMcpDiscovery?: boolean | undefined;
 }
 
 /**
@@ -114,6 +125,7 @@ export async function verifyPluginLoad(
     config,
     queryFn,
     timeoutMs = DEFAULT_TUNING.timeouts.plugin_load_ms,
+    enableMcpDiscovery = true,
   } = options;
   const startTime = Date.now();
 
@@ -128,13 +140,19 @@ export async function verifyPluginLoad(
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
 
+  // Determine settingSources based on MCP discovery option
+  // When enableMcpDiscovery is false, we use an empty array to prevent
+  // the SDK from scanning for .mcp.json files, which avoids the 60-second
+  // MCP channel closure timeout when no MCP servers are needed.
+  const settingSources: SettingSource[] = enableMcpDiscovery ? ["project"] : [];
+
   try {
     // Build query input
     const queryInput: QueryInput = {
       prompt: "Plugin initialization check - respond with OK",
       options: {
         plugins: [{ type: "local", path: pluginPath }],
-        settingSources: ["project"], // REQUIRED for skills to work
+        settingSources,
         model: config.model,
         maxTurns: 1,
         persistSession: false,

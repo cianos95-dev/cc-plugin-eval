@@ -477,3 +477,89 @@ describe("verifyPluginLoad timing", () => {
     ).toBeGreaterThanOrEqual(0);
   });
 });
+
+describe("verifyPluginLoad MCP discovery configuration", () => {
+  const mockConfig: ExecutionConfig = {
+    model: "claude-sonnet-4-20250514",
+    session_strategy: "per_scenario",
+    allowed_tools: [],
+    disallowed_tools: [],
+    mcp_servers: {
+      skip_auth_required: true,
+      connection_timeout_ms: 5000,
+    },
+  };
+
+  /**
+   * Create a mock query function that captures the query input.
+   */
+  function createCapturingMockQueryFn(
+    capturedInputs: QueryInput[],
+  ): QueryFunction {
+    return (input: QueryInput) => {
+      capturedInputs.push(input);
+
+      // Return a mock query object with successful init message
+      const initMessage: SDKSystemMessage = {
+        type: "system",
+        subtype: "init",
+        session_id: "test-session",
+        tools: [],
+        slash_commands: [],
+        plugins: [{ name: "test-plugin", path: "/path/to/plugin" }],
+        mcp_servers: [],
+      };
+
+      return {
+        async *[Symbol.asyncIterator]() {
+          yield initMessage;
+        },
+      };
+    };
+  }
+
+  it("should set settingSources to ['project'] when enableMcpDiscovery is true", async () => {
+    const capturedInputs: QueryInput[] = [];
+    const mockQueryFn = createCapturingMockQueryFn(capturedInputs);
+
+    await verifyPluginLoad({
+      pluginPath: "/path/to/plugin",
+      config: mockConfig,
+      queryFn: mockQueryFn,
+      enableMcpDiscovery: true,
+    });
+
+    expect(capturedInputs).toHaveLength(1);
+    expect(capturedInputs[0].options?.settingSources).toEqual(["project"]);
+  });
+
+  it("should set settingSources to [] when enableMcpDiscovery is false", async () => {
+    const capturedInputs: QueryInput[] = [];
+    const mockQueryFn = createCapturingMockQueryFn(capturedInputs);
+
+    await verifyPluginLoad({
+      pluginPath: "/path/to/plugin",
+      config: mockConfig,
+      queryFn: mockQueryFn,
+      enableMcpDiscovery: false,
+    });
+
+    expect(capturedInputs).toHaveLength(1);
+    expect(capturedInputs[0].options?.settingSources).toEqual([]);
+  });
+
+  it("should default to settingSources ['project'] when enableMcpDiscovery is not specified", async () => {
+    const capturedInputs: QueryInput[] = [];
+    const mockQueryFn = createCapturingMockQueryFn(capturedInputs);
+
+    await verifyPluginLoad({
+      pluginPath: "/path/to/plugin",
+      config: mockConfig,
+      queryFn: mockQueryFn,
+      // enableMcpDiscovery not specified - should default to true
+    });
+
+    expect(capturedInputs).toHaveLength(1);
+    expect(capturedInputs[0].options?.settingSources).toEqual(["project"]);
+  });
+});

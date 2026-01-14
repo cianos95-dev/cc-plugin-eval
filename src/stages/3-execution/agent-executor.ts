@@ -23,6 +23,7 @@ import {
   type PluginReference,
   type PreToolUseHookConfig,
   type HookCallback,
+  type SettingSource,
 } from "./sdk-client.js";
 import {
   buildTranscript,
@@ -58,6 +59,16 @@ export interface ScenarioExecutionOptions {
   additionalPlugins?: string[] | undefined;
   /** Query function (for testing/dependency injection) */
   queryFn?: QueryFunction | undefined;
+  /**
+   * Enable MCP server discovery via settingSources.
+   * When true (default), uses settingSources: ["project"] which enables
+   * the SDK to discover MCP servers from .mcp.json files.
+   * When false, uses settingSources: [] to skip MCP discovery and
+   * avoid the 60-second MCP channel closure timeout.
+   *
+   * @default true
+   */
+  enableMcpDiscovery?: boolean | undefined;
 }
 
 /**
@@ -95,6 +106,7 @@ function buildQueryInput(
   hooks: PreToolUseHookConfig[],
   abortSignal: AbortSignal,
   startTime: number,
+  enableMcpDiscovery: boolean,
 ): QueryInput {
   // Build allowed tools list - ensure trigger tools are always included
   const allowedTools = [
@@ -107,11 +119,14 @@ function buildQueryInput(
     "Grep",
   ];
 
+  // Determine settingSources based on MCP discovery option
+  const settingSources: SettingSource[] = enableMcpDiscovery ? ["project"] : [];
+
   return {
     prompt: scenario.user_prompt,
     options: {
       plugins,
-      settingSources: ["project"], // REQUIRED for skills to work
+      settingSources,
       allowedTools,
       ...(config.disallowed_tools
         ? { disallowedTools: config.disallowed_tools }
@@ -242,6 +257,7 @@ export async function executeScenario(
       hooks,
       controller.signal,
       startTime,
+      options.enableMcpDiscovery ?? true,
     );
 
     // Execute with retry for transient errors
@@ -316,6 +332,7 @@ export async function executeScenarioWithCheckpoint(
     config,
     additionalPlugins = [],
     queryFn,
+    enableMcpDiscovery = true,
   } = options;
 
   const messages: SDKMessage[] = [];
@@ -329,6 +346,9 @@ export async function executeScenarioWithCheckpoint(
   // Abort controller for timeout handling
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), config.timeout_ms);
+
+  // Determine settingSources based on MCP discovery option
+  const settingSources: SettingSource[] = enableMcpDiscovery ? ["project"] : [];
 
   try {
     // Build plugin list
@@ -345,7 +365,7 @@ export async function executeScenarioWithCheckpoint(
       prompt: scenario.user_prompt,
       options: {
         plugins,
-        settingSources: ["project"],
+        settingSources,
         allowedTools: [
           ...(config.allowed_tools ?? []),
           "Skill",
