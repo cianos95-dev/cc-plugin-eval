@@ -725,4 +725,19 @@ describe("estimateGenerationCost (async)", () => {
       messages: [{ role: "user", content: "prompt B" }],
     });
   });
+
+  it("should fail fast if any token count fails", async () => {
+    mockClient.messages.countTokens
+      .mockResolvedValueOnce({ input_tokens: 100 })
+      .mockRejectedValueOnce(new Error("API error"))
+      .mockResolvedValueOnce({ input_tokens: 200 });
+
+    await expect(
+      estimateGenerationCost(
+        mockClient as unknown as Anthropic,
+        ["prompt1", "prompt2", "prompt3"],
+        "haiku",
+      ),
+    ).rejects.toThrow("API error");
+  });
 });

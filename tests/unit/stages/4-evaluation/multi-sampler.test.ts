@@ -716,6 +716,25 @@ describe("evaluateWithMultiSampling", () => {
     expect(result.individual_scores).toEqual([7]);
     expect(result.score_variance).toBe(0);
   });
+
+  it("should fail fast if any judge evaluation fails", async () => {
+    (evaluateWithFallback as Mock)
+      .mockResolvedValueOnce(createJudgeResponse({ quality_score: 8 }))
+      .mockRejectedValueOnce(new Error("API error"))
+      .mockResolvedValueOnce(createJudgeResponse({ quality_score: 9 }));
+
+    const config = createConfig({ num_samples: 3 });
+
+    await expect(
+      evaluateWithMultiSampling(
+        createMockClient(),
+        createScenario(),
+        createTranscript(),
+        createDetections(),
+        config,
+      ),
+    ).rejects.toThrow("API error");
+  });
 });
 
 describe("runJudgment", () => {

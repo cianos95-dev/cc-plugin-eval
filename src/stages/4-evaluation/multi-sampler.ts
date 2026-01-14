@@ -10,6 +10,8 @@
  * - consensus: Most common value (mode)
  */
 
+import { parallel } from "../../utils/concurrency.js";
+
 import { evaluateWithFallback } from "./llm-judge.js";
 
 import type {
@@ -167,15 +169,22 @@ export function isUnanimousVote(
 }
 
 /**
+ * Default concurrency for multi-sampling operations.
+ * Matches typical num_samples values (3-5) while staying under rate limits.
+ */
+const DEFAULT_MULTI_SAMPLE_CONCURRENCY = 10;
+
+/**
  * Evaluate with multi-sampling for statistical robustness.
  *
- * Runs the judge N times and aggregates results.
+ * Runs the judge N times in parallel and aggregates results.
  *
  * @param client - Anthropic client
  * @param scenario - Test scenario
  * @param transcript - Execution transcript
  * @param programmaticResult - Programmatic detection results
  * @param config - Evaluation configuration
+ * @param maxConcurrent - Maximum concurrent samples (default: 10)
  * @returns Multi-sample result with aggregated scores
  *
  * @example
@@ -197,21 +206,26 @@ export async function evaluateWithMultiSampling(
   transcript: Transcript,
   programmaticResult: ProgrammaticDetection[],
   config: EvaluationConfig,
+  maxConcurrent: number = DEFAULT_MULTI_SAMPLE_CONCURRENCY,
 ): Promise<MultiSampleResult> {
   const numSamples = config.num_samples || 1;
-  const responses: JudgeResponse[] = [];
 
-  // Run judge multiple times
-  for (let i = 0; i < numSamples; i++) {
-    const response = await evaluateWithFallback(
-      client,
-      scenario,
-      transcript,
-      programmaticResult,
-      config,
-    );
-    responses.push(response);
-  }
+  // Run judge multiple times in parallel for improved performance
+  // Use continueOnError: false to fail fast - partial results would invalidate statistics
+  const result = await parallel({
+    items: Array.from({ length: numSamples }),
+    concurrency: Math.min(numSamples, maxConcurrent),
+    fn: async () =>
+      evaluateWithFallback(
+        client,
+        scenario,
+        transcript,
+        programmaticResult,
+        config,
+      ),
+    continueOnError: false,
+  });
+  const responses = result.results;
 
   // Aggregate results
   const qualityScores = responses.map((r) => r.quality_score);

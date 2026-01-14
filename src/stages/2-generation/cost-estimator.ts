@@ -8,6 +8,7 @@ import Anthropic from "@anthropic-ai/sdk";
 
 import { DEFAULT_TUNING, getResolvedTuning } from "../../config/defaults.js";
 import { calculateCost, formatCost } from "../../config/pricing.js";
+import { parallel } from "../../utils/concurrency.js";
 import { logger } from "../../utils/logging.js";
 
 import { TOKENS_PER_SCENARIO } from "./batch-calculator.js";
@@ -102,24 +103,37 @@ export async function countPromptTokens(
 }
 
 /**
+ * Default concurrency for token counting operations.
+ * Safe default that balances throughput with rate limit protection.
+ */
+const DEFAULT_TOKEN_COUNTING_CONCURRENCY = 10;
+
+/**
  * Estimate generation cost for a set of prompts.
+ *
+ * Counts tokens in parallel for improved performance.
  *
  * @param client - Anthropic client
  * @param prompts - Prompts to estimate
  * @param model - Model to use
+ * @param concurrency - Maximum concurrent token counting operations (default: 10)
  * @returns Token estimate
  */
 export async function estimateGenerationCost(
   client: Anthropic,
   prompts: string[],
   model: string,
+  concurrency: number = DEFAULT_TOKEN_COUNTING_CONCURRENCY,
 ): Promise<TokenEstimate> {
-  let totalInputTokens = 0;
-
-  for (const prompt of prompts) {
-    const count = await countPromptTokens(client, model, prompt);
-    totalInputTokens += count;
-  }
+  // Count tokens in parallel for improved performance
+  // Use continueOnError: false to fail fast - partial results would underestimate costs
+  const result = await parallel({
+    items: prompts,
+    concurrency,
+    fn: async (prompt) => countPromptTokens(client, model, prompt),
+    continueOnError: false,
+  });
+  const totalInputTokens = result.results.reduce((a, b) => a + b, 0);
 
   // Estimate output based on tokens per scenario from tuning config
   const estimatedOutputTokens =
