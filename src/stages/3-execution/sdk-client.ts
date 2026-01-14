@@ -10,6 +10,8 @@ import {
   type HookCallback as SDKHookCallback,
   type HookCallbackMatcher,
   type PreToolUseHookInput as SDKPreToolUseHookInput,
+  type PostToolUseHookInput as SDKPostToolUseHookInput,
+  type PostToolUseFailureHookInput as SDKPostToolUseFailureHookInput,
   type PermissionMode,
   type SettingSource,
   type SDKUserMessage as SDKUserMessageType,
@@ -109,6 +111,18 @@ export interface SDKErrorMessage extends SDKMessage {
 export type PreToolUseHookInput = SDKPreToolUseHookInput;
 
 /**
+ * PostToolUse hook input from SDK.
+ * Re-exported for use in other modules.
+ */
+export type PostToolUseHookInput = SDKPostToolUseHookInput;
+
+/**
+ * PostToolUseFailure hook input from SDK.
+ * Re-exported for use in other modules.
+ */
+export type PostToolUseFailureHookInput = SDKPostToolUseFailureHookInput;
+
+/**
  * Hook JSON output - return value from hooks.
  */
 export interface HookJSONOutput {
@@ -127,6 +141,18 @@ export type HookCallback = SDKHookCallback;
  * Uses SDK's HookCallbackMatcher type.
  */
 export type PreToolUseHookConfig = HookCallbackMatcher;
+
+/**
+ * Hook configuration for PostToolUse.
+ * Uses SDK's HookCallbackMatcher type.
+ */
+export type PostToolUseHookConfig = HookCallbackMatcher;
+
+/**
+ * Hook configuration for PostToolUseFailure.
+ * Uses SDK's HookCallbackMatcher type.
+ */
+export type PostToolUseFailureHookConfig = HookCallbackMatcher;
 
 /**
  * Plugin reference for SDK options.
@@ -155,6 +181,8 @@ export interface QueryOptions {
   enableFileCheckpointing?: boolean;
   hooks?: {
     PreToolUse?: HookCallbackMatcher[];
+    PostToolUse?: HookCallbackMatcher[];
+    PostToolUseFailure?: HookCallbackMatcher[];
   };
   stderr?: (data: string) => void;
 }

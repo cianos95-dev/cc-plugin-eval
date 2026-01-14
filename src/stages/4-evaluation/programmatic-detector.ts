@@ -2,11 +2,12 @@
  * Programmatic Detector - 100% confidence detection from tool captures.
  *
  * Primary detection method using real-time captures from PreToolUse hooks.
+ * Success/failure status is determined via PostToolUse/PostToolUseFailure hooks.
  * Parses Skill, Task, SlashCommand, and MCP tool calls for deterministic
  * component identification.
  *
  * Detection priority:
- * 1. Real-time captures from PreToolUse hooks (highest confidence)
+ * 1. Real-time captures from PreToolUse hooks with success status (highest confidence)
  * 2. Direct command invocation in user message (/command syntax)
  * 3. Tool calls parsed from transcript (fallback)
  */
@@ -75,6 +76,10 @@ function isTaskInput(input: unknown): input is TaskToolInput {
  * Uses PreToolUse hook captures for 100% confidence detection.
  * This is the PRIMARY detection method.
  *
+ * Only considers captures where the tool executed successfully.
+ * Captures with `success === false` (from PostToolUseFailure hooks)
+ * are skipped to avoid false positives.
+ *
  * @param captures - Tool captures from execution
  * @returns Array of programmatic detections
  *
@@ -90,13 +95,26 @@ export function detectFromCaptures(
   const detections: ProgrammaticDetection[] = [];
 
   for (const capture of captures) {
+    // Skip captures where tool execution explicitly failed
+    // success === undefined means no PostToolUse/PostToolUseFailure was received yet (legacy behavior)
+    // success === true means tool executed successfully
+    // success === false means tool failed
+    if (capture.success === false) {
+      continue;
+    }
+
+    // Build evidence string with success status
+    // At this point, capture.success is either true or undefined (false was filtered above)
+    const successInfo =
+      capture.success === true ? " (verified successful)" : "";
+
     if (capture.name === "Skill" && isSkillInput(capture.input)) {
       detections.push({
         component_type: "skill",
         component_name: capture.input.skill,
         confidence: 100,
         tool_name: capture.name,
-        evidence: `Skill tool invoked: ${capture.input.skill}`,
+        evidence: `Skill tool invoked: ${capture.input.skill}${successInfo}`,
         timestamp: capture.timestamp,
       });
     } else if (capture.name === "Task" && isTaskInput(capture.input)) {
@@ -105,7 +123,7 @@ export function detectFromCaptures(
         component_name: capture.input.subagent_type,
         confidence: 100,
         tool_name: capture.name,
-        evidence: `Task tool invoked: ${capture.input.subagent_type}`,
+        evidence: `Task tool invoked: ${capture.input.subagent_type}${successInfo}`,
         timestamp: capture.timestamp,
       });
     } else if (capture.name === "SlashCommand" && isSkillInput(capture.input)) {
@@ -115,7 +133,7 @@ export function detectFromCaptures(
         component_name: capture.input.skill,
         confidence: 100,
         tool_name: capture.name,
-        evidence: `SlashCommand invoked: ${capture.input.skill}`,
+        evidence: `SlashCommand invoked: ${capture.input.skill}${successInfo}`,
         timestamp: capture.timestamp,
       });
     } else if (isMcpTool(capture.name)) {
@@ -127,7 +145,7 @@ export function detectFromCaptures(
           component_name: parsed.serverName,
           confidence: 100,
           tool_name: capture.name,
-          evidence: `MCP tool invoked: ${capture.name} (server: ${parsed.serverName}, tool: ${parsed.toolName})`,
+          evidence: `MCP tool invoked: ${capture.name} (server: ${parsed.serverName}, tool: ${parsed.toolName})${successInfo}`,
           timestamp: capture.timestamp,
         });
       }
@@ -273,13 +291,62 @@ export function detectDirectCommandInvocation(
 }
 
 /**
+ * Correlate captures with transcript tool results as fallback.
+ *
+ * For captures where PostToolUse/PostToolUseFailure hooks didn't fire
+ * (success === undefined), attempt to determine success from transcript
+ * tool_result events. Updates captures in place.
+ *
+ * @param captures - Tool captures to correlate (mutated in place)
+ * @param transcript - Execution transcript with tool results
+ */
+export function correlateWithTranscript(
+  captures: ToolCapture[],
+  transcript: Transcript,
+): void {
+  // Build a map of tool_use_id to tool_result for quick lookup
+  const toolResultMap = new Map<
+    string,
+    { result: unknown; isError: boolean }
+  >();
+
+  for (const event of transcript.events) {
+    if (event.type === "tool_result") {
+      // TypeScript narrows to ToolResultEvent which includes is_error
+      toolResultMap.set(event.tool_use_id, {
+        result: event.result,
+        isError: event.is_error === true,
+      });
+    }
+  }
+
+  // Correlate captures with transcript results
+  for (const capture of captures) {
+    // Only process captures without success status (no PostToolUse fired)
+    if (capture.success !== undefined || !capture.toolUseId) {
+      continue;
+    }
+
+    const toolResult = toolResultMap.get(capture.toolUseId);
+    if (toolResult) {
+      capture.result = toolResult.result;
+      // If transcript has is_error field, use it; otherwise assume success
+      capture.success = !toolResult.isError;
+    }
+  }
+}
+
+/**
  * Detect all components using all detection methods.
  *
  * Combines real-time captures, direct command detection, and transcript
  * parsing with priority order for comprehensive detection.
  *
+ * For captures without success status from PostToolUse hooks, falls back
+ * to transcript correlation to determine tool success.
+ *
  * Priority order:
- * 1. Real-time captures from PreToolUse hooks (highest confidence)
+ * 1. Real-time captures from PreToolUse hooks with success status (highest confidence)
  * 2. Direct command invocation in user message
  * 3. Tool calls parsed from transcript (fallback)
  *
@@ -306,6 +373,8 @@ export function detectAllComponents(
 
   // 1. Primary: Real-time captures (if available)
   if (captures.length > 0) {
+    // Correlate with transcript for captures missing PostToolUse status
+    correlateWithTranscript(captures, transcript);
     detections.push(...detectFromCaptures(captures));
   }
 

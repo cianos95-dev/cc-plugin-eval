@@ -11,6 +11,14 @@ export interface ToolCapture {
   input: unknown;
   toolUseId: string | undefined;
   timestamp: number;
+  /** Tool execution result (from PostToolUse hook) */
+  result?: unknown;
+  /** Whether the tool executed successfully (undefined = not yet completed) */
+  success?: boolean;
+  /** Error message if the tool failed (from PostToolUseFailure hook) */
+  error?: string;
+  /** Whether the tool was interrupted */
+  isInterrupt?: boolean;
 }
 
 /**
@@ -91,6 +99,8 @@ export interface ToolResultEvent {
   type: "tool_result";
   tool_use_id: string;
   result: unknown;
+  /** Whether the tool result represents an error */
+  is_error?: boolean;
 }
 
 /**

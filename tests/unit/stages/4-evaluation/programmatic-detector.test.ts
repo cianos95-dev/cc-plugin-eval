@@ -13,6 +13,7 @@ import type {
 } from "../../../../src/types/index.js";
 
 import {
+  correlateWithTranscript,
   detectAllComponents,
   detectAllComponentsWithHooks,
   detectDirectCommandInvocation,
@@ -31,12 +32,19 @@ function createToolCapture(
   name: string,
   input: unknown,
   timestamp = Date.now(),
+  options?: {
+    success?: boolean;
+    error?: string;
+    result?: unknown;
+    isInterrupt?: boolean;
+  },
 ): ToolCapture {
   return {
     name,
     input,
     toolUseId: `tool-${String(timestamp)}`,
     timestamp,
+    ...options,
   };
 }
 
@@ -167,6 +175,65 @@ describe("detectFromCaptures", () => {
 
     expect(detections[0]?.timestamp).toBe(timestamp);
   });
+
+  it("should skip captures where success === false", () => {
+    const captures = [
+      createToolCapture("Skill", { skill: "failed-skill" }, Date.now(), {
+        success: false,
+        error: "Tool execution failed",
+      }),
+      createToolCapture("Skill", { skill: "success-skill" }, Date.now(), {
+        success: true,
+      }),
+    ];
+
+    const detections = detectFromCaptures(captures);
+
+    expect(detections).toHaveLength(1);
+    expect(detections[0]?.component_name).toBe("success-skill");
+  });
+
+  it("should include success verification in evidence when success === true", () => {
+    const captures = [
+      createToolCapture("Skill", { skill: "verified-skill" }, Date.now(), {
+        success: true,
+      }),
+    ];
+
+    const detections = detectFromCaptures(captures);
+
+    expect(detections[0]?.evidence).toContain("(verified successful)");
+  });
+
+  it("should not include success info when success === undefined (legacy)", () => {
+    const captures = [createToolCapture("Skill", { skill: "legacy-skill" })];
+
+    const detections = detectFromCaptures(captures);
+
+    expect(detections[0]?.evidence).not.toContain("verified successful");
+    expect(detections[0]?.evidence).toBe("Skill tool invoked: legacy-skill");
+  });
+
+  it("should handle all component types with success status", () => {
+    const captures = [
+      createToolCapture("Skill", { skill: "test-skill" }, 1000, {
+        success: true,
+      }),
+      createToolCapture("Task", { subagent_type: "test-agent" }, 2000, {
+        success: true,
+      }),
+      createToolCapture("SlashCommand", { skill: "test-command" }, 3000, {
+        success: true,
+      }),
+    ];
+
+    const detections = detectFromCaptures(captures);
+
+    expect(detections).toHaveLength(3);
+    expect(
+      detections.every((d) => d.evidence.includes("(verified successful)")),
+    ).toBe(true);
+  });
 });
 
 describe("detectFromTranscript", () => {
@@ -239,6 +306,128 @@ describe("detectFromTranscript", () => {
     const detections = detectFromTranscript(transcript);
 
     expect(detections).toHaveLength(0);
+  });
+});
+
+describe("correlateWithTranscript", () => {
+  it("should correlate captures with transcript tool results", () => {
+    const captures: ToolCapture[] = [
+      {
+        name: "Skill",
+        input: { skill: "test-skill" },
+        toolUseId: "tool-123",
+        timestamp: 1000,
+      },
+    ];
+    const transcript = createTranscript([
+      {
+        id: "msg-1",
+        type: "tool_result",
+        tool_use_id: "tool-123",
+        result: { status: "success" },
+      },
+    ]);
+
+    correlateWithTranscript(captures, transcript);
+
+    expect(captures[0]?.success).toBe(true);
+    expect(captures[0]?.result).toEqual({ status: "success" });
+  });
+
+  it("should mark as failed when is_error is true", () => {
+    const captures: ToolCapture[] = [
+      {
+        name: "Skill",
+        input: { skill: "failing-skill" },
+        toolUseId: "tool-456",
+        timestamp: 1000,
+      },
+    ];
+    const transcript = createTranscript([
+      {
+        id: "msg-1",
+        type: "tool_result",
+        tool_use_id: "tool-456",
+        result: "Error occurred",
+        is_error: true,
+      } as Transcript["events"][0],
+    ]);
+
+    correlateWithTranscript(captures, transcript);
+
+    expect(captures[0]?.success).toBe(false);
+  });
+
+  it("should not overwrite existing success status", () => {
+    const captures: ToolCapture[] = [
+      {
+        name: "Skill",
+        input: { skill: "pre-determined" },
+        toolUseId: "tool-789",
+        timestamp: 1000,
+        success: false,
+        error: "PostToolUseFailure",
+      },
+    ];
+    const transcript = createTranscript([
+      {
+        id: "msg-1",
+        type: "tool_result",
+        tool_use_id: "tool-789",
+        result: "success",
+      },
+    ]);
+
+    correlateWithTranscript(captures, transcript);
+
+    // Should retain original success=false from PostToolUseFailure
+    expect(captures[0]?.success).toBe(false);
+  });
+
+  it("should handle captures without toolUseId", () => {
+    const captures: ToolCapture[] = [
+      {
+        name: "Skill",
+        input: { skill: "no-id" },
+        toolUseId: undefined,
+        timestamp: 1000,
+      },
+    ];
+    const transcript = createTranscript([
+      {
+        id: "msg-1",
+        type: "tool_result",
+        tool_use_id: "tool-xxx",
+        result: "success",
+      },
+    ]);
+
+    correlateWithTranscript(captures, transcript);
+
+    // Should remain undefined since no correlation possible
+    expect(captures[0]?.success).toBeUndefined();
+  });
+
+  it("should handle missing tool results in transcript", () => {
+    const captures: ToolCapture[] = [
+      {
+        name: "Skill",
+        input: { skill: "orphan" },
+        toolUseId: "tool-orphan",
+        timestamp: 1000,
+      },
+    ];
+    const transcript = createTranscript([
+      {
+        id: "msg-1",
+        type: "user",
+        edit: { message: { role: "user", content: "test" } },
+      },
+    ]);
+
+    correlateWithTranscript(captures, transcript);
+
+    expect(captures[0]?.success).toBeUndefined();
   });
 });
 

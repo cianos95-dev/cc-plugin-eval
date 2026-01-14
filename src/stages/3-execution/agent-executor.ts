@@ -3,6 +3,7 @@
  *
  * Executes test scenarios through the Claude Agent SDK with
  * plugin loaded. Captures tool invocations via PreToolUse hooks
+ * and tracks success/failure via PostToolUse/PostToolUseFailure hooks
  * for programmatic detection in Stage 4.
  */
 
@@ -22,6 +23,8 @@ import {
   type QueryObject,
   type PluginReference,
   type PreToolUseHookConfig,
+  type PostToolUseHookConfig,
+  type PostToolUseFailureHookConfig,
   type HookCallback,
   type SettingSource,
 } from "./sdk-client.js";
@@ -78,22 +81,93 @@ export interface ScenarioExecutionOptions {
  * for later analysis.
  *
  * @param captures - Array to push captured tools into
+ * @param captureMap - Map for correlating Pre/Post hooks by toolUseId
  * @returns Hook callback
  */
-function createCaptureHook(captures: ToolCapture[]): HookCallback {
+function createPreToolUseHook(
+  captures: ToolCapture[],
+  captureMap: Map<string, ToolCapture>,
+): HookCallback {
   return async (input, toolUseId, _context) => {
     // PreToolUse hooks receive PreToolUseHookInput which has tool_name and tool_input
     if ("tool_name" in input && "tool_input" in input) {
-      captures.push({
+      const capture: ToolCapture = {
         name: input.tool_name,
         input: input.tool_input,
         toolUseId,
         timestamp: Date.now(),
-      });
+      };
+      captures.push(capture);
+
+      // Store in map for Post hook correlation
+      if (toolUseId) {
+        captureMap.set(toolUseId, capture);
+      }
     }
     // Return empty object to allow operation to proceed
     return Promise.resolve({});
   };
+}
+
+/**
+ * Create a PostToolUse hook callback.
+ *
+ * Updates the capture with result and marks as successful.
+ *
+ * @param captureMap - Map for correlating Pre/Post hooks by toolUseId
+ * @returns Hook callback
+ */
+function createPostToolUseHook(
+  captureMap: Map<string, ToolCapture>,
+): HookCallback {
+  return async (input, toolUseId, _context) => {
+    // PostToolUse hooks receive PostToolUseHookInput with tool_response
+    if (toolUseId && captureMap.has(toolUseId)) {
+      const capture = captureMap.get(toolUseId);
+      if (capture && "tool_response" in input) {
+        capture.result = input.tool_response;
+        capture.success = true;
+      }
+    }
+    return Promise.resolve({});
+  };
+}
+
+/**
+ * Create a PostToolUseFailure hook callback.
+ *
+ * Updates the capture with error and marks as failed.
+ *
+ * @param captureMap - Map for correlating Pre/Post hooks by toolUseId
+ * @returns Hook callback
+ */
+function createPostToolUseFailureHook(
+  captureMap: Map<string, ToolCapture>,
+): HookCallback {
+  return async (input, toolUseId, _context) => {
+    // PostToolUseFailure hooks receive PostToolUseFailureHookInput with error
+    if (toolUseId && captureMap.has(toolUseId)) {
+      const capture = captureMap.get(toolUseId);
+      if (capture && "error" in input) {
+        // TypeScript narrows to PostToolUseFailureHookInput after "error" in input check
+        capture.error = input.error;
+        capture.success = false;
+        if (input.is_interrupt !== undefined) {
+          capture.isInterrupt = input.is_interrupt;
+        }
+      }
+    }
+    return Promise.resolve({});
+  };
+}
+
+/**
+ * Hook configuration for all hook types.
+ */
+interface HooksConfig {
+  preToolUse: PreToolUseHookConfig[];
+  postToolUse: PostToolUseHookConfig[];
+  postToolUseFailure: PostToolUseFailureHookConfig[];
 }
 
 /**
@@ -103,7 +177,7 @@ function buildQueryInput(
   scenario: TestScenario,
   plugins: PluginReference[],
   config: ExecutionConfig,
-  hooks: PreToolUseHookConfig[],
+  hooks: HooksConfig,
   abortSignal: AbortSignal,
   startTime: number,
   enableMcpDiscovery: boolean,
@@ -139,7 +213,9 @@ function buildQueryInput(
       permissionMode: "bypassPermissions",
       allowDangerouslySkipPermissions: true,
       hooks: {
-        PreToolUse: hooks,
+        PreToolUse: hooks.preToolUse,
+        PostToolUse: hooks.postToolUse,
+        PostToolUseFailure: hooks.postToolUseFailure,
       },
       stderr: (data: string): void => {
         const elapsed = Date.now() - startTime;
@@ -240,21 +316,25 @@ export async function executeScenario(
       plugins.push({ type: "local", path: additionalPath });
     }
 
-    // Create capture hook
-    const captureHook = createCaptureHook(detectedTools);
-    const hooks: PreToolUseHookConfig[] = [
-      {
-        matcher: ".*", // Capture all tools
-        hooks: [captureHook],
-      },
-    ];
+    // Create capture hooks with correlation map
+    const captureMap = new Map<string, ToolCapture>();
+    const preHook = createPreToolUseHook(detectedTools, captureMap);
+    const postHook = createPostToolUseHook(captureMap);
+    const postFailureHook = createPostToolUseFailureHook(captureMap);
+
+    // Configure hooks for each event type
+    const hooksConfig: HooksConfig = {
+      preToolUse: [{ matcher: ".*", hooks: [preHook] }],
+      postToolUse: [{ matcher: ".*", hooks: [postHook] }],
+      postToolUseFailure: [{ matcher: ".*", hooks: [postFailureHook] }],
+    };
 
     // Build query input
     const queryInput = buildQueryInput(
       scenario,
       plugins,
       config,
-      hooks,
+      hooksConfig,
       controller.signal,
       startTime,
       options.enableMcpDiscovery ?? true,
@@ -358,7 +438,10 @@ export async function executeScenarioWithCheckpoint(
     }
 
     // Create capture hook
-    const captureHook = createCaptureHook(detectedTools);
+    const captureMap = new Map<string, ToolCapture>();
+    const preHook = createPreToolUseHook(detectedTools, captureMap);
+    const postHook = createPostToolUseHook(captureMap);
+    const postFailureHook = createPostToolUseFailureHook(captureMap);
 
     // Build query input with file checkpointing enabled
     const queryInput: QueryInput = {
@@ -387,12 +470,9 @@ export async function executeScenarioWithCheckpoint(
         allowDangerouslySkipPermissions: true,
         enableFileCheckpointing: true, // Enable for rewind
         hooks: {
-          PreToolUse: [
-            {
-              matcher: ".*",
-              hooks: [captureHook],
-            },
-          ],
+          PreToolUse: [{ matcher: ".*", hooks: [preHook] }],
+          PostToolUse: [{ matcher: ".*", hooks: [postHook] }],
+          PostToolUseFailure: [{ matcher: ".*", hooks: [postFailureHook] }],
         },
       },
     };
