@@ -121,7 +121,7 @@ export function createE2EExecutionConfig(
     disallowed_tools: ["Write", "Edit", "Bash"], // Block file modifications
     num_reps: 1,
     additional_plugins: [],
-    requests_per_second: 2, // Conservative rate limit (2x default for faster E2E)
+    requests_per_second: 5, // Higher rate limit for faster E2E (tests run sequentially)
     ...overrides,
   };
 }
@@ -246,6 +246,7 @@ export function createE2EConfig(options: E2EConfigOptions = {}): EvalConfig {
     batch_threshold: 100, // Never use batching for E2E
     force_synchronous: true,
     poll_interval_ms: 1000,
+    batch_timeout_ms: 3600000, // 1 hour (not used since force_synchronous is true)
     rewind_file_changes: true,
     debug: false,
     verbose: false,
