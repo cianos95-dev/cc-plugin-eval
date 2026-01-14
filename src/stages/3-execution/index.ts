@@ -36,6 +36,7 @@ import {
 } from "./agent-executor.js";
 import {
   formatPluginLoadResult,
+  getFailedMcpServers,
   isPluginLoaded,
   verifyPluginLoad,
 } from "./plugin-loader.js";
@@ -156,14 +157,47 @@ export async function runExecution(
   }
 
   logger.success(`Plugin loaded: ${pluginName}`);
-  progress.onStageStart?.("execution", scenarios.length);
+
+  // Filter out MCP scenarios for unavailable servers to avoid wasting API budget
+  const failedMcpServers = getFailedMcpServers(loadResult);
+  let executableScenarios = scenarios;
+
+  if (failedMcpServers.length > 0) {
+    const unavailableServerNames = new Set(failedMcpServers.map((s) => s.name));
+    logger.warn(
+      `MCP servers unavailable: ${[...unavailableServerNames].join(", ")}`,
+    );
+
+    const originalCount = scenarios.length;
+    executableScenarios = scenarios.filter((scenario) => {
+      if (
+        scenario.component_type === "mcp_server" &&
+        unavailableServerNames.has(scenario.component_ref)
+      ) {
+        logger.debug(
+          `Skipping scenario ${scenario.id}: MCP server "${scenario.component_ref}" unavailable`,
+        );
+        return false;
+      }
+      return true;
+    });
+
+    const skippedCount = originalCount - executableScenarios.length;
+    if (skippedCount > 0) {
+      logger.info(
+        `Skipped ${String(skippedCount)} scenarios for unavailable MCP servers`,
+      );
+    }
+  }
+
+  progress.onStageStart?.("execution", executableScenarios.length);
 
   // Determine if we should use file checkpointing
   const useCheckpointing = config.rewind_file_changes;
 
   // Execute scenarios in parallel with concurrency control
   const parallelResult = await executeAllScenarios({
-    scenarios,
+    scenarios: executableScenarios,
     pluginPath,
     pluginName,
     config,

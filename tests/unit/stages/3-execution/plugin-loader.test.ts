@@ -563,3 +563,336 @@ describe("verifyPluginLoad MCP discovery configuration", () => {
     expect(capturedInputs[0].options?.settingSources).toEqual(["project"]);
   });
 });
+
+describe("formatPluginLoadResult with MCP warnings", () => {
+  it("should format result with MCP warnings", () => {
+    const result: PluginLoadResult = {
+      loaded: true,
+      plugin_name: "mcp-plugin",
+      plugin_path: "/path",
+      registered_tools: [],
+      registered_commands: [],
+      registered_skills: [],
+      registered_agents: [],
+      mcp_servers: [
+        {
+          name: "github",
+          status: "connected",
+          tools: ["create_issue"],
+        },
+        {
+          name: "postgres",
+          status: "failed",
+          tools: [],
+          error: "Connection refused",
+        },
+      ],
+      mcp_warnings: [
+        'MCP server "postgres" failed to connect: Connection refused',
+      ],
+      session_id: "",
+    };
+
+    const formatted = formatPluginLoadResult(result);
+
+    expect(formatted).toContain("MCP Warnings:");
+    expect(formatted).toContain("postgres");
+    expect(formatted).toContain("failed to connect");
+  });
+
+  it("should not show MCP Warnings section when no warnings", () => {
+    const result: PluginLoadResult = {
+      loaded: true,
+      plugin_name: "mcp-plugin",
+      plugin_path: "/path",
+      registered_tools: [],
+      registered_commands: [],
+      registered_skills: [],
+      registered_agents: [],
+      mcp_servers: [
+        {
+          name: "github",
+          status: "connected",
+          tools: ["create_issue"],
+        },
+      ],
+      session_id: "",
+    };
+
+    const formatted = formatPluginLoadResult(result);
+
+    expect(formatted).not.toContain("MCP Warnings:");
+  });
+});
+
+describe("verifyPluginLoad real-time MCP status validation", () => {
+  const mockConfig: ExecutionConfig = {
+    model: "claude-sonnet-4-20250514",
+    session_strategy: "per_scenario",
+    allowed_tools: [],
+    disallowed_tools: [],
+    mcp_servers: {
+      skip_auth_required: true,
+      connection_timeout_ms: 5000,
+    },
+  };
+
+  /**
+   * Create a mock query function that supports mcpServerStatus method.
+   */
+  function createMockQueryFnWithMcpStatus(
+    initMessage: SDKSystemMessage,
+    liveStatus: Record<string, { status: string; tools: string[] }>,
+  ): QueryFunction {
+    return (_input: QueryInput) => {
+      return {
+        async *[Symbol.asyncIterator]() {
+          yield initMessage;
+        },
+        mcpServerStatus: async () => liveStatus,
+      };
+    };
+  }
+
+  it("should update MCP server status from real-time query", async () => {
+    const initMessage: SDKSystemMessage = {
+      type: "system",
+      subtype: "init",
+      session_id: "test-session",
+      tools: ["mcp__github__create_issue"],
+      slash_commands: [],
+      plugins: [{ name: "test-plugin", path: "/path/to/plugin" }],
+      mcp_servers: [
+        {
+          name: "github",
+          status: "pending", // Init message shows pending
+        },
+      ],
+    };
+
+    const liveStatus = {
+      github: {
+        status: "connected", // Real-time status shows connected
+        tools: ["mcp__github__create_issue", "mcp__github__list_repos"],
+      },
+    };
+
+    const mockQueryFn = createMockQueryFnWithMcpStatus(initMessage, liveStatus);
+
+    const result = await verifyPluginLoad({
+      pluginPath: "/path/to/plugin",
+      config: mockConfig,
+      queryFn: mockQueryFn,
+    });
+
+    expect(result.loaded).toBe(true);
+    expect(result.mcp_servers).toHaveLength(1);
+    expect(result.mcp_servers[0].status).toBe("connected");
+    expect(result.mcp_servers[0].tools).toEqual([
+      "mcp__github__create_issue",
+      "mcp__github__list_repos",
+    ]);
+  });
+
+  it("should add mcp_warnings for failed servers after real-time check", async () => {
+    const initMessage: SDKSystemMessage = {
+      type: "system",
+      subtype: "init",
+      session_id: "test-session",
+      tools: ["mcp__github__create_issue"],
+      slash_commands: [],
+      plugins: [{ name: "test-plugin", path: "/path/to/plugin" }],
+      mcp_servers: [
+        {
+          name: "github",
+          status: "pending",
+        },
+        {
+          name: "postgres",
+          status: "pending",
+        },
+      ],
+    };
+
+    const liveStatus = {
+      github: {
+        status: "connected",
+        tools: ["mcp__github__create_issue"],
+      },
+      postgres: {
+        status: "failed",
+        tools: [],
+      },
+    };
+
+    const mockQueryFn = createMockQueryFnWithMcpStatus(initMessage, liveStatus);
+
+    const result = await verifyPluginLoad({
+      pluginPath: "/path/to/plugin",
+      config: mockConfig,
+      queryFn: mockQueryFn,
+    });
+
+    expect(result.loaded).toBe(true);
+    expect(result.mcp_servers).toHaveLength(2);
+    expect(result.mcp_servers[0].status).toBe("connected");
+    expect(result.mcp_servers[1].status).toBe("failed");
+    expect(result.mcp_warnings).toBeDefined();
+    expect(result.mcp_warnings).toHaveLength(1);
+    expect(result.mcp_warnings![0]).toContain("postgres");
+    expect(result.mcp_warnings![0]).toContain("failed to connect");
+  });
+
+  it("should add mcp_warnings for servers requiring auth", async () => {
+    const initMessage: SDKSystemMessage = {
+      type: "system",
+      subtype: "init",
+      session_id: "test-session",
+      tools: [],
+      slash_commands: [],
+      plugins: [{ name: "test-plugin", path: "/path/to/plugin" }],
+      mcp_servers: [
+        {
+          name: "slack",
+          status: "pending",
+        },
+      ],
+    };
+
+    const liveStatus = {
+      slack: {
+        status: "needs-auth",
+        tools: [],
+      },
+    };
+
+    const mockQueryFn = createMockQueryFnWithMcpStatus(initMessage, liveStatus);
+
+    const result = await verifyPluginLoad({
+      pluginPath: "/path/to/plugin",
+      config: mockConfig,
+      queryFn: mockQueryFn,
+    });
+
+    expect(result.loaded).toBe(true);
+    expect(result.mcp_warnings).toBeDefined();
+    expect(result.mcp_warnings).toHaveLength(1);
+    expect(result.mcp_warnings![0]).toContain("slack");
+    expect(result.mcp_warnings![0]).toContain("requires authentication");
+  });
+
+  it("should not fail if mcpServerStatus throws an error", async () => {
+    const initMessage: SDKSystemMessage = {
+      type: "system",
+      subtype: "init",
+      session_id: "test-session",
+      tools: ["mcp__github__create_issue"],
+      slash_commands: [],
+      plugins: [{ name: "test-plugin", path: "/path/to/plugin" }],
+      mcp_servers: [
+        {
+          name: "github",
+          status: "connected",
+        },
+      ],
+    };
+
+    const mockQueryFn: QueryFunction = (_input: QueryInput) => {
+      return {
+        async *[Symbol.asyncIterator]() {
+          yield initMessage;
+        },
+        mcpServerStatus: async () => {
+          throw new Error("Network error");
+        },
+      };
+    };
+
+    const result = await verifyPluginLoad({
+      pluginPath: "/path/to/plugin",
+      config: mockConfig,
+      queryFn: mockQueryFn,
+    });
+
+    // Should still return the init message status
+    expect(result.loaded).toBe(true);
+    expect(result.mcp_servers).toHaveLength(1);
+    expect(result.mcp_servers[0].status).toBe("connected");
+  });
+
+  it("should skip mcpServerStatus call when no MCP servers in init", async () => {
+    let mcpStatusCalled = false;
+    const initMessage: SDKSystemMessage = {
+      type: "system",
+      subtype: "init",
+      session_id: "test-session",
+      tools: [],
+      slash_commands: [],
+      plugins: [{ name: "test-plugin", path: "/path/to/plugin" }],
+      mcp_servers: [], // No MCP servers
+    };
+
+    const mockQueryFn: QueryFunction = (_input: QueryInput) => {
+      return {
+        async *[Symbol.asyncIterator]() {
+          yield initMessage;
+        },
+        mcpServerStatus: async () => {
+          mcpStatusCalled = true;
+          return {};
+        },
+      };
+    };
+
+    const result = await verifyPluginLoad({
+      pluginPath: "/path/to/plugin",
+      config: mockConfig,
+      queryFn: mockQueryFn,
+    });
+
+    expect(result.loaded).toBe(true);
+    expect(mcpStatusCalled).toBe(false);
+  });
+
+  it("should keep init status when live status is unknown/invalid", async () => {
+    const initMessage: SDKSystemMessage = {
+      type: "system",
+      subtype: "init",
+      session_id: "test-session",
+      tools: ["mcp__github__create_issue"],
+      slash_commands: [],
+      plugins: [{ name: "test-plugin", path: "/path/to/plugin" }],
+      mcp_servers: [
+        {
+          name: "github",
+          status: "connected", // Init shows connected
+        },
+      ],
+    };
+
+    const liveStatus = {
+      github: {
+        status: "unknown_future_status", // Unknown status from future SDK
+        tools: ["mcp__github__create_issue", "mcp__github__new_tool"],
+      },
+    };
+
+    const mockQueryFn = createMockQueryFnWithMcpStatus(initMessage, liveStatus);
+
+    const result = await verifyPluginLoad({
+      pluginPath: "/path/to/plugin",
+      config: mockConfig,
+      queryFn: mockQueryFn,
+    });
+
+    expect(result.loaded).toBe(true);
+    expect(result.mcp_servers).toHaveLength(1);
+    // Should keep init status "connected" since live status is unknown
+    expect(result.mcp_servers[0].status).toBe("connected");
+    // But should still use live tools
+    expect(result.mcp_servers[0].tools).toEqual([
+      "mcp__github__create_issue",
+      "mcp__github__new_tool",
+    ]);
+  });
+});

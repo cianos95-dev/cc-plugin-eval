@@ -42,6 +42,8 @@ function createPluginLoadQueryFn(
 ): (input: QueryInput) => QueryObject {
   return (input: QueryInput): QueryObject => {
     const messages: SDKMessage[] = [];
+    const pluginName = config.pluginName ?? "test-plugin";
+    const allTools = config.tools ?? ["Skill", "Task", "SlashCommand", "Read"];
 
     if (config.errorMessage) {
       const errorMsg: SDKErrorMessage = {
@@ -54,11 +56,11 @@ function createPluginLoadQueryFn(
         type: "system",
         subtype: "init",
         session_id: config.sessionId ?? "test-session-123",
-        tools: config.tools ?? ["Skill", "Task", "SlashCommand", "Read"],
+        tools: allTools,
         slash_commands: config.slashCommands ?? ["/commit", "/review-pr"],
         plugins: [
           {
-            name: config.pluginName ?? "test-plugin",
+            name: pluginName,
             path: config.pluginPath ?? input.options?.plugins?.[0]?.path ?? "",
           },
         ],
@@ -79,7 +81,15 @@ function createPluginLoadQueryFn(
         const status: Record<string, { status: string; tools: string[] }> = {};
         if (config.mcpServers) {
           for (const server of config.mcpServers) {
-            status[server.name] = { status: server.status, tools: [] };
+            // Filter tools that belong to this MCP server
+            const pluginServerPrefix = `mcp__plugin_${pluginName}_${server.name}__`;
+            const directServerPrefix = `mcp__${server.name}__`;
+            const serverTools = allTools.filter(
+              (t) =>
+                t.startsWith(pluginServerPrefix) ||
+                t.startsWith(directServerPrefix),
+            );
+            status[server.name] = { status: server.status, tools: serverTools };
           }
         }
         return status;

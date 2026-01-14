@@ -179,7 +179,12 @@ export async function verifyPluginLoad(
       // Check for init message
       if (isSystemMessage(message) && message.subtype === "init") {
         timings.initMessage = Date.now();
-        return processInitMessage(message, pluginPath, timings);
+        const initResult = processInitMessage(message, pluginPath, timings);
+
+        // Enrich MCP server status with real-time data
+        await enrichMcpServerStatus(initResult, q);
+
+        return initResult;
       }
 
       // Check for error messages during init
@@ -240,6 +245,85 @@ function createTimingBreakdown(
         : queryComplete - timings.queryStart,
     total_query_time_ms: queryComplete - timings.queryStart,
   };
+}
+
+/**
+ * Valid MCP server status values.
+ * Used to validate SDK responses match our expected type.
+ */
+const VALID_MCP_STATUSES = new Set<McpServerStatus["status"]>([
+  "connected",
+  "failed",
+  "pending",
+  "needs-auth",
+]);
+
+/**
+ * Type guard to validate MCP server status from SDK response.
+ * Returns true if the status is a known valid status value.
+ */
+function isValidMcpStatus(status: string): status is McpServerStatus["status"] {
+  return VALID_MCP_STATUSES.has(status as McpServerStatus["status"]);
+}
+
+/**
+ * Enrich MCP server status with real-time data from SDK query.
+ * MCP servers may connect asynchronously after init message.
+ */
+async function enrichMcpServerStatus(
+  result: PluginLoadResult,
+  queryObj: QueryObject,
+): Promise<void> {
+  if (!queryObj.mcpServerStatus || result.mcp_servers.length === 0) {
+    return;
+  }
+
+  try {
+    const liveStatus = await queryObj.mcpServerStatus();
+
+    // Update MCP server data with live status and tools
+    result.mcp_servers = result.mcp_servers.map((server) => {
+      const live = liveStatus[server.name];
+      if (!live) {
+        return server;
+      }
+
+      // Validate status is a known value; if not, keep init message status and log warning
+      if (!isValidMcpStatus(live.status)) {
+        logger.debug(
+          `Unknown MCP server status "${live.status}" for server "${server.name}", keeping init status`,
+        );
+        return {
+          ...server,
+          // Always use live tools as the authoritative source for current server state
+          tools: live.tools,
+        };
+      }
+
+      return {
+        ...server,
+        status: live.status,
+        // Always use live tools as the authoritative source for current server state
+        tools: live.tools,
+      };
+    });
+
+    // Add warnings for failed servers
+    const failures = result.mcp_servers.filter(
+      (s) => s.status === "failed" || s.status === "needs-auth",
+    );
+    if (failures.length > 0) {
+      result.mcp_warnings = failures.map(
+        (s) =>
+          `MCP server "${s.name}" ${s.status === "needs-auth" ? "requires authentication" : "failed to connect"}${s.error ? `: ${s.error}` : ""}`,
+      );
+    }
+  } catch (err) {
+    // Don't fail plugin load if status query fails
+    logger.debug(
+      `Failed to query MCP server status: ${err instanceof Error ? err.message : String(err)}`,
+    );
+  }
 }
 
 /**
@@ -420,6 +504,13 @@ export function formatPluginLoadResult(result: PluginLoadResult): string {
         lines.push(
           `    ${statusIcon} ${server.name}: ${server.status} (${String(server.tools.length)} tools)`,
         );
+      }
+    }
+
+    if (result.mcp_warnings && result.mcp_warnings.length > 0) {
+      lines.push(`  MCP Warnings:`);
+      for (const warning of result.mcp_warnings) {
+        lines.push(`    ⚠ ${warning}`);
       }
     }
 

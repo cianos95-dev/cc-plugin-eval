@@ -74,6 +74,7 @@ export interface PluginLoadResult {
   registered_skills: string[];
   registered_agents: string[];
   mcp_servers: McpServerStatus[];
+  mcp_warnings?: string[];
   session_id: string;
   error?: string;
   error_type?: PluginErrorType;
