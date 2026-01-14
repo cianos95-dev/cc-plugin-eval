@@ -179,6 +179,18 @@ describe("createRateLimiter", () => {
     await expect(rateLimiter(fn)).rejects.toThrow("Test error");
   });
 
+  it("releases mutex when wrapped function throws", async () => {
+    const rateLimiter = createRateLimiter(10);
+    const errorFn = vi.fn().mockRejectedValue(new Error("test error"));
+    const successFn = vi.fn().mockResolvedValue("success");
+
+    // First call fails
+    await expect(rateLimiter(errorFn)).rejects.toThrow("test error");
+
+    // Second call should still work (mutex was released in finally block)
+    await expect(rateLimiter(successFn)).resolves.toBe("success");
+  });
+
   it("handles different return types", async () => {
     const rateLimiter = createRateLimiter(10);
 
@@ -189,5 +201,59 @@ describe("createRateLimiter", () => {
     expect(await rateLimiter(numberFn)).toBe(42);
     expect(await rateLimiter(objectFn)).toEqual({ key: "value" });
     expect(await rateLimiter(arrayFn)).toEqual([1, 2, 3]);
+  });
+
+  it("enforces rate limit under concurrent execution", async () => {
+    // 2 requests per second = 500ms minimum interval
+    const rateLimiter = createRateLimiter(2);
+    const timestamps: number[] = [];
+
+    const fn = vi.fn().mockImplementation(async () => {
+      timestamps.push(Date.now());
+      return "done";
+    });
+
+    // Launch 3 concurrent calls - this is the race condition scenario
+    await Promise.all([rateLimiter(fn), rateLimiter(fn), rateLimiter(fn)]);
+
+    expect(timestamps).toHaveLength(3);
+
+    // Sort timestamps to check intervals (order may vary due to concurrency)
+    timestamps.sort((a, b) => a - b);
+
+    // Check intervals between consecutive calls (allowing 50ms tolerance)
+    const interval1 = timestamps[1]! - timestamps[0]!;
+    const interval2 = timestamps[2]! - timestamps[1]!;
+
+    // Each call should wait at least 500ms after the previous one
+    expect(interval1).toBeGreaterThanOrEqual(450);
+    expect(interval2).toBeGreaterThanOrEqual(450);
+  });
+
+  it("enforces rate limit under high concurrency", async () => {
+    // 5 requests per second = 200ms minimum interval
+    const rateLimiter = createRateLimiter(5);
+    const timestamps: number[] = [];
+
+    const fn = vi.fn().mockImplementation(async () => {
+      timestamps.push(Date.now());
+      return "done";
+    });
+
+    // Launch 5 concurrent calls
+    await Promise.all([
+      rateLimiter(fn),
+      rateLimiter(fn),
+      rateLimiter(fn),
+      rateLimiter(fn),
+      rateLimiter(fn),
+    ]);
+
+    expect(timestamps).toHaveLength(5);
+    timestamps.sort((a, b) => a - b);
+
+    // Total time should be at least 4 * 200ms = 800ms for 5 calls
+    const totalTime = timestamps[4]! - timestamps[0]!;
+    expect(totalTime).toBeGreaterThanOrEqual(750); // 800ms - 50ms tolerance
   });
 });

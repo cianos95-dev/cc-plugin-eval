@@ -3,7 +3,7 @@
  * Provides semaphore-based parallel execution.
  */
 
-import { Semaphore } from "async-mutex";
+import { Mutex, Semaphore } from "async-mutex";
 
 /**
  * Options for parallel execution.
@@ -138,6 +138,10 @@ export async function sequential<T, R>(
 /**
  * Create a rate limiter for API calls.
  *
+ * Uses a mutex to ensure thread-safe rate limiting under concurrent execution.
+ * All calls are serialized to enforce the configured rate limit, preventing
+ * race conditions where multiple concurrent calls could bypass the limit.
+ *
  * @param requestsPerSecond - Maximum requests per second
  * @returns Function that wraps async functions with rate limiting
  */
@@ -145,20 +149,26 @@ export function createRateLimiter(
   requestsPerSecond: number,
 ): <T>(fn: () => Promise<T>) => Promise<T> {
   const minInterval = 1000 / requestsPerSecond;
+  const mutex = new Mutex();
   let lastCall = 0;
 
   return async <T>(fn: () => Promise<T>): Promise<T> => {
-    const now = Date.now();
-    const timeSinceLastCall = now - lastCall;
+    const release = await mutex.acquire();
+    try {
+      const now = Date.now();
+      const timeSinceLastCall = now - lastCall;
 
-    if (timeSinceLastCall < minInterval) {
-      await new Promise((resolve) =>
-        setTimeout(resolve, minInterval - timeSinceLastCall),
-      );
+      if (timeSinceLastCall < minInterval) {
+        await new Promise((resolve) =>
+          setTimeout(resolve, minInterval - timeSinceLastCall),
+        );
+      }
+
+      lastCall = Date.now();
+      return await fn();
+    } finally {
+      release();
     }
-
-    lastCall = Date.now();
-    return fn();
   };
 }
 
