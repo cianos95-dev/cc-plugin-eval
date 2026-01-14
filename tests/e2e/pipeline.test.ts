@@ -20,6 +20,8 @@ import {
 } from "../../src/stages/3-execution/index.js";
 import { runEvaluation } from "../../src/stages/4-evaluation/index.js";
 
+import type { TestScenario } from "../../src/types/index.js";
+
 import {
   shouldRunE2E,
   validateE2EEnvironment,
@@ -227,6 +229,59 @@ describeE2E("E2E: Full Pipeline Integration", () => {
           `$${execution.total_cost_usd.toFixed(4)} cost`,
       );
     }, 120000);
+
+    it("executes agent scenarios with real SDK", async () => {
+      const config = createE2EConfig({
+        scope: { agents: true },
+        generation: { scenarios_per_component: 1 },
+        execution: {
+          max_turns: 2,
+          max_budget_usd: 0.05,
+        },
+      });
+
+      // Stage 1
+      const analysis = await runAnalysis(config);
+      expect(analysis.components.agents.length).toBeGreaterThan(0);
+
+      // Stage 2
+      const generation = await runGeneration(analysis, config);
+      expect(generation.scenarios.length).toBeGreaterThan(0);
+
+      // Stage 3 - Real SDK execution
+      const execution = await runExecution(
+        analysis,
+        generation.scenarios,
+        config,
+        consoleProgress,
+      );
+
+      // Track cost and test count
+      totalE2ECost += execution.total_cost_usd;
+      e2eTestCount++;
+      expect(isWithinE2EBudget(totalE2ECost)).toBe(true);
+
+      // Verify execution results
+      expect(execution.results.length).toBe(generation.scenarios.length);
+      expect(execution.plugin_name).toBe("test-plugin");
+
+      // Verify each result has expected structure
+      for (const result of execution.results) {
+        expect(result.scenario_id).toBeDefined();
+        expect(result.transcript).toBeDefined();
+        expect(result.transcript.metadata.version).toBe("v3.0");
+        expect(result.detected_tools).toBeDefined();
+        expect(typeof result.cost_usd).toBe("number");
+        expect(typeof result.num_turns).toBe("number");
+      }
+
+      // Log execution stats for visibility
+      console.log(
+        `\nE2E Agent Execution: ${execution.results.length} scenarios, ` +
+          `$${execution.total_cost_usd.toFixed(4)} cost, ` +
+          `${execution.total_tools_captured} tools captured`,
+      );
+    }, 120000);
   });
 
   describe("Stage 1-4: Full Pipeline", () => {
@@ -338,6 +393,236 @@ describeE2E("E2E: Full Pipeline Integration", () => {
           `\n  Accuracy: ${(evaluation.metrics.accuracy * 100).toFixed(1)}%`,
       );
     }, 180000);
+
+    it("runs complete pipeline for agents", async () => {
+      const config = createE2EConfig({
+        scope: { agents: true },
+        generation: { scenarios_per_component: 1 },
+        execution: {
+          max_turns: 2,
+          max_budget_usd: 0.05,
+        },
+      });
+
+      // Stage 1: Analysis
+      const analysis = await runAnalysis(config);
+      expect(analysis.components.agents.length).toBeGreaterThan(0);
+
+      // Stage 2: Generation
+      const generation = await runGeneration(analysis, config);
+      expect(generation.scenarios.length).toBeGreaterThan(0);
+
+      // Stage 3: Execution
+      const execution = await runExecution(
+        analysis,
+        generation.scenarios,
+        config,
+        consoleProgress,
+      );
+
+      totalE2ECost += execution.total_cost_usd;
+      e2eTestCount++;
+      expect(isWithinE2EBudget(totalE2ECost)).toBe(true);
+
+      // Stage 4: Evaluation
+      const evaluation = await runEvaluation(
+        analysis.plugin_name,
+        generation.scenarios,
+        execution.results,
+        config,
+        consoleProgress,
+      );
+
+      // Verify evaluation metrics
+      expect(evaluation.metrics).toBeDefined();
+      expect(typeof evaluation.metrics.accuracy).toBe("number");
+      expect(typeof evaluation.metrics.trigger_rate).toBe("number");
+      expect(evaluation.metrics.total_scenarios).toBe(
+        generation.scenarios.length,
+      );
+
+      // Verify evaluation results
+      expect(evaluation.results.length).toBe(generation.scenarios.length);
+      for (const result of evaluation.results) {
+        expect(result.scenario_id).toBeDefined();
+        expect(typeof result.triggered).toBe("boolean");
+        expect(result.detection_source).toBeDefined();
+      }
+
+      // Agents are detected via Task tool with agent input
+      const programmaticResults = evaluation.results.filter(
+        (r) => r.detection_source === "programmatic",
+      );
+
+      // Log final results
+      console.log(
+        `\nE2E Agent Pipeline Complete:` +
+          `\n  Accuracy: ${(evaluation.metrics.accuracy * 100).toFixed(1)}%` +
+          `\n  Trigger Rate: ${(evaluation.metrics.trigger_rate * 100).toFixed(1)}%` +
+          `\n  Programmatic detections: ${programmaticResults.length}/${evaluation.results.length}` +
+          `\n  Total Cost: $${totalE2ECost.toFixed(4)}`,
+      );
+    }, 180000);
+  });
+
+  // Phase 1: Template-based negative scenarios with manual construction
+  // Future phases may include LLM-based negative generation, hook/MCP coverage
+  describe("Negative Scenarios", () => {
+    it("correctly identifies non-triggering prompts for skills", async () => {
+      const config = createE2EConfig({
+        scope: { skills: true },
+        generation: { scenarios_per_component: 1 },
+        execution: {
+          max_turns: 2,
+          max_budget_usd: 0.05,
+        },
+      });
+
+      // Stage 1: Analysis - need skill component info
+      const analysis = await runAnalysis(config);
+      expect(analysis.components.skills.length).toBeGreaterThan(0);
+
+      // Get the first skill to create a negative scenario
+      const targetSkill = analysis.components.skills[0];
+
+      // Create a negative scenario manually - unrelated prompt
+      const negativeScenario: TestScenario = {
+        id: `negative-skill-${targetSkill.name}`,
+        component_ref: targetSkill.name,
+        component_type: "skill",
+        user_prompt: "What is the weather like today in Seattle?",
+        expected_trigger: false,
+        scenario_type: "negative",
+        rationale:
+          "Weather query is unrelated to any skill triggers and should not activate the skill.",
+      };
+
+      // Stage 3: Execute the negative scenario
+      const execution = await runExecution(
+        analysis,
+        [negativeScenario],
+        config,
+        consoleProgress,
+      );
+
+      totalE2ECost += execution.total_cost_usd;
+      e2eTestCount++;
+      expect(isWithinE2EBudget(totalE2ECost)).toBe(true);
+
+      // Stage 4: Evaluate
+      const evaluation = await runEvaluation(
+        analysis.plugin_name,
+        [negativeScenario],
+        execution.results,
+        config,
+        consoleProgress,
+      );
+
+      // Verify the skill was NOT triggered
+      expect(evaluation.results.length).toBe(1);
+      const result = evaluation.results[0];
+
+      // A correctly handled negative scenario should have:
+      // - triggered: false (skill not invoked)
+      // - expected_trigger: false (we expected no trigger)
+      // - correct: true (false negative is correct)
+      if (result.triggered === false) {
+        console.log(
+          `\nE2E Negative Skill Test: PASS` +
+            `\n  Prompt: "${negativeScenario.user_prompt.slice(0, 50)}..."` +
+            `\n  Skill: ${targetSkill.name}` +
+            `\n  Triggered: ${result.triggered}` +
+            `\n  Expected: ${negativeScenario.expected_trigger}`,
+        );
+      } else {
+        console.log(
+          `\nE2E Negative Skill Test: FALSE POSITIVE` +
+            `\n  The skill was unexpectedly triggered by an unrelated prompt.` +
+            `\n  This may indicate overly broad skill triggers.`,
+        );
+      }
+
+      // Assert the skill was NOT triggered - this is the core validation.
+      // If this fails, it indicates a false positive (overly broad triggers
+      // or detection bug). The prompts are deliberately maximally unrelated.
+      expect(result.triggered).toBe(false);
+    }, 120000);
+
+    it("correctly identifies non-triggering prompts for agents", async () => {
+      const config = createE2EConfig({
+        scope: { agents: true },
+        generation: { scenarios_per_component: 1 },
+        execution: {
+          max_turns: 2,
+          max_budget_usd: 0.05,
+        },
+      });
+
+      // Stage 1: Analysis - need agent component info
+      const analysis = await runAnalysis(config);
+      expect(analysis.components.agents.length).toBeGreaterThan(0);
+
+      // Get the first agent to create a negative scenario
+      const targetAgent = analysis.components.agents[0];
+
+      // Create a negative scenario - unrelated prompt that shouldn't trigger
+      // test-agent triggers on "analyze code quality" or "review my code"
+      const negativeScenario: TestScenario = {
+        id: `negative-agent-${targetAgent.name}`,
+        component_ref: targetAgent.name,
+        component_type: "agent",
+        user_prompt: "Calculate the factorial of 10 for me.",
+        expected_trigger: false,
+        scenario_type: "negative",
+        rationale:
+          "Math calculation is unrelated to code quality analysis and should not activate the agent.",
+      };
+
+      // Stage 3: Execute
+      const execution = await runExecution(
+        analysis,
+        [negativeScenario],
+        config,
+        consoleProgress,
+      );
+
+      totalE2ECost += execution.total_cost_usd;
+      e2eTestCount++;
+      expect(isWithinE2EBudget(totalE2ECost)).toBe(true);
+
+      // Stage 4: Evaluate
+      const evaluation = await runEvaluation(
+        analysis.plugin_name,
+        [negativeScenario],
+        execution.results,
+        config,
+        consoleProgress,
+      );
+
+      // Verify results
+      expect(evaluation.results.length).toBe(1);
+      const result = evaluation.results[0];
+
+      if (result.triggered === false) {
+        console.log(
+          `\nE2E Negative Agent Test: PASS` +
+            `\n  Prompt: "${negativeScenario.user_prompt.slice(0, 50)}..."` +
+            `\n  Agent: ${targetAgent.name}` +
+            `\n  Triggered: ${result.triggered}` +
+            `\n  Expected: ${negativeScenario.expected_trigger}`,
+        );
+      } else {
+        console.log(
+          `\nE2E Negative Agent Test: FALSE POSITIVE` +
+            `\n  The agent was unexpectedly triggered by an unrelated prompt.`,
+        );
+      }
+
+      // Assert the agent was NOT triggered - this is the core validation.
+      // If this fails, it indicates a false positive (overly broad triggers
+      // or detection bug). The prompts are deliberately maximally unrelated.
+      expect(result.triggered).toBe(false);
+    }, 120000);
   });
 
   describe("Cost Tracking Validation", () => {
