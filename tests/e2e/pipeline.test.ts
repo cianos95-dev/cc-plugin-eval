@@ -625,6 +625,142 @@ describeE2E("E2E: Full Pipeline Integration", () => {
     }, 120000);
   });
 
+  // Phase 2: Hook E2E tests
+  // Tests hooks that fire without requiring disallowed tools (Write/Edit/Bash)
+  // UserPromptSubmit fires on any user prompt, Stop fires when Claude completes
+  //
+  // NOTE: PreToolUse/PostToolUse hooks for Write|Edit|Bash are not tested here
+  // because those tools are in disallowed_tools (helpers.ts). Future work could
+  // add tool-specific config overrides to test those hooks. See #162 for context.
+  describe("Hook Pipeline", () => {
+    it("runs complete pipeline for hooks", async () => {
+      const config = createE2EConfig({
+        scope: { hooks: true },
+        generation: { scenarios_per_component: 1 },
+        execution: {
+          max_turns: 2,
+          max_budget_usd: 0.05,
+        },
+      });
+
+      // Stage 1: Analysis
+      const analysis = await runAnalysis(config);
+      expect(analysis.components.hooks.length).toBeGreaterThan(0);
+
+      // Stage 2: Generation (deterministic for hooks - zero LLM cost)
+      const generation = await runGeneration(analysis, config);
+      expect(generation.scenarios.length).toBeGreaterThan(0);
+
+      // Verify hook scenarios were generated
+      const hookScenarios = generation.scenarios.filter(
+        (s) => s.component_type === "hook",
+      );
+      expect(hookScenarios.length).toBeGreaterThan(0);
+
+      // Stage 3: Execution
+      const execution = await runExecution(
+        analysis,
+        generation.scenarios,
+        config,
+        consoleProgress,
+      );
+
+      totalE2ECost += execution.total_cost_usd;
+      e2eTestCount++;
+      expect(isWithinE2EBudget(totalE2ECost)).toBe(true);
+
+      // Stage 4: Evaluation
+      const evaluation = await runEvaluation(
+        analysis.plugin_name,
+        generation.scenarios,
+        execution.results,
+        config,
+        consoleProgress,
+      );
+
+      // Verify evaluation completed
+      expect(evaluation.metrics).toBeDefined();
+      expect(evaluation.results.length).toBe(generation.scenarios.length);
+
+      // Log hook results
+      const hookResults = evaluation.results.filter(
+        (r) =>
+          generation.scenarios.find((s) => s.id === r.scenario_id)
+            ?.component_type === "hook",
+      );
+
+      console.log(
+        `\nE2E Hook Pipeline Complete:` +
+          `\n  Hook scenarios: ${hookResults.length}` +
+          `\n  Accuracy: ${(evaluation.metrics.accuracy * 100).toFixed(1)}%` +
+          `\n  Total Cost: $${totalE2ECost.toFixed(4)}`,
+      );
+    }, 180000); // 3 min timeout for full 4-stage pipeline
+
+    it("detects hook responses via SDKHookResponseMessage", async () => {
+      const config = createE2EConfig({
+        scope: { hooks: true },
+        generation: { scenarios_per_component: 1 },
+        execution: {
+          max_turns: 2,
+          max_budget_usd: 0.05,
+        },
+      });
+
+      // Run stages 1-3
+      const analysis = await runAnalysis(config);
+      const generation = await runGeneration(analysis, config);
+      const execution = await runExecution(
+        analysis,
+        generation.scenarios,
+        config,
+        consoleProgress,
+      );
+
+      totalE2ECost += execution.total_cost_usd;
+      e2eTestCount++;
+
+      // Check if any hook responses were captured
+      // Note: Hook response capture depends on which hooks fire during execution
+      // UserPromptSubmit should fire on any prompt, Stop fires when Claude finishes
+      const resultsWithHookResponses = execution.results.filter(
+        (r) => r.hook_responses && r.hook_responses.length > 0,
+      );
+
+      // Log captured hook responses for visibility
+      if (resultsWithHookResponses.length > 0) {
+        const totalHookResponses = resultsWithHookResponses.reduce(
+          (sum, r) => sum + (r.hook_responses?.length ?? 0),
+          0,
+        );
+        console.log(
+          `\nE2E Hook Detection:` +
+            `\n  Scenarios with hook responses: ${resultsWithHookResponses.length}/${execution.results.length}` +
+            `\n  Total hook responses captured: ${totalHookResponses}`,
+        );
+
+        // Log first few hook responses for debugging
+        const firstResult = resultsWithHookResponses[0];
+        if (firstResult?.hook_responses) {
+          for (const hr of firstResult.hook_responses.slice(0, 3)) {
+            console.log(
+              `    - ${hr.hookEvent}: ${hr.hookName} (exit: ${hr.exitCode ?? "N/A"})`,
+            );
+          }
+        }
+      } else {
+        console.log(
+          `\nE2E Hook Detection:` +
+            `\n  No hook responses captured (hooks may not have fired during execution)`,
+        );
+      }
+
+      // The test validates the pipeline runs without error
+      // Hook response capture is opportunistic based on Claude's behavior
+      expect(execution.results.length).toBeGreaterThan(0);
+    }, 120000); // 2 min timeout for stages 1-3 only (no evaluation)
+  });
+
   describe("Cost Tracking Validation", () => {
     it("tracks actual cost against estimates", async () => {
       const config = createE2EConfig({
