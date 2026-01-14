@@ -149,6 +149,7 @@ evaluation.json
 
 # Claude related files
 .claude/
+.serena/
 
 # =============================================================================
 # Temporary Files

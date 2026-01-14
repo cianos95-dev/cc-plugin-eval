@@ -64,115 +64,79 @@ cc-plugin-eval run -p ./plugin --fast    # Re-run failed scenarios only
 
 ### 4-Stage Pipeline
 
-| Stage             | Purpose                                                                             | Output            |
-| ----------------- | ----------------------------------------------------------------------------------- | ----------------- |
-| **1. Analysis**   | Parse plugin structure, extract triggers                                            | `analysis.json`   |
-| **2. Generation** | Create test scenarios (LLM for skills/agents, deterministic for commands/hooks/MCP) | `scenarios.json`  |
-| **3. Execution**  | Run scenarios via Claude Agent SDK with tool capture                                | `transcripts/`    |
-| **4. Evaluation** | Programmatic detection first, LLM judge for quality                                 | `evaluation.json` |
+| Stage             | Purpose                                                                             | Output           |
+| ----------------- | ----------------------------------------------------------------------------------- | ---------------- |
+| **1. Analysis**   | Parse plugin structure, extract triggers                                            | `analysis.json`  |
+| **2. Generation** | Create test scenarios (LLM for skills/agents, deterministic for commands/hooks/MCP) | `scenarios.json` |
+| **3. Execution**  | Run scenarios via Claude Agent SDK with tool capture                                | `transcripts/`   |
+| **4. Evaluation** | Programmatic detection first, LLM judge fallback, metrics calculation               | `results.json`   |
 
-### Detection Strategy
+### Key Entry Points
 
-**Programmatic detection is primary** (100% confidence):
+| Component         | File                                               | Main Export                   |
+| ----------------- | -------------------------------------------------- | ----------------------------- |
+| CLI               | `src/index.ts`                                     | `main()`                      |
+| Stage 1           | `src/stages/1-analysis/index.ts`                   | `runAnalysis()`               |
+| Stage 2           | `src/stages/2-generation/index.ts`                 | `runGeneration()`             |
+| Stage 3           | `src/stages/3-execution/index.ts`                  | `runExecution()`              |
+| Stage 4           | `src/stages/4-evaluation/index.ts`                 | `runEvaluation()`             |
+| Detection         | `src/stages/4-evaluation/programmatic-detector.ts` | `detectAllComponents()`       |
+| Conflict Tracking | `src/stages/4-evaluation/conflict-tracker.ts`      | `calculateConflictSeverity()` |
+| Metrics           | `src/stages/4-evaluation/metrics.ts`               | `calculateEvalMetrics()`      |
+| State             | `src/state/state-manager.ts`                       | `loadState()`, `saveState()`  |
 
-- Parse `Skill`, `Task`, `SlashCommand` tool calls from transcripts
-- MCP tools detected via pattern: `mcp__<server>__<tool>`
-- Hooks detected via `SDKHookResponseMessage` events from Agent SDK
-- LLM judge is secondary, used only for quality assessment
+## Code Navigation
 
-### Two SDK Integration Points
+This project has MCP tools configured for efficient code exploration and editing.
 
-| SDK                              | Stages | Purpose                               |
-| -------------------------------- | ------ | ------------------------------------- |
-| `@anthropic-ai/sdk`              | 2, 4   | LLM calls for generation and judgment |
-| `@anthropic-ai/claude-agent-sdk` | 3      | Plugin loading and execution          |
+### Tool Selection
 
-### Stage 3 Execution Flow
+| Task                      | Tool                       | Example                                  |
+| ------------------------- | -------------------------- | ---------------------------------------- |
+| Find a function/interface | `find_symbol`              | "Find the `runEvaluation` function"      |
+| Find all callers          | `find_referencing_symbols` | "What calls `detectFromCaptures`?"       |
+| Understand file structure | `get_symbols_overview`     | "Show symbols in `src/types/index.ts`"   |
+| Semantic code search      | `warpgrep_codebase_search` | "How does conflict detection work?"      |
+| Exact pattern search      | `rg "pattern"`             | `rg "ExecutionResult"`                   |
+| Edit code                 | `edit_file`                | Partial snippets, lazy patterns OK       |
+| Rename across codebase    | `rename_symbol`            | Refactor `TestScenario` → `EvalScenario` |
 
-1. Agent SDK loads plugin (validates manifest, discovers components)
-2. `createToolCaptureCollector()` captures tool invocations via PreToolUse hooks
-3. `createHookResponseCollector()` captures `SDKHookResponseMessage` events
-4. Transcripts saved per scenario for Stage 4 analysis
+### Navigation Patterns
 
-**No code changes needed in Stage 3** when adding new component types - tool capture is universal.
+**Understanding a stage**: Use `get_symbols_overview` on the stage's `index.ts`, then `find_referencing_symbols` on the main export to see how it integrates with the pipeline.
 
-### Stage 4 Batching
+**Refactoring types**: Use `find_referencing_symbols` on a type from `src/types/` to find all usages before making changes.
 
-When total LLM judge calls >= `batch_threshold` (default 50), uses Anthropic Batches API for **50% cost savings**. Configure via `batch_threshold`, `poll_interval_ms`, or `force_synchronous: true` to bypass.
+**Tracing detection logic**: The detection flow is `detectAllComponents` → `detectFromCaptures` / `detectFromTranscript` → type-specific detectors. Use `find_symbol` to navigate this chain.
 
-### Prompt Caching
+**Adding a new component type**: Follow the type through all four stages using `find_referencing_symbols` on similar component types (e.g., trace how `hooks` is handled to understand where to add `mcp_servers`).
 
-Stages 2 and 4 use Anthropic's prompt caching for repeated system prompts, reducing costs when generating scenarios or running LLM judgments across multiple components.
+## Directory Structure
 
-## Configuration
+```text
+src/
+├── index.ts              # CLI entry point (dotenv MUST be first import)
+├── config/               # Configuration loading with Zod validation
+├── stages/
+│   ├── 1-analysis/       # Plugin parsing, trigger extraction
+│   ├── 2-generation/     # Scenario generation (LLM + deterministic)
+│   ├── 3-execution/      # Agent SDK integration, tool capture
+│   └── 4-evaluation/     # Programmatic detection, LLM judge, metrics
+├── state/                # Resume capability, checkpointing
+├── types/                # TypeScript interfaces
+└── utils/                # Retry, concurrency, logging utilities
 
-Main config: `config.yaml`. Key settings:
+tests/
+├── unit/                 # Unit tests (mirror src/ structure)
+├── integration/          # Integration tests for full stages
+├── e2e/                  # End-to-end tests (real SDK calls)
+├── mocks/                # Mock implementations for testing
+└── fixtures/             # Test data and mock plugins
+```
 
-- `scope`: Enable/disable skill, agent, command, hook, MCP evaluation
-- `generation.diversity`: 0-1 ratio controlling base scenarios vs variations
-- `execution.disallowed_tools`: Block Write/Edit/Bash during evaluation
-- `evaluation.detection_mode`: `programmatic_first` (default) or `llm_only`
+## Adding a New Component Type
 
-## Code Conventions
-
-- ESM modules with NodeNext resolution
-- Strict TypeScript (all strict flags, `noUncheckedIndexedAccess`)
-- Explicit return types on all functions
-- Import order: builtin → external → internal → parent → sibling (alphabetized)
-- Prefix unused parameters with `_`
-- Use `type` imports for type-only imports
-- Coverage thresholds (in `vitest.config.ts`): 78% lines/statements, 75% functions, 65% branches
-
-## Key Files
-
-| File                         | Purpose                                                        |
-| ---------------------------- | -------------------------------------------------------------- |
-| `src/index.ts`               | CLI entry point (**`import './env.js'` MUST be first import**) |
-| `src/env.ts`                 | Environment setup (dotenv with `quiet: true`)                  |
-| `src/config/loader.ts`       | YAML/JSON config loading with Zod validation                   |
-| `src/config/pricing.ts`      | Model pricing for cost estimation                              |
-| `src/utils/retry.ts`         | Retry with exponential backoff                                 |
-| `src/utils/concurrency.ts`   | Semaphore-based concurrency, rate limiter                      |
-| `src/utils/sanitizer.ts`     | PII redaction for logs                                         |
-| `src/utils/logging.ts`       | Centralized logger (chalk-based, respects verbose/debug flags) |
-| `src/utils/file-io.ts`       | File I/O helpers (JSON/YAML read/write, mkdir)                 |
-| `src/state/state-manager.ts` | State checkpointing and resume, state migration                |
-| `tsconfig.eslint.json`       | ESLint-specific tsconfig (includes tests)                      |
-
-### Stage Entry Points
-
-| File                               | Purpose                                    |
-| ---------------------------------- | ------------------------------------------ |
-| `src/stages/1-analysis/index.ts`   | Orchestrates all analyzers, returns output |
-| `src/stages/2-generation/index.ts` | Orchestrates scenario generators           |
-| `src/stages/3-execution/index.ts`  | Runs Agent SDK, captures tool calls        |
-| `src/stages/4-evaluation/index.ts` | Runs detection and LLM judge               |
-
-### Frequently Modified Files
-
-| File                                               | When to modify                                |
-| -------------------------------------------------- | --------------------------------------------- |
-| `src/stages/4-evaluation/programmatic-detector.ts` | Adding new component detection patterns       |
-| `src/stages/2-generation/*-scenario-generator.ts`  | Changing scenario generation logic            |
-| `src/stages/1-analysis/*-analyzer.ts`              | Adding new component parsing                  |
-| `src/config/schema.ts`                             | Adding/changing config options                |
-| `src/types/state.ts`                               | Extending pipeline state (triggers migration) |
-
-## Adding New Component Types
-
-Choose pattern based on triggering mechanism:
-
-**Deterministic** (commands, hooks, MCP): Predictable triggering via tool invocation or syntax
-
-- Files: `{type}-analyzer.ts`, `{type}-scenario-generator.ts`
-- NO LLM calls in generation
-
-**LLM-based** (skills, agents): Semantic triggering via natural language
-
-- Files: `{type}-analyzer.ts`, `{type}-scenario-generator.ts` with Anthropic SDK calls
-- LLM generates variations and paraphrases
-
-**Integration checklist**:
+When adding support for a new plugin component type (e.g., a new kind of trigger):
 
 1. Define types in `src/types/`
 2. Create analyzer in `src/stages/1-analysis/`
@@ -197,26 +161,65 @@ The CLI uses a handler map in `src/index.ts` for stage-based resume. State files
 
 Enable: `scope.hooks: true`
 
-- Hook names use `EventType::Matcher` format (e.g., "PreToolUse::Write|Edit")
-- Detection via `SDKHookResponseMessage` events (100% confidence)
-- Scenarios generated deterministically via tool-to-prompt mapping
-- Limitation: Session lifecycle hooks (SessionStart, SessionEnd) fire once per session
+Hooks use the `EventType::Matcher` format (e.g., "PreToolUse::Write|Edit"). Detection happens via `SDKHookResponseMessage` events with 100% confidence. Scenarios are generated deterministically via tool-to-prompt mapping.
+
+**Limitation**: Session lifecycle hooks (SessionStart, SessionEnd) fire once per session.
 
 ### MCP Servers
 
 Enable: `scope.mcp_servers: true`
 
-- Tools detected via pattern: `mcp__<server>__<tool>`
-- Scenarios generated deterministically (zero LLM cost)
-- SDK auto-connects to servers defined in `.mcp.json`
-- Limitation: Tool schemas not validated
+Tools are detected via the pattern `mcp__<server>__<tool>`. Scenarios are generated deterministically (zero LLM cost). The SDK auto-connects to servers defined in `.mcp.json`.
+
+**Limitation**: Tool schemas are not validated.
 
 ## Implementation Patterns
 
 ### Custom Error Classes
 
-Use cause chains for error context (see `src/config/loader.ts:ConfigLoadError`).
+Use cause chains for error context. See `src/config/loader.ts:ConfigLoadError` for the pattern.
 
 ### Type Guards
 
-Use type guards for tool detection in `src/stages/4-evaluation/programmatic-detector.ts` (e.g., `isSkillInput()`, `isTaskInput()`).
+Use type guards for tool detection in `src/stages/4-evaluation/programmatic-detector.ts`. Examples include `isSkillInput()`, `isTaskInput()`, and `isAgentInput()`.
+
+### Parallel Execution with Concurrency Control
+
+Use `src/utils/concurrency.ts` for controlled parallel execution with progress callbacks. The utility handles error aggregation and respects concurrency limits.
+
+### Retry Logic
+
+Use `src/utils/retry.ts` for API calls. It implements exponential backoff with configurable max attempts and handles transient failures gracefully.
+
+### Configuration Validation
+
+All configuration uses Zod schemas in `src/config/`. The loader validates at runtime and provides clear error messages for invalid configuration.
+
+## Testing Patterns
+
+### Unit Tests
+
+Unit tests live in `tests/unit/` and mirror the `src/` structure. They use Vitest with `vi.mock()` for dependencies.
+
+### Integration Tests
+
+Integration tests in `tests/integration/` test full stage execution with real fixtures but mocked LLM calls.
+
+### E2E Tests
+
+E2E tests in `tests/e2e/` make real API calls and cost money. They are skipped by default and enabled via `RUN_E2E_TESTS=true`. Budget limits are enforced via `E2E_MAX_COST_USD`.
+
+### Fixtures
+
+Test fixtures live in `tests/fixtures/`. Sample transcripts are in `tests/fixtures/sample-transcripts/`. Mock plugins are in `tests/fixtures/sample-plugin/`.
+
+## CI/CD
+
+The project uses GitHub Actions for CI. Key workflows:
+
+| Workflow               | Purpose                                     |
+| ---------------------- | ------------------------------------------- |
+| `ci.yml`               | Build, lint, typecheck, test on PR and push |
+| `claude-pr-review.yml` | AI-powered code review on PRs               |
+
+CI runs tests in parallel with randomized order. Failed tests are retried twice before marking as failed.
