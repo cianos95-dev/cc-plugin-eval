@@ -368,8 +368,8 @@ actionlint .github/workflows/*.yml
 
 ```text
 src/
-├── index.ts              # CLI entry point
-├── env.ts                # Environment setup (dotenv)
+├── index.ts              # CLI entry point (requires env.ts first import)
+├── env.ts                # Environment setup (dotenv loading)
 ├── config/               # Configuration loading & validation
 │   ├── loader.ts         # YAML/JSON config loading with Zod
 │   ├── schema.ts         # Zod validation schemas

@@ -115,7 +115,8 @@ This project has MCP tools configured for efficient code exploration and editing
 
 ```text
 src/
-├── index.ts              # CLI entry point (dotenv MUST be first import)
+├── index.ts              # CLI entry point (env.ts MUST be first import)
+├── env.ts                # Environment setup (dotenv loading)
 ├── config/               # Configuration loading with Zod validation
 ├── stages/
 │   ├── 1-analysis/       # Plugin parsing, trigger extraction

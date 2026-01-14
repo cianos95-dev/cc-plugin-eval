@@ -3,6 +3,21 @@
 Thank you for your interest in contributing! This document provides
 guidelines for contributing to this plugin evaluation framework.
 
+## Table of Contents
+
+- [Code of Conduct](#code-of-conduct)
+- [Types of Contributions](#types-of-contributions)
+- [Project Structure](#project-structure)
+- [Development Setup](#development-setup)
+- [Code Style](#code-style)
+- [Linting](#linting)
+- [Testing Requirements](#testing-requirements)
+- [Pull Request Process](#pull-request-process)
+- [Commit Messages](#commit-messages)
+- [Architecture Notes](#architecture-notes)
+- [Questions?](#questions)
+- [Version Release Procedure](#version-release-procedure)
+
 ## Code of Conduct
 
 This project adheres to our [Code of Conduct](CODE_OF_CONDUCT.md).
@@ -23,7 +38,8 @@ By participating, you agree to uphold this code.
 
 ```text
 src/
-├── index.ts              # CLI entry point (dotenv MUST be first import)
+├── index.ts              # CLI entry point (env.ts MUST be first import)
+├── env.ts                # Environment setup (dotenv loading)
 ├── config/               # Configuration loading with Zod validation
 ├── stages/
 │   ├── 1-analysis/       # Plugin parsing, trigger extraction
