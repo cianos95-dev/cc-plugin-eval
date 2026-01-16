@@ -30,7 +30,7 @@ import type Anthropic from "@anthropic-ai/sdk";
  * Using structured output ensures guaranteed JSON parsing.
  * The schema enforces the exact structure we expect.
  */
-const JUDGE_RESPONSE_SCHEMA = {
+export const JUDGE_RESPONSE_SCHEMA = {
   type: "object" as const,
   properties: {
     quality_score: {
@@ -87,7 +87,7 @@ const JUDGE_RESPONSE_SCHEMA = {
  * These instructions are reused across all scenario evaluations and benefit
  * from Anthropic's prompt caching (90% cost reduction after first call).
  */
-const JUDGE_SYSTEM_PROMPT = `You are an evaluator for Claude Code plugin test executions.
+export const JUDGE_SYSTEM_PROMPT = `You are an evaluator for Claude Code plugin test executions.
 
 Evaluate each test execution based on:
 1. quality_score (1-10): How well did the component respond to the user's request?

@@ -288,6 +288,29 @@ describe("createBatchRequests", () => {
 
     expect(batchRequests[0]?.custom_id).toBe("scenario-1_sample-2");
   });
+
+  it("should include system prompt with judge instructions and JSON schema", () => {
+    const requests = createBatchEvaluationRequests(1);
+    const config = createConfig();
+
+    const batchRequests = createBatchRequests(requests, config);
+
+    expect(batchRequests[0]?.params.system).toBeDefined();
+    expect(batchRequests[0]?.params.system).toHaveLength(1);
+    expect(batchRequests[0]?.params.system?.[0]?.type).toBe("text");
+
+    const systemPrompt = batchRequests[0]?.params.system?.[0]?.text ?? "";
+
+    // Verify system prompt contains evaluation instructions
+    expect(systemPrompt).toContain("quality_score");
+    expect(systemPrompt).toContain("trigger_accuracy");
+
+    // Verify system prompt contains JSON schema for schema-aware prompting
+    // (compensates for lack of structured outputs in Batches API)
+    expect(systemPrompt).toContain("Respond ONLY with valid JSON");
+    expect(systemPrompt).toContain('"type": "object"');
+    expect(systemPrompt).toContain('"properties"');
+  });
 });
 
 describe("createEvaluationBatch", () => {

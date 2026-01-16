@@ -25,7 +25,11 @@ import {
 import { sleep } from "../../utils/retry.js";
 import { resolveModelId } from "../2-generation/cost-estimator.js";
 
-import { buildJudgePrompt } from "./llm-judge.js";
+import {
+  buildJudgePrompt,
+  JUDGE_RESPONSE_SCHEMA,
+  JUDGE_SYSTEM_PROMPT,
+} from "./llm-judge.js";
 
 import type Anthropic from "@anthropic-ai/sdk";
 
@@ -76,12 +80,22 @@ export interface PollOptions {
 
 /**
  * Batch request as expected by Anthropic API.
+ *
+ * Note: The Batches API uses MessageCreateParamsNonStreaming which has
+ * limitations compared to the sync Messages API:
+ * - No beta parameters (structured outputs via output_format unavailable)
+ * - No prompt caching (cache_control not supported)
+ *
+ * To compensate, we include the JSON schema in the system prompt for
+ * schema-aware prompting, and rely on Zod validation in parseJudgeResponse().
  */
 export interface BatchRequest {
   custom_id: string;
   params: {
     model: string;
     max_tokens: number;
+    /** System prompt with evaluation instructions and JSON schema guidance */
+    system?: { type: "text"; text: string }[];
     messages: { role: "user"; content: string }[];
   };
 }
@@ -174,6 +188,15 @@ export function createBatchRequests(
   requests: BatchEvaluationRequest[],
   config: EvaluationConfig,
 ): BatchRequest[] {
+  // Build schema-aware system prompt for batch mode.
+  // Since Batches API doesn't support structured outputs (output_format),
+  // we include the JSON schema in the prompt to guide model output format.
+  const schemaDoc = JSON.stringify(JUDGE_RESPONSE_SCHEMA, null, 2);
+  const batchSystemPrompt = `${JUDGE_SYSTEM_PROMPT}
+
+Respond ONLY with valid JSON matching this schema:
+${schemaDoc}`;
+
   return requests.map((req) => {
     const prompt = buildJudgePrompt(
       req.scenario,
@@ -187,6 +210,7 @@ export function createBatchRequests(
       params: {
         model: resolveModelId(config.model),
         max_tokens: config.max_tokens,
+        system: [{ type: "text" as const, text: batchSystemPrompt }],
         messages: [{ role: "user" as const, content: prompt }],
       },
     };
