@@ -25,6 +25,7 @@ export const DEFAULT_GENERATION = {
   max_tokens: 8000,
   reasoning_effort: "medium" as const,
   semantic_variations: true,
+  api_timeout_ms: 60000,
 };
 
 /**
@@ -52,6 +53,7 @@ export const DEFAULT_EVALUATION = {
   num_samples: 1,
   aggregate_method: "average" as const,
   include_citations: true,
+  api_timeout_ms: 120000,
 };
 
 /**
@@ -74,6 +76,7 @@ export const DEFAULT_TUNING: TuningConfig = {
     plugin_load_ms: 30000,
     retry_initial_ms: 1000,
     retry_max_ms: 30000,
+    sdk_token_counting_ms: 30000,
   },
   retry: {
     max_retries: 3,

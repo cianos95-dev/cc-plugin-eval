@@ -16,12 +16,11 @@
  * Output: results/{plugin-name}/evaluation.json
  */
 
-import Anthropic from "@anthropic-ai/sdk";
-
 import { parallel } from "../../utils/concurrency.js";
 import { ensureDir, getResultsDir, writeJson } from "../../utils/file-io.js";
 import { logger } from "../../utils/logging.js";
 import { formatErrorWithRequestId } from "../../utils/retry.js";
+import { createAnthropicClient } from "../2-generation/cost-estimator.js";
 
 import {
   shouldUseBatching,
@@ -58,6 +57,7 @@ import type {
   TestScenario,
   TriggeredComponent,
 } from "../../types/index.js";
+import type Anthropic from "@anthropic-ai/sdk";
 
 /**
  * Output from Stage 4: Evaluation.
@@ -636,8 +636,8 @@ export async function runEvaluation(
     };
   }
 
-  // Create Anthropic client for LLM judge
-  const client = new Anthropic({ maxRetries: 0 });
+  // Create Anthropic client for LLM judge (uses 2-minute default timeout)
+  const client = createAnthropicClient();
 
   // Build scenario map for quick lookup
   const scenarioMap = new Map<string, TestScenario>();

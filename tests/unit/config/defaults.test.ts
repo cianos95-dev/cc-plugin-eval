@@ -100,6 +100,7 @@ describe("getResolvedTuning", () => {
         plugin_load_ms: 50000,
         retry_initial_ms: 500,
         retry_max_ms: 60000,
+        sdk_token_counting_ms: 45000,
       },
       retry: { max_retries: 5, backoff_multiplier: 3, jitter_factor: 0.2 },
       token_estimates: {

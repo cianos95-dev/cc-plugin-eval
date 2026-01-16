@@ -187,18 +187,21 @@ export async function generateSkillScenarios(
   );
 
   const response = await withRetry(async () => {
-    const result = await client.messages.create({
-      model: resolveModelId(config.model),
-      max_tokens: config.max_tokens,
-      system: [
-        {
-          type: "text",
-          text: SKILL_SCENARIO_SYSTEM_PROMPT,
-          cache_control: { type: "ephemeral" },
-        },
-      ],
-      messages: [{ role: "user", content: userPrompt }],
-    });
+    const result = await client.messages.create(
+      {
+        model: resolveModelId(config.model),
+        max_tokens: config.max_tokens,
+        system: [
+          {
+            type: "text",
+            text: SKILL_SCENARIO_SYSTEM_PROMPT,
+            cache_control: { type: "ephemeral" },
+          },
+        ],
+        messages: [{ role: "user", content: userPrompt }],
+      },
+      { timeout: config.api_timeout_ms },
+    );
 
     // Extract text content
     const textBlock = result.content.find((block) => block.type === "text");

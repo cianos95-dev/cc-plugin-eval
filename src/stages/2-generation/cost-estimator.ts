@@ -56,6 +56,13 @@ export function resolveModelId(shortName: string): string {
 }
 
 /**
+ * Default SDK timeout in milliseconds (2 minutes).
+ * This is a conservative default for client-level timeout.
+ * Individual operations can override with per-request timeouts.
+ */
+const DEFAULT_SDK_TIMEOUT_MS = 120000;
+
+/**
  * Create Anthropic client.
  *
  * Disables SDK built-in retries to avoid compounding with our custom retry logic.
@@ -65,13 +72,15 @@ export function resolveModelId(shortName: string): string {
  * - When ANTHROPIC_DEBUG=true: debug level logging for verbose SDK output
  * - Otherwise: warn level logging (only warnings and errors)
  *
+ * @param timeout - Optional timeout in milliseconds (default: 120000 = 2 minutes)
  * @returns Anthropic client instance with retries disabled and logging configured
  */
-export function createAnthropicClient(): Anthropic {
+export function createAnthropicClient(timeout?: number): Anthropic {
   const logLevel = process.env["ANTHROPIC_DEBUG"] === "true" ? "debug" : "warn";
 
   return new Anthropic({
     maxRetries: 0,
+    timeout: timeout ?? DEFAULT_SDK_TIMEOUT_MS,
     logLevel,
     logger: {
       debug: (msg: string) => logger.debug(`[Anthropic SDK] ${msg}`),
@@ -88,17 +97,22 @@ export function createAnthropicClient(): Anthropic {
  * @param client - Anthropic client
  * @param model - Model to use
  * @param prompt - Prompt text
+ * @param timeout - Optional per-request timeout in milliseconds (default: 30000 = 30s)
  * @returns Token count
  */
 export async function countPromptTokens(
   client: Anthropic,
   model: string,
   prompt: string,
+  timeout?: number,
 ): Promise<number> {
-  const result = await client.messages.countTokens({
-    model: resolveModelId(model),
-    messages: [{ role: "user", content: prompt }],
-  });
+  const result = await client.messages.countTokens(
+    {
+      model: resolveModelId(model),
+      messages: [{ role: "user", content: prompt }],
+    },
+    { timeout: timeout ?? 30000 },
+  );
   return result.input_tokens;
 }
 
@@ -117,6 +131,7 @@ const DEFAULT_TOKEN_COUNTING_CONCURRENCY = 10;
  * @param prompts - Prompts to estimate
  * @param model - Model to use
  * @param concurrency - Maximum concurrent token counting operations (default: 10)
+ * @param tokenCountingTimeout - Timeout for each token counting request in ms (default: 30000)
  * @returns Token estimate
  */
 export async function estimateGenerationCost(
@@ -124,13 +139,15 @@ export async function estimateGenerationCost(
   prompts: string[],
   model: string,
   concurrency: number = DEFAULT_TOKEN_COUNTING_CONCURRENCY,
+  tokenCountingTimeout?: number,
 ): Promise<TokenEstimate> {
   // Count tokens in parallel for improved performance
   // Use continueOnError: false to fail fast - partial results would underestimate costs
   const result = await parallel({
     items: prompts,
     concurrency,
-    fn: async (prompt) => countPromptTokens(client, model, prompt),
+    fn: async (prompt) =>
+      countPromptTokens(client, model, prompt, tokenCountingTimeout),
     continueOnError: false,
   });
   const totalInputTokens = result.results.reduce((a, b) => a + b, 0);

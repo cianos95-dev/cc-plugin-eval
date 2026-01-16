@@ -372,24 +372,27 @@ export async function evaluateWithLLMJudge(
 
   const response = await withRetry(async () => {
     // Use Anthropic's beta structured output API with prompt caching
-    const result = await client.beta.messages.create({
-      model: resolveModelId(config.model),
-      max_tokens: config.max_tokens,
-      system: [
-        {
-          type: "text",
-          text: JUDGE_SYSTEM_PROMPT,
-          cache_control: { type: "ephemeral" },
+    const result = await client.beta.messages.create(
+      {
+        model: resolveModelId(config.model),
+        max_tokens: config.max_tokens,
+        system: [
+          {
+            type: "text",
+            text: JUDGE_SYSTEM_PROMPT,
+            cache_control: { type: "ephemeral" },
+          },
+        ],
+        messages: [{ role: "user", content: userPrompt }],
+        betas: ["structured-outputs-2025-11-13"],
+        // Anthropic uses output_format with schema directly (not nested json_schema)
+        output_format: {
+          type: "json_schema",
+          schema: JUDGE_RESPONSE_SCHEMA,
         },
-      ],
-      messages: [{ role: "user", content: userPrompt }],
-      betas: ["structured-outputs-2025-11-13"],
-      // Anthropic uses output_format with schema directly (not nested json_schema)
-      output_format: {
-        type: "json_schema",
-        schema: JUDGE_RESPONSE_SCHEMA,
       },
-    });
+      { timeout: config.api_timeout_ms },
+    );
 
     // Extract text content from structured output response
     const textBlock = result.content.find((block) => block.type === "text");
@@ -494,18 +497,21 @@ async function evaluateWithJsonFallback(
   );
 
   const response = await withRetry(async () => {
-    const result = await client.messages.create({
-      model: resolveModelId(config.model),
-      max_tokens: config.max_tokens,
-      system: [
-        {
-          type: "text",
-          text: JUDGE_FALLBACK_SYSTEM_PROMPT,
-          cache_control: { type: "ephemeral" },
-        },
-      ],
-      messages: [{ role: "user", content: userPrompt }],
-    });
+    const result = await client.messages.create(
+      {
+        model: resolveModelId(config.model),
+        max_tokens: config.max_tokens,
+        system: [
+          {
+            type: "text",
+            text: JUDGE_FALLBACK_SYSTEM_PROMPT,
+            cache_control: { type: "ephemeral" },
+          },
+        ],
+        messages: [{ role: "user", content: userPrompt }],
+      },
+      { timeout: config.api_timeout_ms },
+    );
 
     const textBlock = result.content.find((block) => block.type === "text");
     if (textBlock?.type !== "text") {

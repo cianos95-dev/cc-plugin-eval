@@ -603,10 +603,13 @@ describe("countPromptTokens", () => {
     );
 
     expect(mockClient.messages.countTokens).toHaveBeenCalledTimes(1);
-    expect(mockClient.messages.countTokens).toHaveBeenCalledWith({
-      model: expect.stringContaining("haiku"),
-      messages: [{ role: "user", content: "Test prompt content" }],
-    });
+    expect(mockClient.messages.countTokens).toHaveBeenCalledWith(
+      {
+        model: expect.stringContaining("haiku"),
+        messages: [{ role: "user", content: "Test prompt content" }],
+      },
+      { timeout: 30000 },
+    );
     expect(count).toBe(150);
   });
 
@@ -619,10 +622,13 @@ describe("countPromptTokens", () => {
       "Test",
     );
 
-    expect(mockClient.messages.countTokens).toHaveBeenCalledWith({
-      model: expect.stringContaining("sonnet"),
-      messages: expect.any(Array),
-    });
+    expect(mockClient.messages.countTokens).toHaveBeenCalledWith(
+      {
+        model: expect.stringContaining("sonnet"),
+        messages: expect.any(Array),
+      },
+      { timeout: 30000 },
+    );
   });
 
   it("should handle long prompts", async () => {
@@ -716,14 +722,20 @@ describe("estimateGenerationCost (async)", () => {
       "haiku",
     );
 
-    expect(mockClient.messages.countTokens).toHaveBeenCalledWith({
-      model: expect.stringContaining("haiku"),
-      messages: [{ role: "user", content: "prompt A" }],
-    });
-    expect(mockClient.messages.countTokens).toHaveBeenCalledWith({
-      model: expect.stringContaining("haiku"),
-      messages: [{ role: "user", content: "prompt B" }],
-    });
+    expect(mockClient.messages.countTokens).toHaveBeenCalledWith(
+      {
+        model: expect.stringContaining("haiku"),
+        messages: [{ role: "user", content: "prompt A" }],
+      },
+      { timeout: 30000 },
+    );
+    expect(mockClient.messages.countTokens).toHaveBeenCalledWith(
+      {
+        model: expect.stringContaining("haiku"),
+        messages: [{ role: "user", content: "prompt B" }],
+      },
+      { timeout: 30000 },
+    );
   });
 
   it("should fail fast if any token count fails", async () => {

@@ -418,6 +418,7 @@ describe("generateAgentScenarios", () => {
     scenarios_per_component: 5,
     diversity: 0.5,
     semantic_variations: false,
+    api_timeout_ms: 60000,
   };
 
   beforeEach(() => {
@@ -467,6 +468,7 @@ describe("generateAgentScenarios", () => {
           expect.objectContaining({ role: "user" }),
         ]),
       }),
+      expect.objectContaining({ timeout: 60000 }),
     );
     expect(scenarios).toHaveLength(2);
     expect(scenarios[0].user_prompt).toBe("review my code please");
@@ -574,6 +576,7 @@ describe("generateAgentScenarios", () => {
       expect.objectContaining({
         model: expect.stringContaining("opus"),
       }),
+      expect.objectContaining({ timeout: 60000 }),
     );
   });
 });

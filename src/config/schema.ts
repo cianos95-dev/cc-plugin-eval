@@ -11,6 +11,8 @@ export const TimeoutsConfigSchema = z.object({
   plugin_load_ms: z.number().int().min(5000).max(120000).default(30000),
   retry_initial_ms: z.number().int().min(100).max(10000).default(1000),
   retry_max_ms: z.number().int().min(1000).max(120000).default(30000),
+  /** SDK timeout for token counting operations (fast, default 30s) */
+  sdk_token_counting_ms: z.number().int().min(5000).max(120000).default(30000),
 });
 
 /**
@@ -124,6 +126,8 @@ export const GenerationConfigSchema = z.object({
   semantic_variations: z.boolean().default(true),
   /** Rate limit API calls (requests per second). null = no limit. */
   requests_per_second: z.number().min(0.1).max(100).nullish(),
+  /** SDK timeout for generation API calls (default 60s) */
+  api_timeout_ms: z.number().int().min(5000).max(300000).default(60000),
 });
 
 /**
@@ -174,6 +178,8 @@ export const EvaluationConfigSchema = z.object({
   num_samples: z.number().int().min(1).max(5).default(1),
   aggregate_method: AggregateMethodSchema.default("average"),
   include_citations: z.boolean().default(true),
+  /** SDK timeout for evaluation API calls (default 120s for complex reasoning) */
+  api_timeout_ms: z.number().int().min(5000).max(300000).default(120000),
 });
 
 /**

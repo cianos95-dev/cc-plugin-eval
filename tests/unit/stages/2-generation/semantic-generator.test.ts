@@ -478,6 +478,7 @@ describe("generateSemanticVariations", () => {
       expect.objectContaining({
         model: expect.stringContaining("sonnet"),
       }),
+      expect.objectContaining({ timeout: 60000 }),
     );
   });
 });

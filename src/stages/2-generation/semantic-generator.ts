@@ -73,32 +73,37 @@ const COMPONENT_TYPES = [
  * @param client - Anthropic client
  * @param triggerPhrase - Original trigger phrase
  * @param model - Model to use
+ * @param timeout - Optional per-request timeout in milliseconds (default: 60000)
  * @returns Array of semantic variations
  */
 export async function generateSemanticVariations(
   client: Anthropic,
   triggerPhrase: string,
   model: string,
+  timeout?: number,
 ): Promise<SemanticVariation[]> {
   try {
     const response = await withRetry(async () => {
-      const result = await client.messages.create({
-        model: resolveModelId(model),
-        max_tokens: DEFAULT_TUNING.token_estimates.semantic_gen_max_tokens,
-        system: [
-          {
-            type: "text",
-            text: SEMANTIC_VARIATION_SYSTEM_PROMPT,
-            cache_control: { type: "ephemeral" },
-          },
-        ],
-        messages: [
-          {
-            role: "user",
-            content: `Generate semantic variations for this trigger phrase: "${triggerPhrase}"`,
-          },
-        ],
-      });
+      const result = await client.messages.create(
+        {
+          model: resolveModelId(model),
+          max_tokens: DEFAULT_TUNING.token_estimates.semantic_gen_max_tokens,
+          system: [
+            {
+              type: "text",
+              text: SEMANTIC_VARIATION_SYSTEM_PROMPT,
+              cache_control: { type: "ephemeral" },
+            },
+          ],
+          messages: [
+            {
+              role: "user",
+              content: `Generate semantic variations for this trigger phrase: "${triggerPhrase}"`,
+            },
+          ],
+        },
+        { timeout: timeout ?? 60000 },
+      );
 
       const textBlock = result.content.find((block) => block.type === "text");
       if (textBlock?.type !== "text") {
@@ -271,6 +276,7 @@ export function generateSemanticScenarios(
  * @param skill - Skill component
  * @param model - Model to use
  * @param allComponentKeywords - Keywords for filtering
+ * @param timeout - Optional per-request timeout in milliseconds
  * @returns Array of test scenarios
  */
 export async function generateSkillSemanticScenarios(
@@ -278,11 +284,17 @@ export async function generateSkillSemanticScenarios(
   skill: SkillComponent,
   model: string,
   allComponentKeywords: string[],
+  timeout?: number,
 ): Promise<TestScenario[]> {
   const allVariations: SemanticVariation[] = [];
 
   for (const phrase of skill.trigger_phrases) {
-    const variations = await generateSemanticVariations(client, phrase, model);
+    const variations = await generateSemanticVariations(
+      client,
+      phrase,
+      model,
+      timeout,
+    );
 
     // Filter out variations that might trigger different components
     const filtered = variations.filter(
@@ -308,6 +320,8 @@ export interface SemanticGenerationOptions {
   requestsPerSecond?: number | null;
   /** Maximum concurrent LLM calls (defaults to 10) */
   maxConcurrent?: number;
+  /** SDK timeout for API calls in milliseconds (defaults to 60000) */
+  apiTimeoutMs?: number;
 }
 
 /**
@@ -320,7 +334,7 @@ export interface SemanticGenerationOptions {
  * @param model - Model to use
  * @param analysis - Full analysis output for keyword extraction
  * @param onProgress - Optional progress callback
- * @param options - Optional rate limiting and concurrency options
+ * @param options - Optional rate limiting, concurrency, and timeout options
  * @returns Array of all semantic test scenarios
  */
 export async function generateAllSemanticScenarios(
@@ -333,6 +347,7 @@ export async function generateAllSemanticScenarios(
 ): Promise<TestScenario[]> {
   const allComponentKeywords = extractAllComponentKeywords(analysis);
   const maxConcurrent = options?.maxConcurrent ?? 10;
+  const apiTimeout = options?.apiTimeoutMs;
 
   // Create rate limiter if configured
   const rps = options?.requestsPerSecond;
@@ -354,6 +369,7 @@ export async function generateAllSemanticScenarios(
           skill,
           model,
           allComponentKeywords,
+          apiTimeout,
         );
 
       return rateLimiter ? rateLimiter(generateFn) : generateFn();

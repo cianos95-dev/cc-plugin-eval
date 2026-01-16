@@ -62,6 +62,8 @@ export interface GenerationConfig {
   semantic_variations: boolean;
   /** Rate limit API calls (requests per second). null/undefined = no limit. */
   requests_per_second?: number | null;
+  /** SDK timeout for generation API calls (default 60s) */
+  api_timeout_ms: number;
 }
 
 /**
@@ -128,6 +130,8 @@ export interface EvaluationConfig {
   aggregate_method: AggregateMethod;
   /** Link highlights to message IDs */
   include_citations: boolean;
+  /** SDK timeout for evaluation API calls (default 120s for complex reasoning) */
+  api_timeout_ms: number;
 }
 
 /**
@@ -223,6 +227,8 @@ export interface TimeoutsConfig {
   plugin_load_ms: number;
   retry_initial_ms: number;
   retry_max_ms: number;
+  /** SDK timeout for token counting operations (fast, default 30s) */
+  sdk_token_counting_ms: number;
 }
 
 /**

@@ -350,6 +350,7 @@ describe("generateSkillScenarios", () => {
     scenarios_per_component: 5,
     diversity: 0.5,
     semantic_variations: false,
+    api_timeout_ms: 60000,
   };
 
   beforeEach(() => {
@@ -399,6 +400,7 @@ describe("generateSkillScenarios", () => {
           expect.objectContaining({ role: "user" }),
         ]),
       }),
+      expect.objectContaining({ timeout: 60000 }),
     );
     expect(scenarios).toHaveLength(2);
     expect(scenarios[0].user_prompt).toBe("create a hook for validation");
@@ -469,6 +471,7 @@ describe("generateSkillScenarios", () => {
       expect.objectContaining({
         model: expect.stringContaining("sonnet"),
       }),
+      expect.objectContaining({ timeout: 60000 }),
     );
   });
 
@@ -489,6 +492,7 @@ describe("generateSkillScenarios", () => {
       expect.objectContaining({
         max_tokens: 2000,
       }),
+      expect.objectContaining({ timeout: 60000 }),
     );
   });
 });
