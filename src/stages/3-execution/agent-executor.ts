@@ -25,10 +25,14 @@ import {
   type PreToolUseHookConfig,
   type PostToolUseHookConfig,
   type PostToolUseFailureHookConfig,
-  type HookCallback,
   type SettingSource,
   type ModelUsage,
 } from "./sdk-client.js";
+import {
+  createPreToolUseHook,
+  createPostToolUseHook,
+  createPostToolUseFailureHook,
+} from "./tool-capture-hooks.js";
 import {
   buildTranscript,
   createErrorEvent,
@@ -74,93 +78,6 @@ export interface ScenarioExecutionOptions {
    * @default true
    */
   enableMcpDiscovery?: boolean | undefined;
-}
-
-/**
- * Create a tool capture hook.
- *
- * Returns a hook callback that captures all tool invocations
- * for later analysis.
- *
- * @param captures - Array to push captured tools into
- * @param captureMap - Map for correlating Pre/Post hooks by toolUseId
- * @returns Hook callback
- */
-function createPreToolUseHook(
-  captures: ToolCapture[],
-  captureMap: Map<string, ToolCapture>,
-): HookCallback {
-  return async (input, toolUseId, _context) => {
-    // PreToolUse hooks receive PreToolUseHookInput which has tool_name and tool_input
-    if ("tool_name" in input && "tool_input" in input) {
-      const capture: ToolCapture = {
-        name: input.tool_name,
-        input: input.tool_input,
-        toolUseId,
-        timestamp: Date.now(),
-      };
-      captures.push(capture);
-
-      // Store in map for Post hook correlation
-      if (toolUseId) {
-        captureMap.set(toolUseId, capture);
-      }
-    }
-    // Return empty object to allow operation to proceed
-    return Promise.resolve({});
-  };
-}
-
-/**
- * Create a PostToolUse hook callback.
- *
- * Updates the capture with result and marks as successful.
- *
- * @param captureMap - Map for correlating Pre/Post hooks by toolUseId
- * @returns Hook callback
- */
-function createPostToolUseHook(
-  captureMap: Map<string, ToolCapture>,
-): HookCallback {
-  return async (input, toolUseId, _context) => {
-    // PostToolUse hooks receive PostToolUseHookInput with tool_response
-    if (toolUseId && captureMap.has(toolUseId)) {
-      const capture = captureMap.get(toolUseId);
-      if (capture && "tool_response" in input) {
-        capture.result = input.tool_response;
-        capture.success = true;
-      }
-    }
-    return Promise.resolve({});
-  };
-}
-
-/**
- * Create a PostToolUseFailure hook callback.
- *
- * Updates the capture with error and marks as failed.
- *
- * @param captureMap - Map for correlating Pre/Post hooks by toolUseId
- * @returns Hook callback
- */
-function createPostToolUseFailureHook(
-  captureMap: Map<string, ToolCapture>,
-): HookCallback {
-  return async (input, toolUseId, _context) => {
-    // PostToolUseFailure hooks receive PostToolUseFailureHookInput with error
-    if (toolUseId && captureMap.has(toolUseId)) {
-      const capture = captureMap.get(toolUseId);
-      if (capture && "error" in input) {
-        // TypeScript narrows to PostToolUseFailureHookInput after "error" in input check
-        capture.error = input.error;
-        capture.success = false;
-        if (input.is_interrupt !== undefined) {
-          capture.isInterrupt = input.is_interrupt;
-        }
-      }
-    }
-    return Promise.resolve({});
-  };
 }
 
 /**
@@ -326,7 +243,9 @@ export async function executeScenario(
 
     // Create capture hooks with correlation map
     const captureMap = new Map<string, ToolCapture>();
-    const preHook = createPreToolUseHook(detectedTools, captureMap);
+    const preHook = createPreToolUseHook(captureMap, (capture) =>
+      detectedTools.push(capture),
+    );
     const postHook = createPostToolUseHook(captureMap);
     const postFailureHook = createPostToolUseFailureHook(captureMap);
 
@@ -450,9 +369,11 @@ export async function executeScenarioWithCheckpoint(
       plugins.push({ type: "local", path: additionalPath });
     }
 
-    // Create capture hook
+    // Create capture hooks with correlation map
     const captureMap = new Map<string, ToolCapture>();
-    const preHook = createPreToolUseHook(detectedTools, captureMap);
+    const preHook = createPreToolUseHook(captureMap, (capture) =>
+      detectedTools.push(capture),
+    );
     const postHook = createPostToolUseHook(captureMap);
     const postFailureHook = createPostToolUseFailureHook(captureMap);
 

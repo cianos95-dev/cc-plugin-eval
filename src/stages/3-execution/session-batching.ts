@@ -19,6 +19,11 @@ import {
   type SettingSource,
 } from "./sdk-client.js";
 import {
+  createPreToolUseHook,
+  createPostToolUseHook,
+  createPostToolUseFailureHook,
+} from "./tool-capture-hooks.js";
+import {
   buildTranscript,
   type TranscriptBuilderContext,
 } from "./transcript-builder.js";
@@ -383,77 +388,19 @@ function buildScenarioQueryInput(
         PreToolUse: [
           {
             matcher: ".*",
-            hooks: [
-              async (
-                input,
-                toolUseId,
-                _context,
-              ): Promise<Record<string, unknown>> => {
-                if ("tool_name" in input && "tool_input" in input) {
-                  const capture: ToolCapture = {
-                    name: input.tool_name,
-                    input: input.tool_input,
-                    toolUseId,
-                    timestamp: Date.now(),
-                  };
-                  onToolCapture(capture);
-
-                  // Store in map for Post hook correlation
-                  if (toolUseId) {
-                    captureMap.set(toolUseId, capture);
-                  }
-                }
-                return Promise.resolve({});
-              },
-            ],
+            hooks: [createPreToolUseHook(captureMap, onToolCapture)],
           },
         ],
         PostToolUse: [
           {
             matcher: ".*",
-            hooks: [
-              async (
-                input,
-                toolUseId,
-                _context,
-              ): Promise<Record<string, unknown>> => {
-                // PostToolUse hooks receive PostToolUseHookInput with tool_response
-                if (toolUseId && captureMap.has(toolUseId)) {
-                  const capture = captureMap.get(toolUseId);
-                  if (capture && "tool_response" in input) {
-                    capture.result = input.tool_response;
-                    capture.success = true;
-                  }
-                }
-                return Promise.resolve({});
-              },
-            ],
+            hooks: [createPostToolUseHook(captureMap)],
           },
         ],
         PostToolUseFailure: [
           {
             matcher: ".*",
-            hooks: [
-              async (
-                input,
-                toolUseId,
-                _context,
-              ): Promise<Record<string, unknown>> => {
-                // PostToolUseFailure hooks receive PostToolUseFailureHookInput with error
-                if (toolUseId && captureMap.has(toolUseId)) {
-                  const capture = captureMap.get(toolUseId);
-                  if (capture && "error" in input) {
-                    // TypeScript narrows to PostToolUseFailureHookInput after "error" in input check
-                    capture.error = input.error;
-                    capture.success = false;
-                    if (input.is_interrupt !== undefined) {
-                      capture.isInterrupt = input.is_interrupt;
-                    }
-                  }
-                }
-                return Promise.resolve({});
-              },
-            ],
+            hooks: [createPostToolUseFailureHook(captureMap)],
           },
         ],
       },
