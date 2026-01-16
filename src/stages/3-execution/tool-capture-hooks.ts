@@ -8,8 +8,82 @@
  * @module tool-capture-hooks
  */
 
-import type { HookCallback } from "./sdk-client.js";
+import type {
+  HookCallback,
+  PreToolUseHookInput,
+  PostToolUseHookInput,
+  PostToolUseFailureHookInput,
+  SubagentStartHookInput,
+  SubagentStopHookInput,
+} from "./sdk-client.js";
 import type { ToolCapture, SubagentCapture } from "../../types/index.js";
+
+/**
+ * Type guard for PreToolUseHookInput.
+ * Validates the input has the expected shape with tool_name and tool_input.
+ */
+function isPreToolUseInput(input: unknown): input is PreToolUseHookInput {
+  return (
+    typeof input === "object" &&
+    input !== null &&
+    "tool_name" in input &&
+    typeof (input as PreToolUseHookInput).tool_name === "string" &&
+    "tool_input" in input
+  );
+}
+
+/**
+ * Type guard for PostToolUseHookInput.
+ * Validates the input has the expected shape with tool_response.
+ */
+function isPostToolUseInput(input: unknown): input is PostToolUseHookInput {
+  return (
+    typeof input === "object" && input !== null && "tool_response" in input
+  );
+}
+
+/**
+ * Type guard for PostToolUseFailureHookInput.
+ * Validates the input has the expected shape with error.
+ */
+function isPostToolUseFailureInput(
+  input: unknown,
+): input is PostToolUseFailureHookInput {
+  return (
+    typeof input === "object" &&
+    input !== null &&
+    "error" in input &&
+    typeof (input as PostToolUseFailureHookInput).error === "string"
+  );
+}
+
+/**
+ * Type guard for SubagentStartHookInput.
+ * Validates the input has the expected shape with agent_id and agent_type.
+ */
+function isSubagentStartInput(input: unknown): input is SubagentStartHookInput {
+  return (
+    typeof input === "object" &&
+    input !== null &&
+    "agent_id" in input &&
+    typeof (input as SubagentStartHookInput).agent_id === "string" &&
+    "agent_type" in input &&
+    typeof (input as SubagentStartHookInput).agent_type === "string"
+  );
+}
+
+/**
+ * Type guard for SubagentStopHookInput.
+ * Validates the input has the expected shape with agent_id.
+ */
+function isSubagentStopInput(input: unknown): input is SubagentStopHookInput {
+  return (
+    typeof input === "object" &&
+    input !== null &&
+    "agent_id" in input &&
+    typeof (input as SubagentStopHookInput).agent_id === "string"
+  );
+}
 
 /**
  * Callback invoked when a new tool capture is created.
@@ -34,8 +108,7 @@ export function createPreToolUseHook(
   onCapture: OnToolCapture,
 ): HookCallback {
   return async (input, toolUseId, _context) => {
-    // PreToolUse hooks receive PreToolUseHookInput which has tool_name and tool_input
-    if ("tool_name" in input && "tool_input" in input) {
+    if (isPreToolUseInput(input)) {
       const capture: ToolCapture = {
         name: input.tool_name,
         input: input.tool_input,
@@ -68,10 +141,9 @@ export function createPostToolUseHook(
   captureMap: Map<string, ToolCapture>,
 ): HookCallback {
   return async (input, toolUseId, _context) => {
-    // PostToolUse hooks receive PostToolUseHookInput with tool_response
-    if (toolUseId && captureMap.has(toolUseId)) {
+    if (toolUseId && captureMap.has(toolUseId) && isPostToolUseInput(input)) {
       const capture = captureMap.get(toolUseId);
-      if (capture && "tool_response" in input) {
+      if (capture) {
         capture.result = input.tool_response;
         capture.success = true;
       }
@@ -95,11 +167,13 @@ export function createPostToolUseFailureHook(
   captureMap: Map<string, ToolCapture>,
 ): HookCallback {
   return async (input, toolUseId, _context) => {
-    // PostToolUseFailure hooks receive PostToolUseFailureHookInput with error
-    if (toolUseId && captureMap.has(toolUseId)) {
+    if (
+      toolUseId &&
+      captureMap.has(toolUseId) &&
+      isPostToolUseFailureInput(input)
+    ) {
       const capture = captureMap.get(toolUseId);
-      if (capture && "error" in input) {
-        // TypeScript narrows to PostToolUseFailureHookInput after "error" in input check
+      if (capture) {
         capture.error = input.error;
         capture.success = false;
         if (input.is_interrupt !== undefined) {
@@ -133,8 +207,7 @@ export function createSubagentStartHook(
   onCapture: OnSubagentCapture,
 ): HookCallback {
   return async (input, _toolUseId, _context) => {
-    // SubagentStart hooks receive SubagentStartHookInput which has agent_id and agent_type
-    if ("agent_id" in input && "agent_type" in input) {
+    if (isSubagentStartInput(input)) {
       const capture: SubagentCapture = {
         agentId: input.agent_id,
         agentType: input.agent_type,
@@ -164,10 +237,8 @@ export function createSubagentStopHook(
   captureMap: Map<string, SubagentCapture>,
 ): HookCallback {
   return async (input, _toolUseId, _context) => {
-    // SubagentStop hooks receive SubagentStopHookInput with agent_id and agent_transcript_path
-    if ("agent_id" in input) {
-      const agentId = input.agent_id;
-      const capture = captureMap.get(agentId);
+    if (isSubagentStopInput(input)) {
+      const capture = captureMap.get(input.agent_id);
       if (capture) {
         capture.stopTimestamp = Date.now();
         if ("agent_transcript_path" in input) {
