@@ -320,11 +320,3 @@ export {
   formatPipelineCostEstimate,
   type SystemPrompt,
 } from "./cost-estimator.js";
-
-export {
-  generateSemanticVariations,
-  generateSemanticScenarios,
-  generateSkillSemanticScenarios,
-  extractAllComponentKeywords,
-  wouldTriggerDifferentComponent,
-} from "./semantic-generator.js";

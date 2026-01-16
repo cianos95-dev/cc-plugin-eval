@@ -391,7 +391,6 @@ src/
 │   │   ├── command-scenario-generator.ts
 │   │   ├── hook-scenario-generator.ts
 │   │   ├── mcp-scenario-generator.ts
-│   │   ├── semantic-generator.ts
 │   │   ├── cost-estimator.ts
 │   │   ├── batch-calculator.ts
 │   │   └── diversity-manager.ts
