@@ -94,7 +94,7 @@ npx cc-plugin-eval run -p ./path/to/your/plugin
 | ----------------- | ----------------------------------------------- | ------------------------------------------------- | ----------------- |
 | **1. Analysis**   | Parse plugin structure, extract trigger phrases | Deterministic parsing                             | `analysis.json`   |
 | **2. Generation** | Create test scenarios                           | LLM for skills/agents, deterministic for commands | `scenarios.json`  |
-| **3. Execution**  | Run scenarios against Claude Agent SDK          | PreToolUse hook captures                          | `transcripts/`    |
+| **3. Execution**  | Run scenarios against Claude Agent SDK          | Tool capture hooks                                | `transcripts/`    |
 | **4. Evaluation** | Detect triggers, calculate metrics              | Programmatic first, LLM judge for quality         | `evaluation.json` |
 
 ### Scenario Types
@@ -299,7 +299,7 @@ results/
 
 **Programmatic detection is primary** for maximum accuracy:
 
-1. During execution, PreToolUse hooks capture all tool invocations
+1. During execution, tool capture hooks capture all tool invocations
 2. Tool captures are parsed to detect `Skill`, `Task`, and `SlashCommand` calls
 3. MCP tools detected via pattern: `mcp__<server>__<tool>`
 4. Hooks detected via `SDKHookResponseMessage` events
@@ -377,38 +377,39 @@ src/
 │   └── pricing.ts        # Model pricing for cost estimation
 ├── stages/
 │   ├── 1-analysis/       # Plugin parsing, trigger extraction
-│   │   ├── plugin-parser.ts
-│   │   ├── skill-analyzer.ts
 │   │   ├── agent-analyzer.ts
 │   │   ├── command-analyzer.ts
 │   │   ├── hook-analyzer.ts
 │   │   ├── mcp-analyzer.ts
 │   │   ├── path-resolver.ts
-│   │   └── preflight.ts
+│   │   ├── plugin-parser.ts
+│   │   ├── preflight.ts
+│   │   └── skill-analyzer.ts
 │   ├── 2-generation/     # Scenario generation
-│   │   ├── skill-scenario-generator.ts
 │   │   ├── agent-scenario-generator.ts
+│   │   ├── batch-calculator.ts
 │   │   ├── command-scenario-generator.ts
+│   │   ├── cost-estimator.ts
+│   │   ├── diversity-manager.ts
 │   │   ├── hook-scenario-generator.ts
 │   │   ├── mcp-scenario-generator.ts
-│   │   ├── cost-estimator.ts
-│   │   ├── batch-calculator.ts
-│   │   └── diversity-manager.ts
+│   │   └── skill-scenario-generator.ts
 │   ├── 3-execution/      # Agent SDK integration
 │   │   ├── agent-executor.ts
-│   │   ├── plugin-loader.ts
-│   │   ├── sdk-client.ts
 │   │   ├── hook-capture.ts
+│   │   ├── plugin-loader.ts
+│   │   ├── progress-reporters.ts
+│   │   ├── sdk-client.ts
 │   │   ├── session-batching.ts
-│   │   ├── transcript-builder.ts
-│   │   └── progress-reporters.ts
+│   │   ├── tool-capture-hooks.ts
+│   │   └── transcript-builder.ts
 │   └── 4-evaluation/     # Detection & metrics
-│       ├── programmatic-detector.ts
+│       ├── batch-evaluator.ts
+│       ├── conflict-tracker.ts
 │       ├── llm-judge.ts
 │       ├── metrics.ts
-│       ├── conflict-tracker.ts
-│       ├── batch-evaluator.ts
-│       └── multi-sampler.ts
+│       ├── multi-sampler.ts
+│       └── programmatic-detector.ts
 ├── state/                # Resume capability
 │   └── state-manager.ts
 ├── types/                # TypeScript interfaces

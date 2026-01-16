@@ -179,9 +179,10 @@ chore: update dependencies
 
 **Programmatic detection is primary** (100% confidence):
 
-1. PreToolUse hooks capture tool invocations during execution
+1. Tool capture hooks (PreToolUse, SubagentStart/SubagentStop) capture invocations during execution
 2. Parse `Skill`, `Task`, `SlashCommand` tool calls from captures
-3. LLM judge is secondary, used only for quality assessment
+3. Agent detection uses SubagentStart/SubagentStop hooks for improved accuracy
+4. LLM judge is secondary, used only for quality assessment
 
 ### SDK Integration
 

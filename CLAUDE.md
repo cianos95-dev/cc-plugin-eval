@@ -75,7 +75,7 @@ cc-plugin-eval run -p ./plugin --fast    # Re-run failed scenarios only
 
 | Component         | File                                               | Main Export                   |
 | ----------------- | -------------------------------------------------- | ----------------------------- |
-| CLI               | `src/index.ts`                                     | `main()`                      |
+| CLI               | `src/index.ts`                                     | Commander `program`           |
 | Stage 1           | `src/stages/1-analysis/index.ts`                   | `runAnalysis()`               |
 | Stage 2           | `src/stages/2-generation/index.ts`                 | `runGeneration()`             |
 | Stage 3           | `src/stages/3-execution/index.ts`                  | `runExecution()`              |
@@ -107,7 +107,7 @@ This project has MCP tools configured for efficient code exploration and editing
 
 **Refactoring types**: Use `find_referencing_symbols` on a type from `src/types/` to find all usages before making changes.
 
-**Tracing detection logic**: The detection flow is `detectAllComponents` → `detectFromCaptures` / `detectFromTranscript` → type-specific detectors. Use `find_symbol` to navigate this chain.
+**Tracing detection logic**: The detection flow is `detectAllComponents` → `detectFromCaptures` / `detectFromTranscript` → type-specific detectors. Agent detection uses SubagentStart/SubagentStop hooks. Use `find_symbol` to navigate this chain.
 
 **Adding a new component type**: Follow the type through all four stages using `find_referencing_symbols` on similar component types (e.g., trace how `hooks` is handled to understand where to add `mcp_servers`).
 
@@ -118,6 +118,10 @@ src/
 ├── index.ts              # CLI entry point (env.ts MUST be first import)
 ├── env.ts                # Environment setup (dotenv loading)
 ├── config/               # Configuration loading with Zod validation
+│   ├── defaults.ts       # Default configuration values
+│   ├── loader.ts         # YAML/JSON config loading
+│   ├── pricing.ts        # Model pricing for cost estimation
+│   └── schema.ts         # Zod validation schemas
 ├── stages/
 │   ├── 1-analysis/       # Plugin parsing, trigger extraction
 │   ├── 2-generation/     # Scenario generation (LLM + deterministic)
@@ -182,7 +186,7 @@ Use cause chains for error context. See `src/config/loader.ts:ConfigLoadError` f
 
 ### Type Guards
 
-Use type guards for tool detection in `src/stages/4-evaluation/programmatic-detector.ts`. Examples include `isSkillInput()`, `isTaskInput()`, and `isAgentInput()`.
+Use type guards for tool detection in `src/stages/4-evaluation/programmatic-detector.ts`. Examples include `isSkillInput()` and `isTaskInput()`.
 
 ### Parallel Execution with Concurrency Control
 
@@ -218,9 +222,12 @@ Test fixtures live in `tests/fixtures/`. Sample transcripts are in `tests/fixtur
 
 The project uses GitHub Actions for CI. Key workflows:
 
-| Workflow               | Purpose                                     |
-| ---------------------- | ------------------------------------------- |
-| `ci.yml`               | Build, lint, typecheck, test on PR and push |
-| `claude-pr-review.yml` | AI-powered code review on PRs               |
+| Workflow                    | Purpose                                     |
+| --------------------------- | ------------------------------------------- |
+| `ci.yml`                    | Build, lint, typecheck, test on PR and push |
+| `claude-pr-review.yml`      | AI-powered code review on PRs               |
+| `claude-issue-analysis.yml` | AI-powered issue analysis                   |
+| `markdownlint.yml`          | Markdown linting                            |
+| `yaml-lint.yml`             | YAML linting                                |
 
 CI runs tests in parallel with randomized order. Failed tests are retried twice before marking as failed.

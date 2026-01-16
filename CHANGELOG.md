@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- SubagentStart/SubagentStop hooks for improved agent detection accuracy (#192)
+- Prompt caching token economics in cost estimation (#185)
+- Temperature configuration for deterministic scenario generation (#183)
+- Explicit timeout configuration for Anthropic SDK API calls (#179)
+- Anthropic SDK request ID preservation in errors (#178)
+- Claude issue analysis workflow (#177)
+
 ### Changed
 
 - **BREAKING**: Default execution strategy changed from isolated to batched mode
@@ -14,6 +23,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   with `/clear` between them. To restore previous behavior, set
   `execution.session_strategy: "isolated"` or `execution.session_isolation: true`
   in your config. (#86)
+- Extracted shared tool capture hook logic into reusable utility (#191)
+- Updated model pricing and default model selections (#181)
+
+### Fixed
+
+- PostToolUse/PostToolUseFailure hooks added to batch execution mode (#189)
+- System prompt inclusion in batch evaluation requests (#182)
+- System prompts included in token counting for cost estimation (#180)
+- Label events no longer cancel issue analysis workflow
 
 ## [0.2.0] - 2026-01-10
 
