@@ -239,3 +239,50 @@ The project uses GitHub Actions for CI. Key workflows:
 | `greet.yml`                 | Welcome new contributors                            |
 
 CI runs tests in parallel with randomized order. Failed tests are retried twice before marking as failed.
+
+## GitHub Issue Management
+
+### Issue Blocking Relationships
+
+Use GraphQL mutations to set up issue dependencies (blocked by / blocks relationships).
+
+**Get issue node IDs:**
+
+```bash
+gh issue list --state open --json number,id | jq -r '.[] | "\(.number)\t\(.id)"'
+```
+
+**Add a blocking relationship** (issueId is blocked by blockingIssueId):
+
+```bash
+gh api graphql -f query='
+mutation {
+  addBlockedBy(input: {
+    issueId: "I_kwDO...",
+    blockingIssueId: "I_kwDO..."
+  }) {
+    issue { number title }
+    blockingIssue { number title }
+  }
+}'
+```
+
+**Remove a blocking relationship:**
+
+```bash
+gh api graphql -f query='
+mutation {
+  removeBlockedBy(input: {
+    issueId: "I_kwDO...",
+    blockingIssueId: "I_kwDO..."
+  }) {
+    issue { number title }
+    blockingIssue { number title }
+  }
+}'
+```
+
+**Example:** To make #205 block #207 (meaning #207 is blocked by #205):
+
+- `issueId` = #207's node ID (the blocked issue)
+- `blockingIssueId` = #205's node ID (the blocking issue)
