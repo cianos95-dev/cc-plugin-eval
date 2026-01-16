@@ -5,9 +5,13 @@ on:
   issues:
     types: [opened, labeled]
 
+# Prevent duplicate runs for the same issue, but don't cancel in-progress runs.
+# cancel-in-progress: false is critical - label events trigger this workflow even when
+# the job condition will skip them, and cancellation happens before job evaluation.
+# Without this, adding labels to a new issue cancels the running analysis.
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.issue.number }}
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   analyze:
