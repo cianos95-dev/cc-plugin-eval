@@ -89,8 +89,9 @@ export const DEFAULT_TUNING: TuningConfig = {
     judge_output: 500,
     input_per_turn: 500,
     output_per_turn: 2000,
-    per_skill: 600,
-    per_agent: 800,
+    // Per-component input tokens include ~500 tokens for system prompts
+    per_skill: 1100, // Was 600, +500 for SKILL_SCENARIO_SYSTEM_PROMPT
+    per_agent: 1300, // Was 800, +500 for AGENT_SCENARIO_SYSTEM_PROMPT
     per_command: 300,
     per_hook: 400,
     per_mcp_server: 400,

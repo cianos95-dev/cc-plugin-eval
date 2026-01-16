@@ -19,6 +19,12 @@ import type {
   TokenEstimate,
   PipelineCostEstimate,
 } from "../../types/index.js";
+import type { TextBlockParam } from "@anthropic-ai/sdk/resources/messages/messages.js";
+
+/**
+ * Type for system prompt - can be a string or array of text blocks (for prompt caching).
+ */
+export type SystemPrompt = string | TextBlockParam[];
 
 /**
  * Model name resolution map.
@@ -98,6 +104,7 @@ export function createAnthropicClient(timeout?: number): Anthropic {
  * @param model - Model to use
  * @param prompt - Prompt text
  * @param timeout - Optional per-request timeout in milliseconds (default: 30000 = 30s)
+ * @param system - Optional system prompt (string or array of text blocks for caching)
  * @returns Token count
  */
 export async function countPromptTokens(
@@ -105,11 +112,13 @@ export async function countPromptTokens(
   model: string,
   prompt: string,
   timeout?: number,
+  system?: SystemPrompt,
 ): Promise<number> {
   const result = await client.messages.countTokens(
     {
       model: resolveModelId(model),
       messages: [{ role: "user", content: prompt }],
+      ...(system !== undefined && { system }),
     },
     { timeout: timeout ?? 30000 },
   );
@@ -132,6 +141,7 @@ const DEFAULT_TOKEN_COUNTING_CONCURRENCY = 10;
  * @param model - Model to use
  * @param concurrency - Maximum concurrent token counting operations (default: 10)
  * @param tokenCountingTimeout - Timeout for each token counting request in ms (default: 30000)
+ * @param system - Optional system prompt to include in token count
  * @returns Token estimate
  */
 export async function estimateGenerationCost(
@@ -140,6 +150,7 @@ export async function estimateGenerationCost(
   model: string,
   concurrency: number = DEFAULT_TOKEN_COUNTING_CONCURRENCY,
   tokenCountingTimeout?: number,
+  system?: SystemPrompt,
 ): Promise<TokenEstimate> {
   // Count tokens in parallel for improved performance
   // Use continueOnError: false to fail fast - partial results would underestimate costs
@@ -147,7 +158,7 @@ export async function estimateGenerationCost(
     items: prompts,
     concurrency,
     fn: async (prompt) =>
-      countPromptTokens(client, model, prompt, tokenCountingTimeout),
+      countPromptTokens(client, model, prompt, tokenCountingTimeout, system),
     continueOnError: false,
   });
   const totalInputTokens = result.results.reduce((a, b) => a + b, 0);

@@ -318,6 +318,7 @@ export {
   resolveModelId,
   createAnthropicClient,
   formatPipelineCostEstimate,
+  type SystemPrompt,
 } from "./cost-estimator.js";
 
 export {

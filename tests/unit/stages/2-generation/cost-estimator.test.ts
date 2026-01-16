@@ -643,6 +643,80 @@ describe("countPromptTokens", () => {
 
     expect(count).toBe(5000);
   });
+
+  it("should include system prompt in token count when provided as string", async () => {
+    mockClient.messages.countTokens.mockResolvedValue({ input_tokens: 650 });
+
+    const count = await countPromptTokens(
+      mockClient as unknown as Anthropic,
+      "haiku",
+      "Test prompt",
+      undefined, // timeout
+      "You are a helpful assistant.",
+    );
+
+    expect(mockClient.messages.countTokens).toHaveBeenCalledWith(
+      {
+        model: expect.stringContaining("haiku"),
+        messages: [{ role: "user", content: "Test prompt" }],
+        system: "You are a helpful assistant.",
+      },
+      { timeout: 30000 },
+    );
+    expect(count).toBe(650);
+  });
+
+  it("should include system prompt in token count when provided as array (caching format)", async () => {
+    mockClient.messages.countTokens.mockResolvedValue({ input_tokens: 750 });
+
+    const systemPromptArray = [
+      { type: "text" as const, text: "You are a helpful assistant." },
+      {
+        type: "text" as const,
+        text: "Additional instructions.",
+        cache_control: { type: "ephemeral" as const },
+      },
+    ];
+
+    const count = await countPromptTokens(
+      mockClient as unknown as Anthropic,
+      "haiku",
+      "Test prompt",
+      undefined, // timeout
+      systemPromptArray,
+    );
+
+    expect(mockClient.messages.countTokens).toHaveBeenCalledWith(
+      {
+        model: expect.stringContaining("haiku"),
+        messages: [{ role: "user", content: "Test prompt" }],
+        system: systemPromptArray,
+      },
+      { timeout: 30000 },
+    );
+    expect(count).toBe(750);
+  });
+
+  it("should not include system in request when not provided", async () => {
+    mockClient.messages.countTokens.mockResolvedValue({ input_tokens: 100 });
+
+    await countPromptTokens(
+      mockClient as unknown as Anthropic,
+      "haiku",
+      "Test prompt",
+    );
+
+    expect(mockClient.messages.countTokens).toHaveBeenCalledWith(
+      {
+        model: expect.stringContaining("haiku"),
+        messages: [{ role: "user", content: "Test prompt" }],
+      },
+      { timeout: 30000 },
+    );
+    // Verify 'system' key is NOT in the call
+    const callArgs = mockClient.messages.countTokens.mock.calls[0][0];
+    expect(callArgs).not.toHaveProperty("system");
+  });
 });
 
 describe("estimateGenerationCost (async)", () => {
@@ -751,5 +825,51 @@ describe("estimateGenerationCost (async)", () => {
         "haiku",
       ),
     ).rejects.toThrow("API error");
+  });
+
+  it("should include system prompt in token count when provided", async () => {
+    mockClient.messages.countTokens.mockResolvedValue({ input_tokens: 500 });
+    const systemPrompt = "You are a test generator.";
+
+    await estimateGenerationCost(
+      mockClient as unknown as Anthropic,
+      ["prompt1", "prompt2"],
+      "haiku",
+      5,
+      undefined,
+      systemPrompt,
+    );
+
+    // Verify all calls include the system prompt
+    expect(mockClient.messages.countTokens).toHaveBeenCalledTimes(2);
+    expect(mockClient.messages.countTokens).toHaveBeenCalledWith(
+      {
+        model: expect.stringContaining("haiku"),
+        messages: [{ role: "user", content: "prompt1" }],
+        system: systemPrompt,
+      },
+      { timeout: 30000 },
+    );
+    expect(mockClient.messages.countTokens).toHaveBeenCalledWith(
+      {
+        model: expect.stringContaining("haiku"),
+        messages: [{ role: "user", content: "prompt2" }],
+        system: systemPrompt,
+      },
+      { timeout: 30000 },
+    );
+  });
+
+  it("should not include system when not provided", async () => {
+    mockClient.messages.countTokens.mockResolvedValue({ input_tokens: 100 });
+
+    await estimateGenerationCost(
+      mockClient as unknown as Anthropic,
+      ["prompt"],
+      "haiku",
+    );
+
+    const callArgs = mockClient.messages.countTokens.mock.calls[0][0];
+    expect(callArgs).not.toHaveProperty("system");
   });
 });
