@@ -1,7 +1,7 @@
 /**
  * Model pricing configuration.
  * Externalized for easy updates without code changes.
- * Last updated: 2026-01-01
+ * Last updated: 2026-01-15
  */
 
 import type { ModelPricing } from "../types/index.js";
@@ -10,14 +10,23 @@ import type { ModelPricing } from "../types/index.js";
  * Model pricing per 1M tokens.
  */
 export const MODEL_PRICING: Record<string, ModelPricing> = {
-  // Opus 4.5 (flagship)
-  "claude-opus-4-5-20251101": { input: 15.0, output: 75.0 },
+  // Opus 4.5 (flagship, cost-reduced)
+  "claude-opus-4-5-20251101": { input: 5.0, output: 25.0 },
+
+  // Opus 4.1 (legacy flagship)
+  "claude-opus-4-1-20250805": { input: 15.0, output: 75.0 },
+
+  // Opus 4 (legacy)
+  "claude-opus-4-20250514": { input: 15.0, output: 75.0 },
 
   // Sonnet 4.5 (balanced)
   "claude-sonnet-4-5-20250929": { input: 3.0, output: 15.0 },
 
   // Sonnet 4 (previous gen)
   "claude-sonnet-4-20250514": { input: 3.0, output: 15.0 },
+
+  // Haiku 4.5 (newer fast model)
+  "claude-haiku-4-5-20251001": { input: 1.0, output: 5.0 },
 
   // Haiku 3.5 (fast/cheap)
   "claude-haiku-3-5-20250929": { input: 0.8, output: 4.0 },

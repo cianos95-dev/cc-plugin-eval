@@ -32,7 +32,7 @@ export const DEFAULT_GENERATION = {
  * Default execution configuration.
  */
 export const DEFAULT_EXECUTION = {
-  model: "claude-sonnet-4-20250514",
+  model: "claude-sonnet-4-5-20250929",
   max_turns: 5,
   timeout_ms: 60000,
   max_budget_usd: 10.0,
@@ -46,7 +46,7 @@ export const DEFAULT_EXECUTION = {
  * Default evaluation configuration.
  */
 export const DEFAULT_EVALUATION = {
-  model: "claude-sonnet-4-5-20250929",
+  model: "claude-haiku-4-5-20251001",
   max_tokens: 4000,
   detection_mode: "programmatic_first" as const,
   reasoning_effort: "low" as const,

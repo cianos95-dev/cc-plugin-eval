@@ -10,8 +10,8 @@ import {
 describe("getModelPricing", () => {
   it("returns pricing for known models", () => {
     const opusPricing = getModelPricing("claude-opus-4-5-20251101");
-    expect(opusPricing.input).toBe(15.0);
-    expect(opusPricing.output).toBe(75.0);
+    expect(opusPricing.input).toBe(5.0);
+    expect(opusPricing.output).toBe(25.0);
 
     const sonnetPricing = getModelPricing("claude-sonnet-4-5-20250929");
     expect(sonnetPricing.input).toBe(3.0);
@@ -27,13 +27,13 @@ describe("getModelPricing", () => {
 
 describe("calculateCost", () => {
   it("calculates cost for opus model", () => {
-    // 1M input tokens at $15/M + 1M output tokens at $75/M = $90
+    // 1M input tokens at $5/M + 1M output tokens at $25/M = $30
     const cost = calculateCost(
       "claude-opus-4-5-20251101",
       1_000_000,
       1_000_000,
     );
-    expect(cost).toBe(90);
+    expect(cost).toBe(30);
   });
 
   it("calculates cost for smaller token counts", () => {
@@ -64,8 +64,11 @@ describe("formatCost", () => {
 describe("MODEL_PRICING", () => {
   it("contains expected models", () => {
     expect(MODEL_PRICING).toHaveProperty("claude-opus-4-5-20251101");
+    expect(MODEL_PRICING).toHaveProperty("claude-opus-4-1-20250805");
+    expect(MODEL_PRICING).toHaveProperty("claude-opus-4-20250514");
     expect(MODEL_PRICING).toHaveProperty("claude-sonnet-4-5-20250929");
     expect(MODEL_PRICING).toHaveProperty("claude-sonnet-4-20250514");
+    expect(MODEL_PRICING).toHaveProperty("claude-haiku-4-5-20251001");
     expect(MODEL_PRICING).toHaveProperty("claude-haiku-3-5-20250929");
   });
 });

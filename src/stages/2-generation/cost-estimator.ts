@@ -31,24 +31,36 @@ export type SystemPrompt = string | TextBlockParam[];
  * Maps short names to full model IDs.
  */
 const MODEL_MAP: Record<string, string> = {
-  // Opus 4.5 (latest flagship model)
+  // Opus 4.5 (flagship, cost-reduced)
   "claude-opus-4.5": "claude-opus-4-5-20251101",
   "opus-4.5": "claude-opus-4-5-20251101",
   opus: "claude-opus-4-5-20251101",
 
+  // Opus 4.1 (legacy flagship)
+  "claude-opus-4.1": "claude-opus-4-1-20250805",
+  "opus-4.1": "claude-opus-4-1-20250805",
+
+  // Opus 4 (legacy)
+  "claude-opus-4": "claude-opus-4-20250514",
+  "opus-4": "claude-opus-4-20250514",
+
   // Sonnet 4.5 (balanced performance)
   "claude-sonnet-4.5": "claude-sonnet-4-5-20250929",
   "sonnet-4.5": "claude-sonnet-4-5-20250929",
+  sonnet: "claude-sonnet-4-5-20250929", // Default to latest Sonnet
 
   // Sonnet 4 (previous generation)
   "claude-sonnet-4": "claude-sonnet-4-20250514",
   "sonnet-4": "claude-sonnet-4-20250514",
-  sonnet: "claude-sonnet-4-5-20250929", // Default to latest Sonnet
+
+  // Haiku 4.5 (newer fast model)
+  "claude-haiku-4.5": "claude-haiku-4-5-20251001",
+  "haiku-4.5": "claude-haiku-4-5-20251001",
+  haiku: "claude-haiku-4-5-20251001", // Default to latest Haiku
 
   // Haiku 3.5 (fast and cost-effective)
   "claude-haiku-3.5": "claude-haiku-3-5-20250929",
   "haiku-3.5": "claude-haiku-3-5-20250929",
-  haiku: "claude-haiku-3-5-20250929",
 };
 
 /**
