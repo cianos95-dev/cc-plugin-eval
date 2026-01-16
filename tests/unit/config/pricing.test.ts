@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  calculateCacheSavings,
   calculateCost,
   formatCost,
   getModelPricing,
@@ -70,5 +71,67 @@ describe("MODEL_PRICING", () => {
     expect(MODEL_PRICING).toHaveProperty("claude-sonnet-4-20250514");
     expect(MODEL_PRICING).toHaveProperty("claude-haiku-4-5-20251001");
     expect(MODEL_PRICING).toHaveProperty("claude-haiku-3-5-20250929");
+  });
+
+  it("includes cache pricing for all models", () => {
+    for (const [modelId, pricing] of Object.entries(MODEL_PRICING)) {
+      expect(pricing.cache_creation).toBeDefined();
+      expect(pricing.cache_read).toBeDefined();
+      expect(pricing.cache_creation).toBeGreaterThan(pricing.input);
+      expect(pricing.cache_read).toBeLessThan(pricing.input);
+    }
+  });
+});
+
+describe("calculateCacheSavings", () => {
+  it("calculates savings from cache usage", () => {
+    // With 10K cache creation tokens and 90K cache read tokens
+    // Without caching: 100K * $3/M = $0.30
+    // With caching: 10K * $3.75/M + 90K * $0.30/M = $0.0375 + $0.027 = $0.0645
+    // Savings = $0.30 - $0.0645 = $0.2355
+    const savings = calculateCacheSavings(
+      10_000, // cache creation tokens
+      90_000, // cache read tokens
+      "claude-sonnet-4-5-20250929",
+    );
+    expect(savings).toBeGreaterThan(0);
+    expect(savings).toBeCloseTo(0.2355, 2);
+  });
+
+  it("returns zero savings when no cache tokens", () => {
+    const savings = calculateCacheSavings(0, 0, "claude-sonnet-4-5-20250929");
+    expect(savings).toBe(0);
+  });
+
+  it("handles cache creation only (no reads)", () => {
+    // Only creation tokens - should have negative "savings" (cost more)
+    // Without caching: 10K * $3/M = $0.03
+    // With caching: 10K * $3.75/M = $0.0375
+    // Savings = $0.03 - $0.0375 = -$0.0075
+    const savings = calculateCacheSavings(
+      10_000, // cache creation tokens
+      0, // cache read tokens
+      "claude-sonnet-4-5-20250929",
+    );
+    expect(savings).toBeLessThan(0);
+    expect(savings).toBeCloseTo(-0.0075, 4);
+  });
+
+  it("works with different models", () => {
+    // Test with Opus 4.5
+    const opusSavings = calculateCacheSavings(
+      10_000,
+      90_000,
+      "claude-opus-4-5-20251101",
+    );
+    expect(opusSavings).toBeGreaterThan(0);
+
+    // Test with Haiku 3.5
+    const haikuSavings = calculateCacheSavings(
+      10_000,
+      90_000,
+      "claude-haiku-3-5-20250929",
+    );
+    expect(haikuSavings).toBeGreaterThan(0);
   });
 });

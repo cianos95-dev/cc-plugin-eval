@@ -642,6 +642,7 @@ describe("formatMetrics - cache_stats", () => {
       total_cache_read_tokens: 5000,
       total_cache_creation_tokens: 1000,
       cache_hit_rate: 0.75,
+      savings_usd: 0.1234,
     };
 
     const formatted = formatMetrics(metrics);
@@ -650,6 +651,7 @@ describe("formatMetrics - cache_stats", () => {
     expect(formatted).toContain("Hit Rate:         75.0%");
     expect(formatted).toContain("Tokens Read:      5000");
     expect(formatted).toContain("Tokens Created:   1000");
+    expect(formatted).toContain("Cost Savings:     $0.1234");
   });
 
   it("should omit cache stats section when undefined", () => {
@@ -841,5 +843,35 @@ describe("calculateEvalMetrics - cache_stats", () => {
     expect(metrics.cache_stats?.total_cache_creation_tokens).toBe(100);
     // 400 / (800 + 200) = 0.4
     expect(metrics.cache_stats?.cache_hit_rate).toBe(0.4);
+  });
+
+  it("should calculate cache savings in USD", () => {
+    const results = [
+      {
+        result: createEvalResult({ triggered: true }),
+        scenario: createScenario({ expected_trigger: true }),
+        execution: createExecResult({
+          cache_read_tokens: 90_000,
+          cache_creation_tokens: 10_000,
+          model_usage: {
+            "claude-sonnet-4-5-20250929": {
+              inputTokens: 100_000,
+              outputTokens: 10_000,
+              cacheCreationInputTokens: 10_000,
+              cacheReadInputTokens: 90_000,
+            },
+          },
+        }),
+      },
+    ];
+
+    const metrics = calculateEvalMetrics(results, [results[0].execution]);
+
+    expect(metrics.cache_stats).toBeDefined();
+    expect(metrics.cache_stats?.savings_usd).toBeDefined();
+    // Without caching: 100K * $3/M = $0.30
+    // With caching: 10K * $3.75/M + 90K * $0.30/M = $0.0375 + $0.027 = $0.0645
+    // Savings = $0.30 - $0.0645 = $0.2355
+    expect(metrics.cache_stats?.savings_usd).toBeCloseTo(0.2355, 2);
   });
 });

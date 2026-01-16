@@ -5,6 +5,8 @@
  * metrics across all evaluated scenarios.
  */
 
+import { calculateCacheSavings } from "../../config/pricing.js";
+
 import type {
   CacheStats,
   ComponentMetrics,
@@ -333,10 +335,30 @@ function calculateCacheStats(
   const cacheHitRate =
     totalInputTokens > 0 ? totalCacheReadTokens / totalInputTokens : 0;
 
+  // Calculate savings by aggregating per-model cache tokens
+  // We need to calculate savings per model since pricing varies
+  let totalSavings = 0;
+  for (const exec of executions) {
+    if (exec.model_usage) {
+      for (const [modelId, usage] of Object.entries(exec.model_usage)) {
+        const cacheCreation = usage.cacheCreationInputTokens ?? 0;
+        const cacheRead = usage.cacheReadInputTokens ?? 0;
+        if (cacheCreation > 0 || cacheRead > 0) {
+          totalSavings += calculateCacheSavings(
+            cacheCreation,
+            cacheRead,
+            modelId,
+          );
+        }
+      }
+    }
+  }
+
   return {
     total_cache_read_tokens: totalCacheReadTokens,
     total_cache_creation_tokens: totalCacheCreationTokens,
     cache_hit_rate: cacheHitRate,
+    savings_usd: totalSavings,
   };
 }
 
@@ -538,6 +560,9 @@ export function formatMetrics(metrics: EvalMetrics): string {
     );
     lines.push(
       `  Tokens Created:   ${String(metrics.cache_stats.total_cache_creation_tokens)}`,
+    );
+    lines.push(
+      `  Cost Savings:     $${metrics.cache_stats.savings_usd.toFixed(4)}`,
     );
   }
 

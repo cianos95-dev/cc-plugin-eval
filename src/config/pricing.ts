@@ -1,41 +1,83 @@
 /**
  * Model pricing configuration.
  * Externalized for easy updates without code changes.
- * Last updated: 2026-01-15
+ * Last updated: 2026-01-16
  */
 
 import type { ModelPricing } from "../types/index.js";
 
 /**
  * Model pricing per 1M tokens.
+ * Cache creation costs ~1.25x input price.
+ * Cache read costs ~0.1x input price.
  */
 export const MODEL_PRICING: Record<string, ModelPricing> = {
   // Opus 4.5 (flagship, cost-reduced)
-  "claude-opus-4-5-20251101": { input: 5.0, output: 25.0 },
+  "claude-opus-4-5-20251101": {
+    input: 5.0,
+    output: 25.0,
+    cache_creation: 6.25,
+    cache_read: 0.5,
+  },
 
   // Opus 4.1 (legacy flagship)
-  "claude-opus-4-1-20250805": { input: 15.0, output: 75.0 },
+  "claude-opus-4-1-20250805": {
+    input: 15.0,
+    output: 75.0,
+    cache_creation: 18.75,
+    cache_read: 1.5,
+  },
 
   // Opus 4 (legacy)
-  "claude-opus-4-20250514": { input: 15.0, output: 75.0 },
+  "claude-opus-4-20250514": {
+    input: 15.0,
+    output: 75.0,
+    cache_creation: 18.75,
+    cache_read: 1.5,
+  },
 
   // Sonnet 4.5 (balanced)
-  "claude-sonnet-4-5-20250929": { input: 3.0, output: 15.0 },
+  "claude-sonnet-4-5-20250929": {
+    input: 3.0,
+    output: 15.0,
+    cache_creation: 3.75,
+    cache_read: 0.3,
+  },
 
   // Sonnet 4 (previous gen)
-  "claude-sonnet-4-20250514": { input: 3.0, output: 15.0 },
+  "claude-sonnet-4-20250514": {
+    input: 3.0,
+    output: 15.0,
+    cache_creation: 3.75,
+    cache_read: 0.3,
+  },
 
   // Haiku 4.5 (newer fast model)
-  "claude-haiku-4-5-20251001": { input: 1.0, output: 5.0 },
+  "claude-haiku-4-5-20251001": {
+    input: 1.0,
+    output: 5.0,
+    cache_creation: 1.25,
+    cache_read: 0.1,
+  },
 
   // Haiku 3.5 (fast/cheap)
-  "claude-haiku-3-5-20250929": { input: 0.8, output: 4.0 },
+  "claude-haiku-3-5-20250929": {
+    input: 0.8,
+    output: 4.0,
+    cache_creation: 1.0,
+    cache_read: 0.08,
+  },
 };
 
 /**
  * Default pricing fallback.
  */
-const DEFAULT_PRICING: ModelPricing = { input: 3.0, output: 15.0 };
+const DEFAULT_PRICING: ModelPricing = {
+  input: 3.0,
+  output: 15.0,
+  cache_creation: 3.75,
+  cache_read: 0.3,
+};
 
 /**
  * Get pricing for a model, with fallback to default.
@@ -65,6 +107,40 @@ export function calculateCost(
     (inputTokens / 1_000_000) * pricing.input +
     (outputTokens / 1_000_000) * pricing.output
   );
+}
+
+/**
+ * Calculate savings from prompt caching.
+ *
+ * Computes the difference between what tokens would have cost as regular
+ * input tokens versus their actual cost as cache creation/read tokens.
+ *
+ * @param cacheCreationTokens - Tokens used to create cache entries
+ * @param cacheReadTokens - Tokens read from cache
+ * @param modelId - Full model identifier
+ * @returns Savings in USD (positive = saved money, negative = cost more)
+ */
+export function calculateCacheSavings(
+  cacheCreationTokens: number,
+  cacheReadTokens: number,
+  modelId: string,
+): number {
+  if (cacheCreationTokens === 0 && cacheReadTokens === 0) {
+    return 0;
+  }
+
+  const pricing = getModelPricing(modelId);
+  const totalCacheTokens = cacheCreationTokens + cacheReadTokens;
+
+  // Cost if these tokens were regular input tokens
+  const costWithoutCaching = (totalCacheTokens / 1_000_000) * pricing.input;
+
+  // Actual cost with caching
+  const costWithCaching =
+    (cacheCreationTokens / 1_000_000) * pricing.cache_creation +
+    (cacheReadTokens / 1_000_000) * pricing.cache_read;
+
+  return costWithoutCaching - costWithCaching;
 }
 
 /**

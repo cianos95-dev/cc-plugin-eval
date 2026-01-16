@@ -10,6 +10,10 @@ export interface ModelPricing {
   input: number;
   /** $ per 1M output tokens */
   output: number;
+  /** $ per 1M cache creation tokens (~1.25x input) */
+  cache_creation: number;
+  /** $ per 1M cache read tokens (~0.1x input) */
+  cache_read: number;
 }
 
 /**

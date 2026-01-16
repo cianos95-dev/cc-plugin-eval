@@ -198,6 +198,8 @@ export interface CacheStats {
   total_cache_creation_tokens: number;
   /** Cache hit rate (read tokens / total input tokens) */
   cache_hit_rate: number;
+  /** Estimated cost savings from caching in USD */
+  savings_usd: number;
 }
 
 /**
