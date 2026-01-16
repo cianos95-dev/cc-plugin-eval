@@ -208,7 +208,7 @@ export interface QueryOptions {
   persistSession?: boolean;
   continue?: boolean;
   maxBudgetUsd?: number;
-  abortSignal?: AbortSignal;
+  abortController?: AbortController;
   permissionMode?: PermissionMode;
   allowDangerouslySkipPermissions?: boolean;
   enableFileCheckpointing?: boolean;

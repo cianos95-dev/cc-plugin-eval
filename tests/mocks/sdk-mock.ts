@@ -251,7 +251,8 @@ export function createMockQueryFn(config: MockQueryConfig = {}): QueryFunction {
               toolUseId,
               {
                 signal:
-                  input.options?.abortSignal ?? new AbortController().signal,
+                  input.options?.abortController?.signal ??
+                  new AbortController().signal,
               },
             );
           }
@@ -266,7 +267,7 @@ export function createMockQueryFn(config: MockQueryConfig = {}): QueryFunction {
           // Simulate timeout if requested
           if (config.shouldTimeout) {
             // Check if signal is already aborted
-            if (input.options?.abortSignal?.aborted) {
+            if (input.options?.abortController?.signal.aborted) {
               const error = new Error("Operation aborted");
               error.name = "AbortError";
               throw error;
@@ -414,14 +415,14 @@ export function createTimeoutQueryFn(delayMs?: number): QueryFunction {
   return (input: QueryInput): QueryObject => {
     return {
       [Symbol.asyncIterator]: async function* () {
-        // If signal is provided, wait for it to abort
-        if (input.options?.abortSignal) {
+        // If abort controller is provided, wait for it to abort
+        if (input.options?.abortController) {
           if (delayMs !== undefined) {
             await new Promise((resolve) => setTimeout(resolve, delayMs));
           }
 
           // Check if aborted
-          if (input.options.abortSignal.aborted) {
+          if (input.options.abortController.signal.aborted) {
             const error = new Error("Operation aborted");
             error.name = "AbortError";
             throw error;

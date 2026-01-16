@@ -158,8 +158,8 @@ interface BuildScenarioQueryInputOptions {
   maxBudgetUsd?: number | undefined;
   /** Whether this is the first scenario in the batch */
   isFirst: boolean;
-  /** Abort signal for timeout */
-  abortSignal: AbortSignal;
+  /** Abort controller for timeout */
+  abortController: AbortController;
   /** Map for correlating Pre/Post hooks by toolUseId */
   captureMap: Map<string, ToolCapture>;
   /** Tool capture callback */
@@ -268,7 +268,7 @@ async function executeScenarioWithRetry(
     maxTurns: config.max_turns,
     maxBudgetUsd: config.max_budget_usd,
     isFirst: scenarioIndex === 0,
-    abortSignal: controller.signal,
+    abortController: controller,
     captureMap,
     onToolCapture: (capture) => detectedTools.push(capture),
     onStderr: (data) => {
@@ -357,7 +357,7 @@ function buildScenarioQueryInput(
     maxTurns,
     maxBudgetUsd,
     isFirst,
-    abortSignal,
+    abortController,
     captureMap,
     onToolCapture,
     onStderr,
@@ -381,7 +381,7 @@ function buildScenarioQueryInput(
       continue: !isFirst,
       ...(maxBudgetUsd !== undefined ? { maxBudgetUsd } : {}),
       ...(enableFileCheckpointing ? { enableFileCheckpointing } : {}),
-      abortSignal,
+      abortController,
       permissionMode: "bypassPermissions",
       allowDangerouslySkipPermissions: true,
       hooks: {
@@ -419,8 +419,8 @@ interface SendClearCommandOptions {
   allowedTools: string[];
   /** Model to use */
   model: string;
-  /** Abort signal */
-  abortSignal: AbortSignal;
+  /** Abort controller for timeout */
+  abortController: AbortController;
   /** Query function (for testing) */
   queryFn?: QueryFunction | undefined;
   /** Enable MCP server discovery via settingSources */
@@ -439,7 +439,7 @@ async function sendClearCommand(
     plugins,
     allowedTools,
     model,
-    abortSignal,
+    abortController,
     queryFn,
     enableMcpDiscovery = true,
   } = options;
@@ -459,7 +459,7 @@ async function sendClearCommand(
       maxTurns: 1,
       persistSession: true,
       continue: true,
-      abortSignal,
+      abortController,
       permissionMode: "bypassPermissions",
       allowDangerouslySkipPermissions: true,
     },
@@ -602,7 +602,7 @@ export async function executeBatch(
           plugins,
           allowedTools,
           model: config.model,
-          abortSignal: controller.signal,
+          abortController: controller,
           queryFn,
           enableMcpDiscovery: options.enableMcpDiscovery,
         });

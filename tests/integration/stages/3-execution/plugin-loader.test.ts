@@ -294,20 +294,21 @@ describe("verifyPluginLoad", () => {
     expect(result.error).toContain("Plugin load failed");
   });
 
-  it("handles timeout via abort signal", async () => {
+  it("handles timeout via abort controller", async () => {
     // Create a query function that never yields
     const queryFn = (input: QueryInput): QueryObject => {
       return {
         [Symbol.asyncIterator]: async function* () {
-          // Wait for abort signal
+          // Wait for abort signal from controller
           await new Promise((_, reject) => {
-            if (input.options?.abortSignal?.aborted) {
+            const signal = input.options?.abortController?.signal;
+            if (signal?.aborted) {
               const error = new Error("Aborted");
               error.name = "AbortError";
               reject(error);
               return;
             }
-            input.options?.abortSignal?.addEventListener("abort", () => {
+            signal?.addEventListener("abort", () => {
               const error = new Error("Aborted");
               error.name = "AbortError";
               reject(error);

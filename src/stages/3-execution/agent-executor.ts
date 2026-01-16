@@ -104,7 +104,7 @@ function buildQueryInput(
   plugins: PluginReference[],
   config: ExecutionConfig,
   hooks: HooksConfig,
-  abortSignal: AbortSignal,
+  abortController: AbortController,
   startTime: number,
   enableMcpDiscovery: boolean,
 ): QueryInput {
@@ -135,7 +135,7 @@ function buildQueryInput(
       maxTurns: config.max_turns,
       persistSession: false, // Session isolation
       maxBudgetUsd: config.max_budget_usd,
-      abortSignal,
+      abortController,
       permissionMode: "bypassPermissions",
       allowDangerouslySkipPermissions: true,
       ...(config.max_thinking_tokens !== undefined
@@ -282,7 +282,7 @@ export async function executeScenario(
       plugins,
       config,
       hooksConfig,
-      controller.signal,
+      controller,
       startTime,
       options.enableMcpDiscovery ?? true,
     );
@@ -431,7 +431,7 @@ export async function executeScenarioWithCheckpoint(
         maxTurns: config.max_turns,
         persistSession: false,
         maxBudgetUsd: config.max_budget_usd,
-        abortSignal: controller.signal,
+        abortController: controller,
         permissionMode: "bypassPermissions",
         allowDangerouslySkipPermissions: true,
         enableFileCheckpointing: true, // Enable for rewind

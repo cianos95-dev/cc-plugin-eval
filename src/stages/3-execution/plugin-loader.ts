@@ -158,7 +158,7 @@ export async function verifyPluginLoad(
         persistSession: false,
         permissionMode: "bypassPermissions",
         allowDangerouslySkipPermissions: true,
-        abortSignal: controller.signal,
+        abortController: controller,
         stderr: (data: string): void => {
           const elapsed = Date.now() - startTime;
           logger.debug(
