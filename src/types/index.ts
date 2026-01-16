@@ -57,6 +57,7 @@ export type {
 export type {
   ModelUsage,
   ToolCapture,
+  SubagentCapture,
   HookResponseCapture,
   TranscriptMetadata,
   UserEvent,

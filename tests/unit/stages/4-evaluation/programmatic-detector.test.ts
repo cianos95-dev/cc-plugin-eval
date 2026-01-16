@@ -7,6 +7,7 @@ import { describe, it, expect } from "vitest";
 import type {
   HookResponseCapture,
   ProgrammaticDetection,
+  SubagentCapture,
   TestScenario,
   ToolCapture,
   Transcript,
@@ -19,6 +20,7 @@ import {
   detectDirectCommandInvocation,
   detectFromCaptures,
   detectFromHookResponses,
+  detectFromSubagentCaptures,
   detectFromTranscript,
   getUniqueDetections,
   wasExpectedComponentTriggered,
@@ -1062,5 +1064,113 @@ describe("detectAllComponentsWithHooks", () => {
     );
 
     expect(detections).toHaveLength(1);
+  });
+
+  it("should include subagent captures for agent scenarios", () => {
+    const captures: ToolCapture[] = [];
+    const transcript = createTranscript([]);
+    const scenario = createScenario({
+      component_type: "agent",
+      expected_component: "Explore",
+    });
+    const subagentCaptures: SubagentCapture[] = [
+      {
+        agentId: "agent-123",
+        agentType: "Explore",
+        startTimestamp: Date.now() - 1000,
+        stopTimestamp: Date.now(),
+      },
+    ];
+
+    const detections = detectAllComponentsWithHooks(
+      captures,
+      transcript,
+      scenario,
+      undefined,
+      subagentCaptures,
+    );
+
+    expect(detections).toHaveLength(1);
+    expect(detections[0]?.component_type).toBe("agent");
+    expect(detections[0]?.component_name).toBe("Explore");
+    expect(detections[0]?.confidence).toBe(100);
+    expect(detections[0]?.tool_name).toBe("SubagentStart");
+  });
+});
+
+describe("detectFromSubagentCaptures", () => {
+  it("should create agent detections from subagent captures", () => {
+    const captures: SubagentCapture[] = [
+      {
+        agentId: "agent-123",
+        agentType: "Explore",
+        startTimestamp: 1700000000000,
+        stopTimestamp: 1700000001000,
+      },
+    ];
+
+    const detections = detectFromSubagentCaptures(captures);
+
+    expect(detections).toHaveLength(1);
+    expect(detections[0]).toMatchObject({
+      component_type: "agent",
+      component_name: "Explore",
+      confidence: 100,
+      tool_name: "SubagentStart",
+      timestamp: 1700000000000,
+    });
+    expect(detections[0]?.evidence).toContain("Subagent hook fired: Explore");
+    expect(detections[0]?.evidence).toContain("completed in 1000ms");
+  });
+
+  it("should handle subagent captures without stopTimestamp", () => {
+    const captures: SubagentCapture[] = [
+      {
+        agentId: "agent-456",
+        agentType: "Bash",
+        startTimestamp: Date.now(),
+      },
+    ];
+
+    const detections = detectFromSubagentCaptures(captures);
+
+    expect(detections).toHaveLength(1);
+    expect(detections[0]?.evidence).toContain("(started)");
+    expect(detections[0]?.evidence).not.toContain("completed");
+  });
+
+  it("should return empty array for empty captures", () => {
+    const detections = detectFromSubagentCaptures([]);
+
+    expect(detections).toEqual([]);
+  });
+
+  it("should handle multiple subagent captures", () => {
+    const captures: SubagentCapture[] = [
+      {
+        agentId: "agent-1",
+        agentType: "Explore",
+        startTimestamp: 1700000000000,
+      },
+      {
+        agentId: "agent-2",
+        agentType: "general-purpose",
+        startTimestamp: 1700000001000,
+      },
+      {
+        agentId: "agent-3",
+        agentType: "Bash",
+        startTimestamp: 1700000002000,
+      },
+    ];
+
+    const detections = detectFromSubagentCaptures(captures);
+
+    expect(detections).toHaveLength(3);
+    expect(detections.map((d) => d.component_name)).toEqual([
+      "Explore",
+      "general-purpose",
+      "Bash",
+    ]);
   });
 });

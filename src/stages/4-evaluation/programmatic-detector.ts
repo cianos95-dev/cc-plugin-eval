@@ -18,6 +18,7 @@ import type {
   ComponentType,
   HookResponseCapture,
   ProgrammaticDetection,
+  SubagentCapture,
   TestScenario,
   ToolCapture,
   Transcript,
@@ -484,6 +485,46 @@ export function detectFromHookResponses(
 }
 
 /**
+ * Detect agents from SubagentStart/SubagentStop hook captures.
+ *
+ * This provides 100% confidence agent detection directly from SDK hooks,
+ * as an alternative to parsing Task tool inputs.
+ *
+ * @param subagentCaptures - Subagent lifecycle captures from SDK hooks
+ * @returns Array of programmatic detections for agents
+ *
+ * @example
+ * ```typescript
+ * const detections = detectFromSubagentCaptures(executionResult.subagent_captures);
+ * // Returns detections with component_type: "agent", component_name: "Explore"
+ * ```
+ */
+export function detectFromSubagentCaptures(
+  subagentCaptures: SubagentCapture[],
+): ProgrammaticDetection[] {
+  const detections: ProgrammaticDetection[] = [];
+
+  for (const capture of subagentCaptures) {
+    // Build evidence string with lifecycle info
+    const lifecycleInfo =
+      capture.stopTimestamp !== undefined
+        ? ` (completed in ${String(capture.stopTimestamp - capture.startTimestamp)}ms)`
+        : " (started)";
+
+    detections.push({
+      component_type: "agent",
+      component_name: capture.agentType,
+      confidence: 100,
+      tool_name: "SubagentStart",
+      evidence: `Subagent hook fired: ${capture.agentType} (id: ${capture.agentId})${lifecycleInfo}`,
+      timestamp: capture.startTimestamp,
+    });
+  }
+
+  return detections;
+}
+
+/**
  * Check if expected hook was triggered.
  *
  * @param hookResponses - Hook response captures from execution
@@ -566,16 +607,43 @@ export function wasExpectedMcpServerUsed(
  * @param transcript - Execution transcript
  * @param scenario - Test scenario
  * @param hookResponses - Optional hook response captures
- * @returns Array of all detected components including hooks and MCP servers
+ * @param subagentCaptures - Optional subagent lifecycle captures
+ * @returns Array of all detected components including hooks, agents, and MCP servers
  */
 export function detectAllComponentsWithHooks(
   captures: ToolCapture[],
   transcript: Transcript,
   scenario: TestScenario,
   hookResponses?: HookResponseCapture[],
+  subagentCaptures?: SubagentCapture[],
 ): ProgrammaticDetection[] {
   // Get standard component detections (now includes MCP servers)
   const detections = detectAllComponents(captures, transcript, scenario);
+
+  // Add agent detections from SubagentStart/SubagentStop hooks (100% confidence)
+  // This takes priority over Task tool parsing for agent scenarios
+  if (
+    scenario.component_type === "agent" &&
+    subagentCaptures &&
+    subagentCaptures.length > 0
+  ) {
+    const subagentDetections = detectFromSubagentCaptures(subagentCaptures);
+
+    // Filter to avoid duplicate agent detections from Task tool captures
+    // SubagentStart hooks provide the same info with explicit lifecycle tracking
+    const existingAgentNames = new Set(
+      detections
+        .filter((d) => d.component_type === "agent")
+        .map((d) => d.component_name),
+    );
+
+    const newSubagentDetections = subagentDetections.filter(
+      (d) => !existingAgentNames.has(d.component_name),
+    );
+
+    // Prepend subagent detections to give them priority in unique detection filtering
+    detections.unshift(...newSubagentDetections);
+  }
 
   // Add hook detections if this is a hook scenario and we have responses
   if (scenario.component_type === "hook" && hookResponses) {

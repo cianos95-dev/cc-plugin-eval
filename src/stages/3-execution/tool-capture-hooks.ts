@@ -9,7 +9,7 @@
  */
 
 import type { HookCallback } from "./sdk-client.js";
-import type { ToolCapture } from "../../types/index.js";
+import type { ToolCapture, SubagentCapture } from "../../types/index.js";
 
 /**
  * Callback invoked when a new tool capture is created.
@@ -104,6 +104,77 @@ export function createPostToolUseFailureHook(
         capture.success = false;
         if (input.is_interrupt !== undefined) {
           capture.isInterrupt = input.is_interrupt;
+        }
+      }
+    }
+    return Promise.resolve({});
+  };
+}
+
+/**
+ * Callback invoked when a subagent capture is created or updated.
+ */
+export type OnSubagentCapture = (capture: SubagentCapture) => void;
+
+/**
+ * Creates a SubagentStart hook callback that captures when subagents are spawned.
+ *
+ * The hook:
+ * 1. Creates a SubagentCapture object with the agent ID, type, and start timestamp
+ * 2. Calls the onCapture callback to notify the caller
+ * 3. Stores the capture in the provided map for SubagentStop correlation (by agentId)
+ *
+ * @param captureMap - Map for correlating SubagentStart/SubagentStop hooks by agentId
+ * @param onCapture - Callback invoked with each new capture
+ * @returns Hook callback function for use with the Agent SDK
+ */
+export function createSubagentStartHook(
+  captureMap: Map<string, SubagentCapture>,
+  onCapture: OnSubagentCapture,
+): HookCallback {
+  return async (input, _toolUseId, _context) => {
+    // SubagentStart hooks receive SubagentStartHookInput which has agent_id and agent_type
+    if ("agent_id" in input && "agent_type" in input) {
+      const capture: SubagentCapture = {
+        agentId: input.agent_id,
+        agentType: input.agent_type,
+        startTimestamp: Date.now(),
+      };
+      onCapture(capture);
+
+      // Store in map for SubagentStop correlation
+      captureMap.set(capture.agentId, capture);
+    }
+    // Return empty object to allow operation to proceed
+    return Promise.resolve({});
+  };
+}
+
+/**
+ * Creates a SubagentStop hook callback that updates captures when subagents complete.
+ *
+ * The hook:
+ * 1. Looks up the capture from SubagentStart via agentId in the map
+ * 2. Updates the capture with stop timestamp and transcript path
+ *
+ * @param captureMap - Map for correlating SubagentStart/SubagentStop hooks by agentId
+ * @returns Hook callback function for use with the Agent SDK
+ */
+export function createSubagentStopHook(
+  captureMap: Map<string, SubagentCapture>,
+): HookCallback {
+  return async (input, _toolUseId, _context) => {
+    // SubagentStop hooks receive SubagentStopHookInput with agent_id and agent_transcript_path
+    if ("agent_id" in input) {
+      const agentId = input.agent_id;
+      const capture = captureMap.get(agentId);
+      if (capture) {
+        capture.stopTimestamp = Date.now();
+        if ("agent_transcript_path" in input) {
+          capture.transcriptPath = input.agent_transcript_path;
+        }
+        if ("stop_hook_active" in input) {
+          capture.stopHookActive = input.stop_hook_active;
         }
       }
     }

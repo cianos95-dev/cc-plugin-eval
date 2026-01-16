@@ -12,6 +12,8 @@ import {
   type PreToolUseHookInput as SDKPreToolUseHookInput,
   type PostToolUseHookInput as SDKPostToolUseHookInput,
   type PostToolUseFailureHookInput as SDKPostToolUseFailureHookInput,
+  type SubagentStartHookInput as SDKSubagentStartHookInput,
+  type SubagentStopHookInput as SDKSubagentStopHookInput,
   type PermissionMode,
   type SettingSource,
   type SDKUserMessage as SDKUserMessageType,
@@ -128,6 +130,20 @@ export type PostToolUseHookInput = SDKPostToolUseHookInput;
 export type PostToolUseFailureHookInput = SDKPostToolUseFailureHookInput;
 
 /**
+ * SubagentStart hook input from SDK.
+ * Fired when a subagent is spawned.
+ * Re-exported for use in other modules.
+ */
+export type SubagentStartHookInput = SDKSubagentStartHookInput;
+
+/**
+ * SubagentStop hook input from SDK.
+ * Fired when a subagent completes.
+ * Re-exported for use in other modules.
+ */
+export type SubagentStopHookInput = SDKSubagentStopHookInput;
+
+/**
  * Hook JSON output - return value from hooks.
  */
 export interface HookJSONOutput {
@@ -160,6 +176,18 @@ export type PostToolUseHookConfig = HookCallbackMatcher;
 export type PostToolUseFailureHookConfig = HookCallbackMatcher;
 
 /**
+ * Hook configuration for SubagentStart.
+ * Uses SDK's HookCallbackMatcher type.
+ */
+export type SubagentStartHookConfig = HookCallbackMatcher;
+
+/**
+ * Hook configuration for SubagentStop.
+ * Uses SDK's HookCallbackMatcher type.
+ */
+export type SubagentStopHookConfig = HookCallbackMatcher;
+
+/**
  * Plugin reference for SDK options.
  */
 export interface PluginReference {
@@ -190,6 +218,8 @@ export interface QueryOptions {
     PreToolUse?: HookCallbackMatcher[];
     PostToolUse?: HookCallbackMatcher[];
     PostToolUseFailure?: HookCallbackMatcher[];
+    SubagentStart?: HookCallbackMatcher[];
+    SubagentStop?: HookCallbackMatcher[];
   };
   stderr?: (data: string) => void;
 }

@@ -201,13 +201,16 @@ function runProgrammaticDetection(
   const { scenario, execution } = context;
 
   // Programmatic detection
+  // Use detectAllComponentsWithHooks for hooks (hook_responses) and agents (subagent_captures)
+  // Otherwise use the simpler detectAllComponents
   const detections =
-    scenario.component_type === "hook"
+    scenario.component_type === "hook" || scenario.component_type === "agent"
       ? detectAllComponentsWithHooks(
           execution.detected_tools,
           execution.transcript,
           scenario,
           execution.hook_responses,
+          execution.subagent_captures,
         )
       : detectAllComponents(
           execution.detected_tools,

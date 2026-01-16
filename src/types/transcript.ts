@@ -38,6 +38,25 @@ export interface ToolCapture {
 }
 
 /**
+ * Subagent lifecycle event captured during execution.
+ * Captured via SubagentStart and SubagentStop SDK hooks.
+ */
+export interface SubagentCapture {
+  /** Agent ID from the SDK */
+  agentId: string;
+  /** Agent type (e.g., "Explore", "Bash", "general-purpose") */
+  agentType: string;
+  /** When the agent started */
+  startTimestamp: number;
+  /** When the agent completed (undefined if still running or not captured) */
+  stopTimestamp?: number;
+  /** Path to agent's transcript (from SubagentStop) */
+  transcriptPath?: string;
+  /** Whether stop hook was active (from SubagentStop) */
+  stopHookActive?: boolean;
+}
+
+/**
  * Hook response captured during execution.
  * Corresponds to SDKHookResponseMessage from Agent SDK.
  */
@@ -171,6 +190,8 @@ export interface ExecutionResult {
   errors: TranscriptErrorEvent[];
   /** Captured hook responses from SDK messages */
   hook_responses?: HookResponseCapture[];
+  /** Subagent lifecycle events captured via SDK hooks */
+  subagent_captures?: SubagentCapture[];
   /** Per-model usage breakdown (from SDK modelUsage) */
   model_usage?: Record<string, ModelUsage>;
   /** Total cache read tokens across all models */

@@ -25,6 +25,8 @@ import {
   type PreToolUseHookConfig,
   type PostToolUseHookConfig,
   type PostToolUseFailureHookConfig,
+  type SubagentStartHookConfig,
+  type SubagentStopHookConfig,
   type SettingSource,
   type ModelUsage,
 } from "./sdk-client.js";
@@ -32,6 +34,8 @@ import {
   createPreToolUseHook,
   createPostToolUseHook,
   createPostToolUseFailureHook,
+  createSubagentStartHook,
+  createSubagentStopHook,
 } from "./tool-capture-hooks.js";
 import {
   buildTranscript,
@@ -45,6 +49,7 @@ import type {
   TestScenario,
   TranscriptErrorEvent,
   ToolCapture,
+  SubagentCapture,
 } from "../../types/index.js";
 
 /**
@@ -87,6 +92,8 @@ interface HooksConfig {
   preToolUse: PreToolUseHookConfig[];
   postToolUse: PostToolUseHookConfig[];
   postToolUseFailure: PostToolUseFailureHookConfig[];
+  subagentStart: SubagentStartHookConfig[];
+  subagentStop: SubagentStopHookConfig[];
 }
 
 /**
@@ -138,6 +145,8 @@ function buildQueryInput(
         PreToolUse: hooks.preToolUse,
         PostToolUse: hooks.postToolUse,
         PostToolUseFailure: hooks.postToolUseFailure,
+        SubagentStart: hooks.subagentStart,
+        SubagentStop: hooks.subagentStop,
       },
       stderr: (data: string): void => {
         const elapsed = Date.now() - startTime;
@@ -224,6 +233,7 @@ export async function executeScenario(
 
   const messages: SDKMessage[] = [];
   const detectedTools: ToolCapture[] = [];
+  const subagentCaptures: SubagentCapture[] = [];
   const errors: TranscriptErrorEvent[] = [];
 
   // Create hook response collector for capturing SDK hook messages
@@ -241,7 +251,7 @@ export async function executeScenario(
       plugins.push({ type: "local", path: additionalPath });
     }
 
-    // Create capture hooks with correlation map
+    // Create tool capture hooks with correlation map
     const captureMap = new Map<string, ToolCapture>();
     const preHook = createPreToolUseHook(captureMap, (capture) =>
       detectedTools.push(capture),
@@ -249,11 +259,21 @@ export async function executeScenario(
     const postHook = createPostToolUseHook(captureMap);
     const postFailureHook = createPostToolUseFailureHook(captureMap);
 
+    // Create subagent capture hooks with correlation map
+    const subagentCaptureMap = new Map<string, SubagentCapture>();
+    const subagentStartHook = createSubagentStartHook(
+      subagentCaptureMap,
+      (capture) => subagentCaptures.push(capture),
+    );
+    const subagentStopHook = createSubagentStopHook(subagentCaptureMap);
+
     // Configure hooks for each event type
     const hooksConfig: HooksConfig = {
       preToolUse: [{ matcher: ".*", hooks: [preHook] }],
       postToolUse: [{ matcher: ".*", hooks: [postHook] }],
       postToolUseFailure: [{ matcher: ".*", hooks: [postFailureHook] }],
+      subagentStart: [{ matcher: ".*", hooks: [subagentStartHook] }],
+      subagentStop: [{ matcher: ".*", hooks: [subagentStopHook] }],
     };
 
     // Build query input
@@ -312,6 +332,9 @@ export async function executeScenario(
     transcript: buildTranscript(context, messages, errors),
     detected_tools: detectedTools,
     hook_responses: hookCollector.responses,
+    ...(subagentCaptures.length > 0
+      ? { subagent_captures: subagentCaptures }
+      : {}),
     cost_usd: metrics.costUsd,
     api_duration_ms: metrics.durationMs,
     num_turns: metrics.numTurns,
@@ -349,6 +372,7 @@ export async function executeScenarioWithCheckpoint(
 
   const messages: SDKMessage[] = [];
   const detectedTools: ToolCapture[] = [];
+  const subagentCaptures: SubagentCapture[] = [];
   const errors: TranscriptErrorEvent[] = [];
   let userMessageId: string | undefined;
 
@@ -369,13 +393,21 @@ export async function executeScenarioWithCheckpoint(
       plugins.push({ type: "local", path: additionalPath });
     }
 
-    // Create capture hooks with correlation map
+    // Create tool capture hooks with correlation map
     const captureMap = new Map<string, ToolCapture>();
     const preHook = createPreToolUseHook(captureMap, (capture) =>
       detectedTools.push(capture),
     );
     const postHook = createPostToolUseHook(captureMap);
     const postFailureHook = createPostToolUseFailureHook(captureMap);
+
+    // Create subagent capture hooks with correlation map
+    const subagentCaptureMap = new Map<string, SubagentCapture>();
+    const subagentStartHook = createSubagentStartHook(
+      subagentCaptureMap,
+      (capture) => subagentCaptures.push(capture),
+    );
+    const subagentStopHook = createSubagentStopHook(subagentCaptureMap);
 
     // Build query input with file checkpointing enabled
     const queryInput: QueryInput = {
@@ -407,6 +439,8 @@ export async function executeScenarioWithCheckpoint(
           PreToolUse: [{ matcher: ".*", hooks: [preHook] }],
           PostToolUse: [{ matcher: ".*", hooks: [postHook] }],
           PostToolUseFailure: [{ matcher: ".*", hooks: [postFailureHook] }],
+          SubagentStart: [{ matcher: ".*", hooks: [subagentStartHook] }],
+          SubagentStop: [{ matcher: ".*", hooks: [subagentStopHook] }],
         },
       },
     };
@@ -473,6 +507,9 @@ export async function executeScenarioWithCheckpoint(
     transcript: buildTranscript(context, messages, errors),
     detected_tools: detectedTools,
     hook_responses: hookCollector.responses,
+    ...(subagentCaptures.length > 0
+      ? { subagent_captures: subagentCaptures }
+      : {}),
     cost_usd: metrics.costUsd,
     api_duration_ms: metrics.durationMs,
     num_turns: metrics.numTurns,
