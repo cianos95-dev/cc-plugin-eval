@@ -194,3 +194,214 @@ describe("preflightCheck symlink handling", () => {
     expect(result.errors[0]?.message).toContain("Permission denied");
   });
 });
+
+describe("preflightCheck path boundary validation", () => {
+  let originalCwd: typeof process.cwd;
+  let originalPlatform: NodeJS.Platform;
+
+  beforeEach(() => {
+    originalCwd = process.cwd;
+    originalPlatform = process.platform;
+    mockLstatSyncError = false;
+  });
+
+  afterEach(() => {
+    process.cwd = originalCwd;
+    Object.defineProperty(process, "platform", { value: originalPlatform });
+    mockLstatSyncError = false;
+  });
+
+  it("adds PATH_OUTSIDE_CWD warning when plugin path is outside cwd", () => {
+    // Mock cwd to a specific directory
+    process.cwd = () => path.join(fixturesPath, "valid-plugin");
+
+    // Use parent directory (outside of mocked cwd)
+    const result = preflightCheck(fixturesPath);
+
+    // Should fail for missing manifest but also have PATH_OUTSIDE_CWD warning
+    const outsideCwdWarning = result.warnings.find(
+      (w) => w.code === "PATH_OUTSIDE_CWD",
+    );
+    expect(outsideCwdWarning).toBeDefined();
+    expect(outsideCwdWarning?.message).toContain(
+      "outside current working directory",
+    );
+  });
+
+  it("does not add PATH_OUTSIDE_CWD warning when plugin path is within cwd", () => {
+    // Use actual cwd so the path is inside
+    const result = preflightCheck(path.join(fixturesPath, "valid-plugin"));
+
+    const outsideCwdWarning = result.warnings.find(
+      (w) => w.code === "PATH_OUTSIDE_CWD",
+    );
+    expect(outsideCwdWarning).toBeUndefined();
+  });
+
+  it("adds PATH_DANGEROUS error for system directories on Unix", () => {
+    // Mock platform to Linux
+    Object.defineProperty(process, "platform", { value: "linux" });
+
+    const result = preflightCheck("/etc/passwd");
+
+    expect(result.valid).toBe(false);
+    const dangerousError = result.errors.find(
+      (e) => e.code === "PATH_DANGEROUS",
+    );
+    expect(dangerousError).toBeDefined();
+    expect(dangerousError?.message).toContain("system directory");
+  });
+
+  it("adds PATH_DANGEROUS error for /sys directory on Unix", () => {
+    Object.defineProperty(process, "platform", { value: "linux" });
+
+    const result = preflightCheck("/sys/devices");
+
+    expect(result.valid).toBe(false);
+    const dangerousError = result.errors.find(
+      (e) => e.code === "PATH_DANGEROUS",
+    );
+    expect(dangerousError).toBeDefined();
+  });
+
+  it("adds PATH_DANGEROUS error for /proc directory on Unix", () => {
+    Object.defineProperty(process, "platform", { value: "linux" });
+
+    const result = preflightCheck("/proc/self");
+
+    expect(result.valid).toBe(false);
+    const dangerousError = result.errors.find(
+      (e) => e.code === "PATH_DANGEROUS",
+    );
+    expect(dangerousError).toBeDefined();
+  });
+
+  it("adds PATH_DANGEROUS error for /root directory on Unix", () => {
+    Object.defineProperty(process, "platform", { value: "linux" });
+
+    const result = preflightCheck("/root/.ssh");
+
+    expect(result.valid).toBe(false);
+    const dangerousError = result.errors.find(
+      (e) => e.code === "PATH_DANGEROUS",
+    );
+    expect(dangerousError).toBeDefined();
+  });
+
+  it("does not add PATH_DANGEROUS error for system directories on Windows", () => {
+    // Mock platform to Windows
+    Object.defineProperty(process, "platform", { value: "win32" });
+
+    // This path won't exist, but we're testing that it doesn't trigger PATH_DANGEROUS
+    const result = preflightCheck("/etc/passwd");
+
+    // Should fail for PATH_NOT_FOUND, not PATH_DANGEROUS
+    const dangerousError = result.errors.find(
+      (e) => e.code === "PATH_DANGEROUS",
+    );
+    expect(dangerousError).toBeUndefined();
+  });
+
+  it("does not trigger PATH_DANGEROUS for paths that look similar but are not system dirs", () => {
+    Object.defineProperty(process, "platform", { value: "linux" });
+
+    // /etcetera is not /etc
+    const result = preflightCheck("/etcetera/something");
+
+    const dangerousError = result.errors.find(
+      (e) => e.code === "PATH_DANGEROUS",
+    );
+    expect(dangerousError).toBeUndefined();
+  });
+
+  it("returns early with PATH_DANGEROUS error before checking existence", () => {
+    Object.defineProperty(process, "platform", { value: "linux" });
+
+    const result = preflightCheck("/etc/nonexistent");
+
+    // Should have PATH_DANGEROUS error, not PATH_NOT_FOUND
+    expect(result.errors.length).toBe(1);
+    expect(result.errors[0]?.code).toBe("PATH_DANGEROUS");
+  });
+
+  // Edge case tests for path normalization
+  describe("path normalization edge cases", () => {
+    it("handles paths with trailing slashes", () => {
+      Object.defineProperty(process, "platform", { value: "linux" });
+
+      // /etc/ with trailing slash should still be detected
+      const result = preflightCheck("/etc/");
+
+      expect(result.valid).toBe(false);
+      const dangerousError = result.errors.find(
+        (e) => e.code === "PATH_DANGEROUS",
+      );
+      expect(dangerousError).toBeDefined();
+    });
+
+    it("handles paths without trailing slashes", () => {
+      Object.defineProperty(process, "platform", { value: "linux" });
+
+      // /etc without trailing slash should still be detected
+      const result = preflightCheck("/etc");
+
+      expect(result.valid).toBe(false);
+      const dangerousError = result.errors.find(
+        (e) => e.code === "PATH_DANGEROUS",
+      );
+      expect(dangerousError).toBeDefined();
+    });
+
+    it("handles paths with dot segments that resolve to dangerous dirs", () => {
+      Object.defineProperty(process, "platform", { value: "linux" });
+
+      // /tmp/../etc/passwd should resolve to /etc/passwd
+      const result = preflightCheck("/tmp/../etc/passwd");
+
+      expect(result.valid).toBe(false);
+      const dangerousError = result.errors.find(
+        (e) => e.code === "PATH_DANGEROUS",
+      );
+      expect(dangerousError).toBeDefined();
+    });
+
+    it("handles paths with multiple dot segments", () => {
+      Object.defineProperty(process, "platform", { value: "linux" });
+
+      // /home/user/../../etc/shadow should resolve to /etc/shadow
+      const result = preflightCheck("/home/user/../../etc/shadow");
+
+      expect(result.valid).toBe(false);
+      const dangerousError = result.errors.find(
+        (e) => e.code === "PATH_DANGEROUS",
+      );
+      expect(dangerousError).toBeDefined();
+    });
+
+    it("handles current directory references in paths", () => {
+      Object.defineProperty(process, "platform", { value: "linux" });
+
+      // /etc/./passwd should resolve to /etc/passwd
+      const result = preflightCheck("/etc/./passwd");
+
+      expect(result.valid).toBe(false);
+      const dangerousError = result.errors.find(
+        (e) => e.code === "PATH_DANGEROUS",
+      );
+      expect(dangerousError).toBeDefined();
+    });
+
+    it("does not treat case variations as dangerous on case-sensitive systems", () => {
+      Object.defineProperty(process, "platform", { value: "linux" });
+
+      // /ETC/passwd is not the same as /etc/passwd on case-sensitive systems
+      // This should NOT trigger PATH_DANGEROUS (but will fail for PATH_NOT_FOUND)
+      const result = preflightCheck("/ETC/passwd");
+
+      const dangerousError = result.errors.find(
+        (e) => e.code === "PATH_DANGEROUS",
+      );
+      expect(dangerousError).toBeUndefined();
+    });
+  });
+});

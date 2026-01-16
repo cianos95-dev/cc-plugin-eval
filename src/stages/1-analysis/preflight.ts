@@ -13,6 +13,76 @@ import type {
 } from "../../types/index.js";
 
 /**
+ * Dangerous system directories that should never contain plugins.
+ *
+ * These paths are selected because they:
+ * - /etc/  - System configuration files (credentials, secrets, service configs)
+ * - /sys/  - Linux kernel interface (device parameters, kernel settings)
+ * - /proc/ - Process information pseudo-filesystem (memory maps, credentials)
+ * - /root/ - Root user's home directory (SSH keys, shell history, credentials)
+ *
+ * Other directories like /var/log/, /usr/bin/, or macOS-specific /System/ are
+ * not included as they are less likely to contain exploitable secrets and
+ * blocking them would be overly restrictive for defense-in-depth purposes.
+ *
+ * @see https://owasp.org/www-community/attacks/Path_Traversal
+ */
+const DANGEROUS_UNIX_PATHS = ["/etc/", "/sys/", "/proc/", "/root/"];
+
+/**
+ * Validate path boundaries for security (defense-in-depth).
+ *
+ * Checks for:
+ * 1. Dangerous system directories (Unix only) - returns error
+ * 2. Paths outside current working directory - returns warning
+ *
+ * @param absolutePath - Already-resolved absolute path (via path.resolve())
+ * @returns Object with optional error and optional warning
+ */
+function validatePathBoundaries(absolutePath: string): {
+  error: PreflightError | null;
+  warning: PreflightWarning | null;
+} {
+  let error: PreflightError | null = null;
+  let warning: PreflightWarning | null = null;
+
+  // Check for dangerous system directories (Unix only)
+  if (process.platform !== "win32") {
+    // Normalize with trailing separator to ensure accurate prefix matching.
+    // This prevents false positives like "/etcetera" matching "/etc/".
+    // Since absolutePath comes from path.resolve(), it's already normalized
+    // without a trailing slash, so we add one for consistent comparison.
+    const normalizedPath = path.normalize(absolutePath + path.sep);
+    const matchedDangerousPath = DANGEROUS_UNIX_PATHS.find((p) =>
+      normalizedPath.startsWith(p),
+    );
+    if (matchedDangerousPath) {
+      error = {
+        code: "PATH_DANGEROUS",
+        message: `Plugin path accesses system directory: ${absolutePath}`,
+        suggestion:
+          "Plugin paths must not target system directories like /etc, /sys, /proc, or /root.",
+      };
+      return { error, warning };
+    }
+  }
+
+  // Check if path is outside cwd (may be intentional for symlinks/monorepos)
+  const cwd = process.cwd();
+  // Same trailing separator technique for accurate prefix comparison
+  const normalizedCwd = path.normalize(cwd + path.sep);
+  const normalizedAbsolutePath = path.normalize(absolutePath + path.sep);
+  if (!normalizedAbsolutePath.startsWith(normalizedCwd)) {
+    warning = {
+      code: "PATH_OUTSIDE_CWD",
+      message: `Plugin path is outside current working directory: ${absolutePath}`,
+    };
+  }
+
+  return { error, warning };
+}
+
+/**
  * Validate plugin before SDK initialization.
  * Catches common errors early with actionable suggestions.
  *
@@ -29,6 +99,25 @@ export function preflightCheck(pluginPath: string): PreflightResult {
   const absolutePath = path.resolve(pluginPath);
   let resolvedPath = absolutePath;
   const manifestPath = path.join(absolutePath, ".claude-plugin", "plugin.json");
+
+  // 0. Path boundary validation (defense-in-depth)
+  const { error: pathError, warning: pathWarning } =
+    validatePathBoundaries(absolutePath);
+  if (pathError) {
+    errors.push(pathError);
+    return {
+      valid: false,
+      pluginPath: absolutePath,
+      resolvedPath,
+      manifestPath,
+      pluginName,
+      errors,
+      warnings,
+    };
+  }
+  if (pathWarning) {
+    warnings.push(pathWarning);
+  }
 
   // 1. Verify plugin path exists
   if (!existsSync(absolutePath)) {

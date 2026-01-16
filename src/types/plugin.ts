@@ -113,6 +113,7 @@ export interface PreflightError {
   code:
     | "PATH_NOT_FOUND"
     | "PATH_RESOLUTION_FAILED"
+    | "PATH_DANGEROUS"
     | "MANIFEST_NOT_FOUND"
     | "MANIFEST_PARSE_ERROR"
     | "MANIFEST_INVALID";
