@@ -132,6 +132,8 @@ function buildQueryInput(
         ? { disallowedTools: config.disallowed_tools }
         : {}),
       model: config.model,
+      // Use Claude Code system prompt for accurate plugin evaluation
+      systemPrompt: { type: "preset", preset: "claude_code" },
       maxTurns: config.max_turns,
       persistSession: false, // Session isolation
       maxBudgetUsd: config.max_budget_usd,
@@ -428,6 +430,8 @@ export async function executeScenarioWithCheckpoint(
           ? { disallowedTools: config.disallowed_tools }
           : {}),
         model: config.model,
+        // Use Claude Code system prompt for accurate plugin evaluation
+        systemPrompt: { type: "preset", preset: "claude_code" },
         maxTurns: config.max_turns,
         persistSession: false,
         maxBudgetUsd: config.max_budget_usd,

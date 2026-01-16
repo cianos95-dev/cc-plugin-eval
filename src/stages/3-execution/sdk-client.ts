@@ -196,6 +196,18 @@ export interface PluginReference {
 }
 
 /**
+ * System prompt configuration type.
+ * Can be a raw string or a preset configuration object.
+ */
+export type SystemPromptConfig =
+  | string
+  | {
+      type: "preset";
+      preset: "claude_code";
+      append?: string;
+    };
+
+/**
  * Query options for the Agent SDK.
  */
 export interface QueryOptions {
@@ -204,6 +216,8 @@ export interface QueryOptions {
   allowedTools?: string[];
   disallowedTools?: string[];
   model?: string;
+  /** System prompt configuration. Use Claude Code preset for plugin evaluation. */
+  systemPrompt?: SystemPromptConfig;
   maxTurns?: number;
   persistSession?: boolean;
   continue?: boolean;

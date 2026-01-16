@@ -394,6 +394,8 @@ function buildScenarioQueryInput(
       allowedTools,
       ...(disallowedTools ? { disallowedTools } : {}),
       model,
+      // Use Claude Code system prompt for accurate plugin evaluation
+      systemPrompt: { type: "preset", preset: "claude_code" },
       maxTurns,
       persistSession: true,
       continue: !isFirst,
@@ -488,6 +490,8 @@ async function sendClearCommand(
       settingSources,
       allowedTools,
       model,
+      // Use Claude Code system prompt for accurate plugin evaluation
+      systemPrompt: { type: "preset", preset: "claude_code" },
       maxTurns: 1,
       persistSession: true,
       continue: true,

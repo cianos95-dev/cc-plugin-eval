@@ -146,6 +146,90 @@ describe("session-batching", () => {
     });
   });
 
+  describe("systemPrompt configuration", () => {
+    const createBatchScenario = (
+      id: string,
+      componentRef: string,
+    ): TestScenario => ({
+      id,
+      scenario_type: "direct",
+      component_type: "skill",
+      component_ref: componentRef,
+      user_prompt: `Test prompt for ${id}`,
+      expected_trigger: true,
+      expected_component: componentRef,
+    });
+
+    it("includes Claude Code system prompt preset in query options", async () => {
+      const capturedOptions: unknown[] = [];
+      const scenarios = [createBatchScenario("scenario-1", "skill:test")];
+
+      const mockQuery = createMockQueryFn({
+        triggeredTools: [],
+        userMessageId: "user-msg-system-prompt",
+      });
+
+      const wrappedQueryFn = (input: unknown) => {
+        capturedOptions.push(input);
+        return mockQuery(input as Parameters<typeof mockQuery>[0]);
+      };
+
+      await executeBatch({
+        scenarios,
+        pluginPath: "/path/to/plugin",
+        pluginName: "test-plugin",
+        config: createMockExecutionConfig(),
+        queryFn: wrappedQueryFn,
+      });
+
+      // Verify systemPrompt was set in query options
+      const queryInput = capturedOptions[0] as {
+        options?: { systemPrompt?: unknown };
+      };
+      expect(queryInput.options?.systemPrompt).toEqual({
+        type: "preset",
+        preset: "claude_code",
+      });
+    });
+
+    it("includes systemPrompt in clear command query options", async () => {
+      const capturedOptions: unknown[] = [];
+      const scenarios = [
+        createBatchScenario("scenario-1", "skill:test"),
+        createBatchScenario("scenario-2", "skill:test"),
+      ];
+
+      const mockQuery = createMockQueryFn({
+        triggeredTools: [],
+        userMessageId: "user-msg-clear-test",
+      });
+
+      const wrappedQueryFn = (input: unknown) => {
+        capturedOptions.push(input);
+        return mockQuery(input as Parameters<typeof mockQuery>[0]);
+      };
+
+      await executeBatch({
+        scenarios,
+        pluginPath: "/path/to/plugin",
+        pluginName: "test-plugin",
+        config: createMockExecutionConfig(),
+        queryFn: wrappedQueryFn,
+      });
+
+      // Find the /clear command query (should be between scenario queries)
+      const clearQuery = capturedOptions.find(
+        (opt) => (opt as { prompt?: string }).prompt === "/clear",
+      ) as { options?: { systemPrompt?: unknown } } | undefined;
+
+      expect(clearQuery).toBeDefined();
+      expect(clearQuery?.options?.systemPrompt).toEqual({
+        type: "preset",
+        preset: "claude_code",
+      });
+    });
+  });
+
   describe("executeBatch with file checkpointing", () => {
     const createBatchScenario = (
       id: string,
