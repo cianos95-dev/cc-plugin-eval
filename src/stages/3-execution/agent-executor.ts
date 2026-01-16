@@ -31,6 +31,7 @@ import {
 } from "./sdk-client.js";
 import {
   buildTranscript,
+  createErrorEvent,
   type TranscriptBuilderContext,
 } from "./transcript-builder.js";
 
@@ -268,24 +269,6 @@ function extractResultMetrics(messages: SDKMessage[]): {
     ...(modelUsage !== undefined ? { modelUsage } : {}),
     cacheReadTokens,
     cacheCreationTokens,
-  };
-}
-
-/**
- * Create error event from exception.
- */
-function createErrorEvent(
-  error: unknown,
-  isTimeout = false,
-): TranscriptErrorEvent {
-  const message = error instanceof Error ? error.message : String(error);
-
-  return {
-    type: "error",
-    error_type: isTimeout ? "timeout" : "api_error",
-    message,
-    timestamp: Date.now(),
-    recoverable: false,
   };
 }
 

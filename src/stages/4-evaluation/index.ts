@@ -21,6 +21,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { parallel } from "../../utils/concurrency.js";
 import { ensureDir, getResultsDir, writeJson } from "../../utils/file-io.js";
 import { logger } from "../../utils/logging.js";
+import { formatErrorWithRequestId } from "../../utils/retry.js";
 
 import {
   shouldUseBatching,
@@ -410,7 +411,7 @@ async function runSynchronousEvaluation(
           );
         } catch (err) {
           const errorResponse = createErrorJudgeResponse(
-            err instanceof Error ? err.message : String(err),
+            formatErrorWithRequestId(err),
           );
           judgment = {
             individual_scores: [0],

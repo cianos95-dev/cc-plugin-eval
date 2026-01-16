@@ -5,6 +5,8 @@
  * for storage and later evaluation in Stage 4.
  */
 
+import { extractRequestId } from "../../utils/retry.js";
+
 import {
   isUserMessage,
   isAssistantMessage,
@@ -29,8 +31,6 @@ import type {
   ToolResultEvent,
   ToolCall,
 } from "../../types/index.js";
-
-// Import SDK types from our SDK client (only what's used in this file)
 
 // Re-export SDK types and guards for use by other modules
 export {
@@ -222,6 +222,7 @@ export function createErrorEvent(
   isTimeout = false,
 ): TranscriptErrorEvent {
   const message = error instanceof Error ? error.message : String(error);
+  const requestId = extractRequestId(error);
 
   return {
     type: "error",
@@ -229,6 +230,7 @@ export function createErrorEvent(
     message,
     timestamp: Date.now(),
     recoverable: false,
+    ...(requestId !== null ? { request_id: requestId } : {}),
   };
 }
 

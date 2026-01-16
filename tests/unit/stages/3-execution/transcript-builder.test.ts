@@ -270,6 +270,54 @@ describe("createErrorEvent", () => {
 
     expect(event.message).toBe("String error");
   });
+
+  it("should extract and include request_id from Anthropic SDK error", () => {
+    // Simulate Anthropic SDK error with requestID property
+    const error = new Error("Rate limited") as Error & { requestID: string };
+    error.requestID = "req_abc123def456";
+
+    const event = createErrorEvent(error);
+
+    expect(event.request_id).toBe("req_abc123def456");
+  });
+
+  it("should extract request_id from error headers", () => {
+    // Simulate error with headers (Headers-like object)
+    const error = new Error("Server error") as Error & {
+      headers: { get: (name: string) => string | null };
+    };
+    error.headers = {
+      get: (name: string) => (name === "request-id" ? "req_header123" : null),
+    };
+
+    const event = createErrorEvent(error);
+
+    expect(event.request_id).toBe("req_header123");
+  });
+
+  it("should not include request_id when not present", () => {
+    const error = new Error("Regular error");
+
+    const event = createErrorEvent(error);
+
+    expect(event.request_id).toBeUndefined();
+  });
+
+  it("should prefer requestID property over headers", () => {
+    // Error with both requestID property and headers
+    const error = new Error("Error") as Error & {
+      requestID: string;
+      headers: { get: (name: string) => string | null };
+    };
+    error.requestID = "req_property123";
+    error.headers = {
+      get: (name: string) => (name === "request-id" ? "req_header456" : null),
+    };
+
+    const event = createErrorEvent(error);
+
+    expect(event.request_id).toBe("req_property123");
+  });
 });
 
 describe("extractSessionId", () => {

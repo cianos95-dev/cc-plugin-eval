@@ -137,6 +137,8 @@ export interface TranscriptErrorEvent {
   message: string;
   timestamp: number;
   recoverable: boolean;
+  /** Anthropic SDK request ID for debugging with support */
+  request_id?: string;
 }
 
 /**
