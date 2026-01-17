@@ -82,7 +82,7 @@ cc-plugin-eval run -p ./plugin --fast    # Re-run failed scenarios only
 | Stage 2           | `src/stages/2-generation/index.ts`                 | `runGeneration()`             |
 | Stage 3           | `src/stages/3-execution/index.ts`                  | `runExecution()`              |
 | Stage 4           | `src/stages/4-evaluation/index.ts`                 | `runEvaluation()`             |
-| Detection         | `src/stages/4-evaluation/programmatic-detector.ts` | `detectAllComponents()`       |
+| Detection         | `src/stages/4-evaluation/programmatic-detector.ts` | `detectAllComponentsWithHooks()` |
 | Conflict Tracking | `src/stages/4-evaluation/conflict-tracker.ts`      | `calculateConflictSeverity()` |
 | Metrics           | `src/stages/4-evaluation/metrics.ts`               | `calculateEvalMetrics()`      |
 | State             | `src/state/state-manager.ts`                       | `loadState()`, `saveState()`  |

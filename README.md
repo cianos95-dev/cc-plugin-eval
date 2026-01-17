@@ -316,56 +316,15 @@ results/
 
 ## Development
 
-### Build & Test
-
 ```bash
-# Install dependencies
-npm install
-
-# Build TypeScript
-npm run build
-
-# Run tests
-npm test
-
-# Run tests with coverage
-npm run test:coverage
-
-# Lint
-npm run lint
-
-# Type check
-npm run typecheck
+npm install       # Install dependencies
+npm run build     # Build TypeScript
+npm test          # Run tests
+npm run lint      # Lint code
+npm run typecheck # Type check
 ```
 
-### Run Specific Tests
-
-```bash
-# Single test file
-npx vitest run tests/unit/stages/1-analysis/skill-analyzer.test.ts
-
-# Tests matching pattern
-npx vitest run -t "SkillAnalyzer"
-
-# E2E tests (requires API key, costs money)
-RUN_E2E_TESTS=true npm test -- tests/e2e/
-```
-
-### Additional Linters
-
-```bash
-# Prettier (formatting)
-npx prettier --check "src/**/*.ts" "*.json" "*.md"
-
-# Markdown
-markdownlint "*.md"
-
-# YAML
-uvx yamllint -c .yamllint.yml config.yaml
-
-# GitHub Actions
-actionlint .github/workflows/*.yml
-```
+See [CONTRIBUTING.md](CONTRIBUTING.md) for detailed development setup, code style, testing requirements, and pull request guidelines.
 
 ### Project Structure
 
