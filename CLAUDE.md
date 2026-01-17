@@ -89,17 +89,67 @@ cc-plugin-eval run -p ./plugin --fast    # Re-run failed scenarios only
 
 This project has MCP tools configured for efficient code exploration and editing.
 
-### Tool Selection
+### Tool Selection: Morph vs Serena
 
-| Task                      | Tool                       | Example                                  |
-| ------------------------- | -------------------------- | ---------------------------------------- |
-| Find a function/interface | `find_symbol`              | "Find the `runEvaluation` function"      |
-| Find all callers          | `find_referencing_symbols` | "What calls `detectFromCaptures`?"       |
-| Understand file structure | `get_symbols_overview`     | "Show symbols in `src/types/index.ts`"   |
-| Semantic code search      | `warpgrep_codebase_search` | "How does conflict detection work?"      |
-| Exact pattern search      | `rg "pattern"`             | `rg "ExecutionResult"`                   |
-| Edit code                 | `edit_file`                | Partial snippets, lazy patterns OK       |
-| Rename across codebase    | `rename_symbol`            | Refactor `TestScenario` → `EvalScenario` |
+Use this decision tree to pick the right tool:
+
+| Task | Tool | Why |
+| --- | --- | --- |
+| **Edit any file** | `edit_file` (Morph) | 10,500 tok/s, 98% accuracy, partial snippets |
+| **Find symbol by exact name** | `find_symbol` (Serena) | LSP-powered precision, no false positives |
+| **Find all callers/usages** | `find_referencing_symbols` (Serena) | Semantic analysis of symbol relationships |
+| **Explore unfamiliar code** | `warpgrep_codebase_search` (Morph) | Autonomous sub-agent, parallel search |
+| **Understand file structure** | `get_symbols_overview` (Serena) | Quick overview without reading full file |
+| **Rename across codebase** | `rename_symbol` (Serena) | Safe refactoring with LSP |
+| **Exact text pattern** | `rg` or `Grep` | Fast literal/regex matching |
+| **Edit a complete method** | `replace_symbol_body` (Serena) | When replacing entire function body |
+
+**When to use Morph tools:**
+- `edit_file`: ALL file edits (faster than search-and-replace, handles partial context)
+- `warpgrep_codebase_search`: Exploring code you don't know ("how does X work?", "where is Y handled?")
+
+**When to use Serena tools:**
+- `find_symbol`: You know the symbol name and want its location/body
+- `find_referencing_symbols`: Understanding call sites before refactoring
+- `replace_symbol_body`: Replacing a complete function/method (cleaner than edit_file for whole symbols)
+- `get_symbols_overview`: Understanding a file's structure without reading it
+
+### edit_file Best Practices
+
+```typescript
+// ALWAYS include the instruction parameter - it disambiguates edits
+edit_file({
+  path: "/abs/path/to/file.ts",
+  instruction: "Add timeout to fetch call",  // Required for clarity
+  code_edit: `
+export async function fetchData(url: string) {
+  // ... existing code ...
+  const response = await fetch(url, {
+    headers,
+    timeout: 5000  // added timeout
+  });
+  // ... existing code ...
+}
+`
+})
+```
+
+**Key patterns:**
+- Use `// ... existing code ...` with hints: `// ... keep validation logic ...`
+- Batch all edits to the same file in one call
+- Preserve exact indentation from the original file
+- For deletions: show 1-2 context lines and omit the deleted code
+- Use `dryRun: true` to preview changes without applying
+
+### warpgrep vs Serena: Quick Reference
+
+| Scenario | Use This |
+| --- | --- |
+| "Where is the auth flow?" | `warpgrep_codebase_search` |
+| "Find the `runEvaluation` function" | `find_symbol` |
+| "What calls `detectFromCaptures`?" | `find_referencing_symbols` |
+| "How does conflict detection work?" | `warpgrep_codebase_search` |
+| "Show me all exports in types/index.ts" | `get_symbols_overview` |
 
 ### Navigation Patterns
 
