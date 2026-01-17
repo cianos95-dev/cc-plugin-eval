@@ -23,6 +23,7 @@ import {
 import { parsePluginManifest } from "./plugin-parser.js";
 import { formatPreflightResult, preflightCheck } from "./preflight.js";
 import { analyzeSkills } from "./skill-analyzer.js";
+import { buildTriggerRecords } from "./trigger-builder.js";
 
 import type {
   AnalysisOutput,
@@ -92,49 +93,49 @@ export async function runAnalysis(config: EvalConfig): Promise<AnalysisOutput> {
   );
 
   // 6. Build trigger understanding
-  const skillTriggers: Record<string, SkillTriggerInfo> = {};
-  for (const skill of skills) {
-    skillTriggers[skill.name] = {
+  const skillTriggers = buildTriggerRecords(skills, (skill) => [
+    skill.name,
+    {
       triggers: skill.trigger_phrases,
       description: skill.description,
-    };
-  }
+    } satisfies SkillTriggerInfo,
+  ]);
 
-  const agentTriggers: Record<string, AgentTriggerInfo> = {};
-  for (const agent of agents) {
-    agentTriggers[agent.name] = {
+  const agentTriggers = buildTriggerRecords(agents, (agent) => [
+    agent.name,
+    {
       examples: agent.example_triggers,
       description: agent.description,
-    };
-  }
+    } satisfies AgentTriggerInfo,
+  ]);
 
-  const commandTriggers: Record<string, CommandTriggerInfo> = {};
-  for (const command of commands) {
-    commandTriggers[command.name] = {
+  const commandTriggers = buildTriggerRecords(commands, (command) => [
+    command.name,
+    {
       invocation: getCommandInvocation(command),
       arguments: parseArgumentHint(command.argument_hint),
-    };
-  }
+    } satisfies CommandTriggerInfo,
+  ]);
 
-  const hookTriggers: Record<string, HookTriggerInfo> = {};
-  for (const hook of hooks) {
-    hookTriggers[hook.name] = {
+  const hookTriggers = buildTriggerRecords(hooks, (hook) => [
+    hook.name,
+    {
       eventType: hook.eventType,
       matcher: hook.matcher,
       matchingTools: hook.matchingTools,
       expectedBehavior: hook.expectedBehavior,
-    };
-  }
+    } satisfies HookTriggerInfo,
+  ]);
 
-  const mcpTriggers: Record<string, McpTriggerInfo> = {};
-  for (const mcp of mcpServers) {
-    mcpTriggers[mcp.name] = {
+  const mcpTriggers = buildTriggerRecords(mcpServers, (mcp) => [
+    mcp.name,
+    {
       serverType: mcp.serverType,
       authRequired: mcp.authRequired,
       envVars: mcp.envVars,
       knownTools: mcp.tools.map((t) => t.name),
-    };
-  }
+    } satisfies McpTriggerInfo,
+  ]);
 
   // 7. Create plugin load result (simulated for now, real SDK integration in Stage 3)
   const pluginLoadResult: PluginLoadResult = {

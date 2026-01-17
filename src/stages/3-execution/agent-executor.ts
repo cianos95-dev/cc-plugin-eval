@@ -14,6 +14,10 @@ import { withRetry } from "../../utils/retry.js";
 
 import { createHookResponseCollector } from "./hook-capture.js";
 import {
+  createCaptureHooksConfig,
+  type SDKHooksConfig,
+} from "./hooks-factory.js";
+import {
   executeQuery,
   isErrorMessage,
   isResultMessage,
@@ -23,21 +27,9 @@ import {
   type QueryInput,
   type QueryObject,
   type PluginReference,
-  type PreToolUseHookConfig,
-  type PostToolUseHookConfig,
-  type PostToolUseFailureHookConfig,
-  type SubagentStartHookConfig,
-  type SubagentStopHookConfig,
   type SettingSource,
   type ModelUsage,
 } from "./sdk-client.js";
-import {
-  createPreToolUseHook,
-  createPostToolUseHook,
-  createPostToolUseFailureHook,
-  createSubagentStartHook,
-  createSubagentStopHook,
-} from "./tool-capture-hooks.js";
 import {
   buildTranscript,
   createErrorEvent,
@@ -87,24 +79,13 @@ export interface ScenarioExecutionOptions {
 }
 
 /**
- * Hook configuration for all hook types.
- */
-interface HooksConfig {
-  preToolUse: PreToolUseHookConfig[];
-  postToolUse: PostToolUseHookConfig[];
-  postToolUseFailure: PostToolUseFailureHookConfig[];
-  subagentStart: SubagentStartHookConfig[];
-  subagentStop: SubagentStopHookConfig[];
-}
-
-/**
  * Build query input for scenario execution.
  */
 function buildQueryInput(
   scenario: TestScenario,
   plugins: PluginReference[],
   config: ExecutionConfig,
-  hooks: HooksConfig,
+  hooks: SDKHooksConfig,
   abortController: AbortController,
   startTime: number,
   enableMcpDiscovery: boolean,
@@ -144,13 +125,7 @@ function buildQueryInput(
       ...(config.max_thinking_tokens !== undefined
         ? { maxThinkingTokens: config.max_thinking_tokens }
         : {}),
-      hooks: {
-        PreToolUse: hooks.preToolUse,
-        PostToolUse: hooks.postToolUse,
-        PostToolUseFailure: hooks.postToolUseFailure,
-        SubagentStart: hooks.subagentStart,
-        SubagentStop: hooks.subagentStop,
-      },
+      hooks,
       stderr: (data: string): void => {
         const elapsed = Date.now() - startTime;
         logger.debug(
@@ -254,30 +229,15 @@ export async function executeScenario(
       plugins.push({ type: "local", path: additionalPath });
     }
 
-    // Create tool capture hooks with correlation map
+    // Create capture hooks using the factory
     const captureMap = new Map<string, ToolCapture>();
-    const preHook = createPreToolUseHook(captureMap, (capture) =>
-      detectedTools.push(capture),
-    );
-    const postHook = createPostToolUseHook(captureMap);
-    const postFailureHook = createPostToolUseFailureHook(captureMap);
-
-    // Create subagent capture hooks with correlation map
     const subagentCaptureMap = new Map<string, SubagentCapture>();
-    const subagentStartHook = createSubagentStartHook(
+    const hooksConfig = createCaptureHooksConfig({
+      captureMap,
+      onToolCapture: (capture) => detectedTools.push(capture),
       subagentCaptureMap,
-      (capture) => subagentCaptures.push(capture),
-    );
-    const subagentStopHook = createSubagentStopHook(subagentCaptureMap);
-
-    // Configure hooks for each event type
-    const hooksConfig: HooksConfig = {
-      preToolUse: [{ matcher: ".*", hooks: [preHook] }],
-      postToolUse: [{ matcher: ".*", hooks: [postHook] }],
-      postToolUseFailure: [{ matcher: ".*", hooks: [postFailureHook] }],
-      subagentStart: [{ matcher: ".*", hooks: [subagentStartHook] }],
-      subagentStop: [{ matcher: ".*", hooks: [subagentStopHook] }],
-    };
+      onSubagentCapture: (capture) => subagentCaptures.push(capture),
+    });
 
     // Build query input
     const queryInput = buildQueryInput(
@@ -399,21 +359,15 @@ export async function executeScenarioWithCheckpoint(
       plugins.push({ type: "local", path: additionalPath });
     }
 
-    // Create tool capture hooks with correlation map
+    // Create capture hooks using the factory
     const captureMap = new Map<string, ToolCapture>();
-    const preHook = createPreToolUseHook(captureMap, (capture) =>
-      detectedTools.push(capture),
-    );
-    const postHook = createPostToolUseHook(captureMap);
-    const postFailureHook = createPostToolUseFailureHook(captureMap);
-
-    // Create subagent capture hooks with correlation map
     const subagentCaptureMap = new Map<string, SubagentCapture>();
-    const subagentStartHook = createSubagentStartHook(
+    const hooksConfig = createCaptureHooksConfig({
+      captureMap,
+      onToolCapture: (capture) => detectedTools.push(capture),
       subagentCaptureMap,
-      (capture) => subagentCaptures.push(capture),
-    );
-    const subagentStopHook = createSubagentStopHook(subagentCaptureMap);
+      onSubagentCapture: (capture) => subagentCaptures.push(capture),
+    });
 
     // Build query input with file checkpointing enabled
     const queryInput: QueryInput = {
@@ -443,13 +397,7 @@ export async function executeScenarioWithCheckpoint(
           : "default",
         allowDangerouslySkipPermissions: config.permission_bypass,
         enableFileCheckpointing: true, // Enable for rewind
-        hooks: {
-          PreToolUse: [{ matcher: ".*", hooks: [preHook] }],
-          PostToolUse: [{ matcher: ".*", hooks: [postHook] }],
-          PostToolUseFailure: [{ matcher: ".*", hooks: [postFailureHook] }],
-          SubagentStart: [{ matcher: ".*", hooks: [subagentStartHook] }],
-          SubagentStop: [{ matcher: ".*", hooks: [subagentStopHook] }],
-        },
+        hooks: hooksConfig,
       },
     };
 

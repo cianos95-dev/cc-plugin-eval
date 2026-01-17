@@ -17,7 +17,10 @@ import YAML from "yaml";
 
 import { loadConfigWithOverrides, type CLIOptions } from "./config/index.js";
 import { runAnalysis } from "./stages/1-analysis/index.js";
-import { runGeneration } from "./stages/2-generation/index.js";
+import {
+  runGeneration,
+  writeGenerationMetadata,
+} from "./stages/2-generation/index.js";
 import { runExecution, consoleProgress } from "./stages/3-execution/index.js";
 import { runEvaluation } from "./stages/4-evaluation/index.js";
 import {
@@ -549,15 +552,7 @@ program
       state = updateStateAfterGeneration(state, generation.scenarios);
 
       writeJson(`${resultsDir}/scenarios.json`, generation.scenarios);
-      writeJson(`${resultsDir}/generation-metadata.json`, {
-        timestamp: new Date().toISOString(),
-        plugin_name: generation.plugin_name,
-        scenario_count: generation.scenarios.length,
-        scenario_count_by_type: generation.scenario_count_by_type,
-        scenario_count_by_component: generation.scenario_count_by_component,
-        diversity_metrics: generation.diversity_metrics,
-        cost_estimate: generation.cost_estimate,
-      });
+      writeGenerationMetadata(resultsDir, generation);
       logger.success(`Scenarios saved to ${resultsDir}/scenarios.json`);
 
       // Check if dry_run mode - stop after generation
@@ -708,15 +703,7 @@ program
       const generation = await runGeneration(analysis, config);
 
       writeJson(`${resultsDir}/scenarios.json`, generation.scenarios);
-      writeJson(`${resultsDir}/generation-metadata.json`, {
-        timestamp: new Date().toISOString(),
-        plugin_name: generation.plugin_name,
-        scenario_count: generation.scenarios.length,
-        scenario_count_by_type: generation.scenario_count_by_type,
-        scenario_count_by_component: generation.scenario_count_by_component,
-        diversity_metrics: generation.diversity_metrics,
-        cost_estimate: generation.cost_estimate,
-      });
+      writeGenerationMetadata(resultsDir, generation);
 
       logger.success(
         `Generated ${String(generation.scenarios.length)} scenarios`,

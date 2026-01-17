@@ -9,6 +9,7 @@ import { logger } from "../../utils/logging.js";
 import { withRetry } from "../../utils/retry.js";
 
 import { createHookResponseCollector } from "./hook-capture.js";
+import { createCaptureHooksConfig } from "./hooks-factory.js";
 import {
   executeQuery,
   isErrorMessage,
@@ -18,13 +19,6 @@ import {
   type SDKMessage,
   type SettingSource,
 } from "./sdk-client.js";
-import {
-  createPreToolUseHook,
-  createPostToolUseHook,
-  createPostToolUseFailureHook,
-  createSubagentStartHook,
-  createSubagentStopHook,
-} from "./tool-capture-hooks.js";
 import {
   buildTranscript,
   type TranscriptBuilderContext,
@@ -396,6 +390,14 @@ function buildScenarioQueryInput(
   // Determine settingSources based on MCP discovery option
   const settingSources: SettingSource[] = enableMcpDiscovery ? ["project"] : [];
 
+  // Create capture hooks using the factory
+  const hooksConfig = createCaptureHooksConfig({
+    captureMap,
+    onToolCapture,
+    subagentCaptureMap,
+    onSubagentCapture,
+  });
+
   return {
     prompt: scenario.user_prompt,
     options: {
@@ -414,40 +416,7 @@ function buildScenarioQueryInput(
       abortController,
       permissionMode: permissionBypass ? "bypassPermissions" : "default",
       allowDangerouslySkipPermissions: permissionBypass,
-      hooks: {
-        PreToolUse: [
-          {
-            matcher: ".*",
-            hooks: [createPreToolUseHook(captureMap, onToolCapture)],
-          },
-        ],
-        PostToolUse: [
-          {
-            matcher: ".*",
-            hooks: [createPostToolUseHook(captureMap)],
-          },
-        ],
-        PostToolUseFailure: [
-          {
-            matcher: ".*",
-            hooks: [createPostToolUseFailureHook(captureMap)],
-          },
-        ],
-        SubagentStart: [
-          {
-            matcher: ".*",
-            hooks: [
-              createSubagentStartHook(subagentCaptureMap, onSubagentCapture),
-            ],
-          },
-        ],
-        SubagentStop: [
-          {
-            matcher: ".*",
-            hooks: [createSubagentStopHook(subagentCaptureMap)],
-          },
-        ],
-      },
+      hooks: hooksConfig,
       stderr: onStderr,
     },
   };

@@ -4,6 +4,7 @@
  * Parses plugin structure and understands triggering conditions.
  */
 
+import { writeJson } from "../../utils/file-io.js";
 import { logger } from "../../utils/logging.js";
 
 // Internal generators
@@ -269,6 +270,59 @@ export async function runGeneration(
       diversity_ratio: metrics.diversity_ratio,
     },
   };
+}
+
+/**
+ * Generation metadata persisted to `generation-metadata.json`.
+ *
+ * This type represents the structure of metadata written to disk after
+ * scenario generation. It can be used by consumers who need to read
+ * and parse previously generated metadata files.
+ *
+ * @example
+ * ```typescript
+ * import { readJson } from "../utils/file-io.js";
+ * import type { GenerationMetadata } from "./stages/2-generation/index.js";
+ *
+ * const metadata = readJson<GenerationMetadata>(
+ *   `${resultsDir}/generation-metadata.json`
+ * );
+ * console.log(`Generated ${metadata.scenario_count} scenarios`);
+ * ```
+ */
+export interface GenerationMetadata {
+  timestamp: string;
+  plugin_name: string;
+  scenario_count: number;
+  scenario_count_by_type: Record<ScenarioType, number>;
+  scenario_count_by_component: Record<string, number>;
+  diversity_metrics: GenerationOutput["diversity_metrics"];
+  cost_estimate: PipelineCostEstimate;
+}
+
+/**
+ * Writes generation metadata to the specified results directory.
+ *
+ * This helper centralizes the metadata writing logic that was previously
+ * duplicated in the CLI's `run` and `generate` commands.
+ *
+ * @param resultsDir - Directory to write the metadata file to
+ * @param generation - Generation output containing the metadata
+ */
+export function writeGenerationMetadata(
+  resultsDir: string,
+  generation: GenerationOutput,
+): void {
+  const metadata: GenerationMetadata = {
+    timestamp: new Date().toISOString(),
+    plugin_name: generation.plugin_name,
+    scenario_count: generation.scenarios.length,
+    scenario_count_by_type: generation.scenario_count_by_type,
+    scenario_count_by_component: generation.scenario_count_by_component,
+    diversity_metrics: generation.diversity_metrics,
+    cost_estimate: generation.cost_estimate,
+  };
+  writeJson(`${resultsDir}/generation-metadata.json`, metadata);
 }
 
 // Re-export for convenience
