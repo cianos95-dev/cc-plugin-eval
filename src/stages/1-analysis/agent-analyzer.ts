@@ -4,6 +4,7 @@
  */
 
 import { parseFrontmatter, readText, basename } from "../../utils/index.js";
+import { logger } from "../../utils/logging.js";
 
 import type { AgentComponent, AgentExample } from "../../types/index.js";
 
@@ -85,12 +86,12 @@ export function extractAgentExamples(description: string): AgentExample[] {
       if (parsed?.user_message) {
         examples.push(parsed);
       } else {
-        console.warn(
-          `Could not parse example block, skipping: ${block.slice(0, 100)}...`,
-        );
+        logger.warn(`Could not parse example block, skipping`, {
+          blockPreview: block.slice(0, 100),
+        });
       }
     } catch (err) {
-      console.warn(`Failed to parse example block: ${String(err)}`);
+      logger.warn(`Failed to parse example block`, { error: err });
     }
   }
 

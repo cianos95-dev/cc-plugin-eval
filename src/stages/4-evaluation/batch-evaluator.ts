@@ -22,6 +22,7 @@ import {
   type TestScenario,
   type Transcript,
 } from "../../types/index.js";
+import { logger } from "../../utils/logging.js";
 import { sleep } from "../../utils/retry.js";
 import { resolveModelId } from "../2-generation/cost-estimator.js";
 
@@ -484,6 +485,10 @@ export async function collectBatchResults(
           const response = parseJudgeResponse(textBlock.text);
           results.set(customId, response);
         } catch (err) {
+          logger.error(`Failed to parse judge response for ${customId}`, {
+            error: err,
+            rawText: textBlock.text.slice(0, 500),
+          });
           results.set(
             customId,
             createErrorResponse(

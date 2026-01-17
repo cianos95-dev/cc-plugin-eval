@@ -712,8 +712,10 @@ export function listRuns(pluginName: string): RunSummary[] {
         stage: state.stage ?? "pending",
         timestamp: state.timestamp ?? "",
       });
-    } catch {
-      // Skip invalid state files
+    } catch (err) {
+      logger.debug(`Skipping invalid state file: ${statePath}`, {
+        error: err instanceof Error ? err.message : String(err),
+      });
     }
   }
 
