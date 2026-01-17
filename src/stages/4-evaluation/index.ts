@@ -36,7 +36,7 @@ import {
   createEmptyMetrics,
   formatMetrics,
 } from "./metrics.js";
-import { runJudgment } from "./multi-sampler.js";
+import { calculateVariance, runJudgment } from "./multi-sampler.js";
 import {
   detectAllComponents,
   detectAllComponentsWithHooks,
@@ -515,7 +515,7 @@ function aggregateBatchResults(
     const accuracyVotes = sampleResponses.map((r) => r.trigger_accuracy);
     const consensus = getMajorityVote(accuracyVotes);
     const isUnanimous = accuracyVotes.every((v) => v === accuracyVotes[0]);
-    const variance = calculateVarianceFromScores(scores);
+    const variance = calculateVariance(scores);
 
     // sampleResponses[0] is guaranteed to exist because sampleResponses.length > 0
     // eslint-disable-next-line @typescript-eslint/non-nullable-type-assertion-style
@@ -788,19 +788,6 @@ function getMajorityVote(
     }
   }
   return maxKey;
-}
-
-/**
- * Calculate variance from scores.
- */
-function calculateVarianceFromScores(scores: number[]): number {
-  if (scores.length === 0) {
-    return 0;
-  }
-  const mean = scores.reduce((a, b) => a + b, 0) / scores.length;
-  return (
-    scores.reduce((sum, s) => sum + Math.pow(s - mean, 2), 0) / scores.length
-  );
 }
 
 /**

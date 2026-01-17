@@ -1,5 +1,29 @@
 /**
  * Logging utilities with color support.
+ *
+ * ## Logging Level Policy
+ *
+ * Use the following guidelines when choosing log levels:
+ *
+ * - **error**: Operation failed and cannot continue. The current task/scenario
+ *   will be aborted. Examples: config validation failure, SDK connection error,
+ *   unrecoverable API error.
+ *
+ * - **warn**: Degraded condition, but execution continues. Something unexpected
+ *   happened that may affect results but doesn't prevent completion. Examples:
+ *   MCP server unavailable (scenarios skipped), budget threshold exceeded,
+ *   fallback to less efficient code path.
+ *
+ * - **info**: Normal operational messages that users should see. Progress markers,
+ *   stage transitions, summary statistics. Examples: "Starting Stage 2",
+ *   "Parsed 15 skills", "Execution complete: 10 passed, 2 failed".
+ *
+ * - **debug**: Development/troubleshooting details not needed in normal operation.
+ *   Verbose output for diagnosing issues. Examples: individual tool captures,
+ *   detailed API request/response info, intermediate calculation values.
+ *
+ * When in doubt, prefer info over debug (user visibility) and warn over error
+ * (graceful degradation).
  */
 
 import chalk from "chalk";

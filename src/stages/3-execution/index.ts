@@ -356,7 +356,16 @@ async function executeBatchedScenarios(
     0,
   );
 
-  // Create rate limiter if configured
+  /**
+   * Rate limiting configuration.
+   *
+   * IMPORTANT: Rate limit applies to SDK query() invocations, NOT individual
+   * API calls. Each query() call may result in multiple API requests to
+   * Anthropic due to tool use loops, so actual API rate will be higher than
+   * this setting.
+   *
+   * Configure conservatively to avoid hitting Anthropic's API rate limits.
+   */
   const rps = config.execution.requests_per_second;
   const rateLimiter =
     rps !== null && rps !== undefined ? createRateLimiter(rps) : null;
@@ -457,7 +466,16 @@ async function executeAllScenariosIsolated(
     ? executeScenarioWithCheckpoint
     : executeScenario;
 
-  // Create rate limiter if configured (proactive rate limit protection)
+  /**
+   * Rate limiting configuration.
+   *
+   * IMPORTANT: Rate limit applies to SDK query() invocations, NOT individual
+   * API calls. Each query() call may result in multiple API requests to
+   * Anthropic due to tool use loops, so actual API rate will be higher than
+   * this setting.
+   *
+   * Configure conservatively to avoid hitting Anthropic's API rate limits.
+   */
   const rps = config.execution.requests_per_second;
   const rateLimiter =
     rps !== null && rps !== undefined ? createRateLimiter(rps) : null;

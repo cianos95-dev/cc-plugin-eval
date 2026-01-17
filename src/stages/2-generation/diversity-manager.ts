@@ -35,6 +35,18 @@ import type {
 export type VariationType = "entity" | "domain" | "tone" | "specificity";
 
 /**
+ * Minimum allowed diversity score.
+ * Prevents extreme concentration (all variations from one base).
+ */
+const MIN_DIVERSITY_SCORE = 0.1;
+
+/**
+ * Maximum allowed diversity score.
+ * At 1.0, every scenario is unique (no variations).
+ */
+const MAX_DIVERSITY_SCORE = 1.0;
+
+/**
  * Calculate scenario distribution based on diversity config.
  *
  * @param config - Diversity configuration
@@ -43,7 +55,10 @@ export type VariationType = "entity" | "domain" | "tone" | "specificity";
 export function calculateScenarioDistribution(
   config: DiversityConfig,
 ): ScenarioDistribution {
-  const diversity = Math.max(0.1, Math.min(1.0, config.diversity));
+  const diversity = Math.max(
+    MIN_DIVERSITY_SCORE,
+    Math.min(MAX_DIVERSITY_SCORE, config.diversity),
+  );
   const baseCount = Math.max(1, Math.ceil(config.total_scenarios * diversity));
   const variationsPerBase = Math.max(1, Math.ceil(1 / diversity));
 

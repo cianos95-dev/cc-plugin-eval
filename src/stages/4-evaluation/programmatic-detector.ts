@@ -298,9 +298,12 @@ export function detectDirectCommandInvocation(
  *
  * For captures where PostToolUse/PostToolUseFailure hooks didn't fire
  * (success === undefined), attempt to determine success from transcript
- * tool_result events. Updates captures in place.
+ * tool_result events.
  *
- * @param captures - Tool captures to correlate (mutated in place)
+ * **WARNING: This function mutates the captures array in place.**
+ * The `result` and `success` properties of matching captures are updated.
+ *
+ * @param captures - Tool captures to correlate (MUTATED IN PLACE)
  * @param transcript - Execution transcript with tool results
  */
 export function correlateWithTranscript(
