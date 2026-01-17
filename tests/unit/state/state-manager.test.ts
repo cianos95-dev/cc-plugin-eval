@@ -345,6 +345,10 @@ describe("loadState", () => {
 });
 
 describe("updateStateAfterAnalysis", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
   it("updates state with analysis output", () => {
     const state: PipelineState = {
       run_id: "test-run",
@@ -368,11 +372,58 @@ describe("updateStateAfterAnalysis", () => {
 
     expect(result.stage).toBe("analysis");
     expect(result.analysis).toBe(analysis);
-    expect(writeJson).toHaveBeenCalled();
+  });
+
+  it("is a pure function (does not persist state)", () => {
+    const state: PipelineState = {
+      run_id: "test-run",
+      plugin_name: "test-plugin",
+      stage: "pending",
+      timestamp: "2024-01-01T00:00:00.000Z",
+      config: { plugin: { path: "/test" } } as EvalConfig,
+    };
+
+    const analysis: AnalysisOutput = {
+      plugin_name: "test-plugin",
+      plugin_path: "/test",
+      components: {
+        skills: [],
+        agents: [],
+        commands: [],
+      },
+    };
+
+    updateStateAfterAnalysis(state, analysis);
+
+    // Should NOT call writeJson (caller is responsible for persistence)
+    expect(writeJson).not.toHaveBeenCalled();
+  });
+
+  it("updates timestamp", () => {
+    const originalTimestamp = "2024-01-01T00:00:00.000Z";
+    const state: PipelineState = {
+      run_id: "test-run",
+      plugin_name: "test-plugin",
+      stage: "pending",
+      timestamp: originalTimestamp,
+      config: { plugin: { path: "/test" } } as EvalConfig,
+    };
+
+    const result = updateStateAfterAnalysis(state, {
+      plugin_name: "test-plugin",
+      plugin_path: "/test",
+      components: { skills: [], agents: [], commands: [] },
+    });
+
+    expect(result.timestamp).not.toBe(originalTimestamp);
   });
 });
 
 describe("updateStateAfterGeneration", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
   it("updates state with scenarios", () => {
     const state: PipelineState = {
       run_id: "test-run",
@@ -397,6 +448,21 @@ describe("updateStateAfterGeneration", () => {
 
     expect(result.stage).toBe("generation");
     expect(result.scenarios).toBe(scenarios);
+  });
+
+  it("is a pure function (does not persist state)", () => {
+    const state: PipelineState = {
+      run_id: "test-run",
+      plugin_name: "test-plugin",
+      stage: "analysis",
+      timestamp: "2024-01-01T00:00:00.000Z",
+      config: { plugin: { path: "/test" } } as EvalConfig,
+    };
+
+    updateStateAfterGeneration(state, []);
+
+    // Should NOT call writeJson (caller is responsible for persistence)
+    expect(writeJson).not.toHaveBeenCalled();
   });
 });
 
@@ -470,9 +536,28 @@ describe("updateStateAfterExecution", () => {
 
     expect(result.failed_scenario_ids).toEqual(["scenario-1"]);
   });
+
+  it("is a pure function (does not persist state)", () => {
+    const state: PipelineState = {
+      run_id: "test-run",
+      plugin_name: "test-plugin",
+      stage: "generation",
+      timestamp: "2024-01-01T00:00:00.000Z",
+      config: { plugin: { path: "/test" } } as EvalConfig,
+    };
+
+    updateStateAfterExecution(state, []);
+
+    // Should NOT call writeJson (caller is responsible for persistence)
+    expect(writeJson).not.toHaveBeenCalled();
+  });
 });
 
 describe("updateStateAfterEvaluation", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
   it("updates state with evaluations", () => {
     const state: PipelineState = {
       run_id: "test-run",
@@ -503,9 +588,28 @@ describe("updateStateAfterEvaluation", () => {
     expect(result.stage).toBe("evaluation");
     expect(result.evaluations).toBe(evaluations);
   });
+
+  it("is a pure function (does not persist state)", () => {
+    const state: PipelineState = {
+      run_id: "test-run",
+      plugin_name: "test-plugin",
+      stage: "execution",
+      timestamp: "2024-01-01T00:00:00.000Z",
+      config: { plugin: { path: "/test" } } as EvalConfig,
+    };
+
+    updateStateAfterEvaluation(state, []);
+
+    // Should NOT call writeJson (caller is responsible for persistence)
+    expect(writeJson).not.toHaveBeenCalled();
+  });
 });
 
 describe("updateStateComplete", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
   it("marks state as complete", () => {
     const state: PipelineState = {
       run_id: "test-run",
@@ -519,9 +623,28 @@ describe("updateStateComplete", () => {
 
     expect(result.stage).toBe("complete");
   });
+
+  it("is a pure function (does not persist state)", () => {
+    const state: PipelineState = {
+      run_id: "test-run",
+      plugin_name: "test-plugin",
+      stage: "evaluation",
+      timestamp: "2024-01-01T00:00:00.000Z",
+      config: { plugin: { path: "/test" } } as EvalConfig,
+    };
+
+    updateStateComplete(state);
+
+    // Should NOT call writeJson (caller is responsible for persistence)
+    expect(writeJson).not.toHaveBeenCalled();
+  });
 });
 
 describe("updateStateWithPartialExecutions", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
   it("saves partial execution results", () => {
     const state: PipelineState = {
       run_id: "test-run",
@@ -548,9 +671,28 @@ describe("updateStateWithPartialExecutions", () => {
 
     expect(result.partial_executions).toBe(partials);
   });
+
+  it("is a pure function (does not persist state)", () => {
+    const state: PipelineState = {
+      run_id: "test-run",
+      plugin_name: "test-plugin",
+      stage: "generation",
+      timestamp: "2024-01-01T00:00:00.000Z",
+      config: { plugin: { path: "/test" } } as EvalConfig,
+    };
+
+    updateStateWithPartialExecutions(state, []);
+
+    // Should NOT call writeJson (caller is responsible for persistence)
+    expect(writeJson).not.toHaveBeenCalled();
+  });
 });
 
 describe("updateStateWithError", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
   it("saves error message", () => {
     const state: PipelineState = {
       run_id: "test-run",
@@ -563,6 +705,21 @@ describe("updateStateWithError", () => {
     const result = updateStateWithError(state, "Something went wrong");
 
     expect(result.error).toBe("Something went wrong");
+  });
+
+  it("is a pure function (does not persist state)", () => {
+    const state: PipelineState = {
+      run_id: "test-run",
+      plugin_name: "test-plugin",
+      stage: "execution",
+      timestamp: "2024-01-01T00:00:00.000Z",
+      config: { plugin: { path: "/test" } } as EvalConfig,
+    };
+
+    updateStateWithError(state, "Error message");
+
+    // Should NOT call writeJson (caller is responsible for persistence)
+    expect(writeJson).not.toHaveBeenCalled();
   });
 });
 

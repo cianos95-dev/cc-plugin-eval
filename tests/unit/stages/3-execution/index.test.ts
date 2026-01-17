@@ -30,8 +30,7 @@ import {
   wouldExceedBudget,
 } from "../../../../src/stages/3-execution/agent-executor.js";
 import {
-  resolveSessionStrategy,
-  groupScenariosByComponent,
+  resolveExecutionStrategy,
   logBatchStats,
 } from "../../../../src/stages/3-execution/session-batching.js";
 
@@ -96,10 +95,8 @@ vi.mock("../../../../src/stages/3-execution/agent-executor.js", () => ({
 }));
 
 vi.mock("../../../../src/stages/3-execution/session-batching.js", () => ({
-  resolveSessionStrategy: vi.fn(() => "isolated"),
-  groupScenariosByComponent: vi.fn(),
+  resolveExecutionStrategy: vi.fn(() => ({ type: "isolated", scenarios: [] })),
   logBatchStats: vi.fn(),
-  executeBatch: vi.fn(),
 }));
 
 vi.mock("../../../../src/stages/3-execution/progress-reporters.js", () => ({
@@ -262,7 +259,10 @@ describe("runExecution", () => {
     (isPluginLoaded as Mock).mockReturnValue(true);
     (getFailedMcpServers as Mock).mockReturnValue([]);
     (executeScenario as Mock).mockResolvedValue(createExecutionResult());
-    (resolveSessionStrategy as Mock).mockReturnValue("isolated");
+    (resolveExecutionStrategy as Mock).mockReturnValue({
+      type: "isolated",
+      scenarios: [],
+    });
   });
 
   describe("plugin verification", () => {
@@ -342,20 +342,26 @@ describe("runExecution", () => {
 
   describe("session strategy routing", () => {
     it("should use isolated mode by default", async () => {
-      (resolveSessionStrategy as Mock).mockReturnValue("isolated");
+      const scenarios = [createScenario()];
+      (resolveExecutionStrategy as Mock).mockReturnValue({
+        type: "isolated",
+        scenarios,
+      });
 
       const analysis = createAnalysis();
-      const scenarios = [createScenario()];
       const config = createConfig();
 
       await runExecution(analysis, scenarios, config);
 
-      expect(resolveSessionStrategy).toHaveBeenCalledWith(config.execution);
+      expect(resolveExecutionStrategy).toHaveBeenCalledWith(
+        config.execution,
+        expect.any(Array),
+      );
       // parallel() is called for isolated mode
       expect(parallel).toHaveBeenCalled();
     });
 
-    it("should call resolveSessionStrategy with execution config", async () => {
+    it("should call resolveExecutionStrategy with execution config and scenarios", async () => {
       const analysis = createAnalysis();
       const scenarios = [createScenario()];
       const config = createConfig({
@@ -366,26 +372,32 @@ describe("runExecution", () => {
       });
 
       // Keep isolated mode to avoid needing to fully mock batched execution
-      (resolveSessionStrategy as Mock).mockReturnValue("isolated");
+      (resolveExecutionStrategy as Mock).mockReturnValue({
+        type: "isolated",
+        scenarios,
+      });
 
       await runExecution(analysis, scenarios, config);
 
-      expect(resolveSessionStrategy).toHaveBeenCalledWith(config.execution);
+      expect(resolveExecutionStrategy).toHaveBeenCalledWith(
+        config.execution,
+        expect.any(Array),
+      );
     });
 
-    it("should call groupScenariosByComponent when batched mode detected", async () => {
-      (resolveSessionStrategy as Mock).mockReturnValue("batched_by_component");
-      const mockGroups = new Map([["skill:test-skill", [createScenario()]]]);
-      (groupScenariosByComponent as Mock).mockReturnValue(mockGroups);
+    it("should use batched execution when batched mode detected", async () => {
+      const scenario = createScenario();
+      const mockGroups = new Map([["skill:test-skill", [scenario]]]);
+      (resolveExecutionStrategy as Mock).mockReturnValue({
+        type: "batched",
+        groups: mockGroups,
+      });
 
       // We need to mock the entire batched execution path.
-      // For this test, we just verify groupScenariosByComponent is called.
-      // TODO: Fully mock executeBatchedScenarios to test complete batched flow.
-      // Would require mocking: executeBatch, parallel for batch results, and
-      // the session reuse logic. For now, we verify the routing is correct.
+      // For this test, we verify logBatchStats is called with the groups.
       // The actual execution will fail without full mocking, so we catch the error.
       const analysis = createAnalysis();
-      const scenarios = [createScenario()];
+      const scenarios = [scenario];
       const config = createConfig({
         execution: {
           ...createConfig().execution,
@@ -399,11 +411,7 @@ describe("runExecution", () => {
         // Expected to fail due to incomplete mocking of batched execution
       }
 
-      expect(groupScenariosByComponent).toHaveBeenCalledWith(
-        scenarios,
-        config.execution.additional_plugins,
-      );
-      expect(logBatchStats).toHaveBeenCalled();
+      expect(logBatchStats).toHaveBeenCalledWith(mockGroups, scenarios.length);
     });
   });
 

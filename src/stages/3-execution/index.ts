@@ -42,9 +42,8 @@ import {
 } from "./plugin-loader.js";
 import { consoleProgress } from "./progress-reporters.js";
 import {
-  groupScenariosByComponent,
   logBatchStats,
-  resolveSessionStrategy,
+  resolveExecutionStrategy,
   executeBatch,
 } from "./session-batching.js";
 
@@ -279,32 +278,37 @@ async function executeAllScenarios(
     enableMcpDiscovery,
   } = options;
 
-  // Determine session strategy
-  const sessionStrategy = resolveSessionStrategy(config.execution);
+  // Resolve strategy with discriminated union for type-safe handling
+  const strategy = resolveExecutionStrategy(config.execution, scenarios);
 
-  // If batched mode, group scenarios and log stats
-  if (sessionStrategy === "batched_by_component") {
-    const groups = groupScenariosByComponent(
-      scenarios,
-      config.execution.additional_plugins,
-    );
-    logBatchStats(groups, scenarios.length);
+  switch (strategy.type) {
+    case "batched": {
+      logBatchStats(strategy.groups, scenarios.length);
 
-    // Execute batches with session reuse
-    return executeBatchedScenarios({
-      groups,
-      pluginPath,
-      pluginName,
-      config,
-      useCheckpointing,
-      queryFn,
-      progress,
-      enableMcpDiscovery,
-    });
+      // Execute batches with session reuse
+      return executeBatchedScenarios({
+        groups: strategy.groups,
+        pluginPath,
+        pluginName,
+        config,
+        useCheckpointing,
+        queryFn,
+        progress,
+        enableMcpDiscovery,
+      });
+    }
+
+    case "isolated": {
+      // Isolated mode: execute scenarios in parallel (original behavior)
+      return executeAllScenariosIsolated(options);
+    }
+
+    default: {
+      // Exhaustiveness check - ensures all strategy types are handled
+      const _exhaustive: never = strategy;
+      throw new Error(`Unhandled strategy type: ${String(_exhaustive)}`);
+    }
   }
-
-  // Isolated mode: execute scenarios in parallel (original behavior)
-  return executeAllScenariosIsolated(options);
 }
 
 /**

@@ -324,53 +324,53 @@ export function findLatestRun(pluginName: string): string | null {
 /**
  * Update state after completing analysis stage.
  *
+ * Note: This is a pure function - caller is responsible for persisting state via saveState().
+ *
  * @param state - Current state
  * @param analysis - Analysis output
- * @returns Updated state
+ * @returns Updated state (not persisted)
  */
 export function updateStateAfterAnalysis(
   state: PipelineState,
   analysis: AnalysisOutput,
 ): PipelineState {
-  const updated: PipelineState = {
+  return {
     ...state,
     stage: "analysis",
     analysis,
     timestamp: new Date().toISOString(),
   };
-
-  saveState(updated);
-  return updated;
 }
 
 /**
  * Update state after completing generation stage.
  *
+ * Note: This is a pure function - caller is responsible for persisting state via saveState().
+ *
  * @param state - Current state
  * @param scenarios - Generated scenarios
- * @returns Updated state
+ * @returns Updated state (not persisted)
  */
 export function updateStateAfterGeneration(
   state: PipelineState,
   scenarios: TestScenario[],
 ): PipelineState {
-  const updated: PipelineState = {
+  return {
     ...state,
     stage: "generation",
     scenarios,
     timestamp: new Date().toISOString(),
   };
-
-  saveState(updated);
-  return updated;
 }
 
 /**
  * Update state after completing execution stage.
  *
+ * Note: This is a pure function - caller is responsible for persisting state via saveState().
+ *
  * @param state - Current state
  * @param executions - Execution results
- * @returns Updated state
+ * @returns Updated state (not persisted)
  */
 export function updateStateAfterExecution(
   state: PipelineState,
@@ -396,18 +396,17 @@ export function updateStateAfterExecution(
   // Remove partial_executions using destructuring (safer than delete with type cast)
   const { partial_executions: _unusedPartial, ...cleanState } =
     updated as PipelineState & { partial_executions?: unknown };
-  const finalState = cleanState as PipelineState;
-
-  saveState(finalState);
-  return finalState;
+  return cleanState as PipelineState;
 }
 
 /**
  * Update state after completing evaluation stage.
  *
+ * Note: This is a pure function - caller is responsible for persisting state via saveState().
+ *
  * @param state - Current state
  * @param evaluations - Evaluation results
- * @returns Updated state
+ * @returns Updated state (not persisted)
  */
 export function updateStateAfterEvaluation(
   state: PipelineState,
@@ -423,27 +422,23 @@ export function updateStateAfterEvaluation(
   // Remove partial_evaluations using destructuring (safer than delete with type cast)
   const { partial_evaluations: _unusedPartial, ...cleanState } =
     updated as PipelineState & { partial_evaluations?: unknown };
-  const finalState = cleanState as PipelineState;
-
-  saveState(finalState);
-  return finalState;
+  return cleanState as PipelineState;
 }
 
 /**
  * Mark pipeline as complete.
  *
+ * Note: This is a pure function - caller is responsible for persisting state via saveState().
+ *
  * @param state - Current state
- * @returns Updated state
+ * @returns Updated state (not persisted)
  */
 export function updateStateComplete(state: PipelineState): PipelineState {
-  const updated: PipelineState = {
+  return {
     ...state,
     stage: "complete",
     timestamp: new Date().toISOString(),
   };
-
-  saveState(updated);
-  return updated;
 }
 
 /**
@@ -451,43 +446,41 @@ export function updateStateComplete(state: PipelineState): PipelineState {
  *
  * Used for checkpointing during long execution runs.
  *
+ * Note: This is a pure function - caller is responsible for persisting state via saveState().
+ *
  * @param state - Current state
  * @param partials - Partial execution results
- * @returns Updated state
+ * @returns Updated state (not persisted)
  */
 export function updateStateWithPartialExecutions(
   state: PipelineState,
   partials: ExecutionResult[],
 ): PipelineState {
-  const updated: PipelineState = {
+  return {
     ...state,
     partial_executions: partials,
     timestamp: new Date().toISOString(),
   };
-
-  saveState(updated);
-  return updated;
 }
 
 /**
  * Update state with error.
  *
+ * Note: This is a pure function - caller is responsible for persisting state via saveState().
+ *
  * @param state - Current state
  * @param error - Error message
- * @returns Updated state
+ * @returns Updated state (not persisted)
  */
 export function updateStateWithError(
   state: PipelineState,
   error: string,
 ): PipelineState {
-  const updated: PipelineState = {
+  return {
     ...state,
     error,
     timestamp: new Date().toISOString(),
   };
-
-  saveState(updated);
-  return updated;
 }
 
 /**

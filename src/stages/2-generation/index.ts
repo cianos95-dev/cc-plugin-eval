@@ -33,6 +33,7 @@ import type {
   PipelineCostEstimate,
   ScenarioType,
 } from "../../types/index.js";
+import type Anthropic from "@anthropic-ai/sdk";
 
 /**
  * Output from Stage 2: Scenario Generation.
@@ -65,6 +66,16 @@ export type GenerationProgressCallback = (
   total: number,
   current?: string,
 ) => void;
+
+/**
+ * Options for runGeneration to support dependency injection.
+ */
+export interface GenerationOptions {
+  /** Anthropic client instance for LLM-based generation (injectable for testing) */
+  client?: Anthropic;
+  /** Progress callback for reporting generation progress */
+  onProgress?: GenerationProgressCallback;
+}
 
 /**
  * Options for LLM-based component scenario generation.
@@ -133,14 +144,16 @@ async function generateLLMComponentScenarios<T>(
  *
  * @param analysis - Output from Stage 1
  * @param config - Evaluation configuration
- * @param onProgress - Optional progress callback
+ * @param options - Optional generation options including injectable client
  * @returns Generation output with scenarios
  */
 export async function runGeneration(
   analysis: AnalysisOutput,
   config: EvalConfig,
-  onProgress?: GenerationProgressCallback,
+  options?: GenerationOptions,
 ): Promise<GenerationOutput> {
+  const { client: injectedClient, onProgress } = options ?? {};
+
   logger.stageHeader("Stage 2: Scenario Generation");
 
   // Estimate costs first
@@ -179,7 +192,8 @@ export async function runGeneration(
   }
 
   const allScenarios: TestScenario[] = [];
-  const client = createAnthropicClient();
+  // Use injected client or create a new one
+  const client = injectedClient ?? createAnthropicClient();
 
   // Generate skill scenarios (LLM-based)
   if (config.scope.skills && analysis.components.skills.length > 0) {

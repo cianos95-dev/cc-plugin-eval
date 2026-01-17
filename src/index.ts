@@ -26,6 +26,7 @@ import { runEvaluation } from "./stages/4-evaluation/index.js";
 import {
   createPipelineState,
   loadState,
+  saveState,
   findLatestRun,
   updateStateAfterAnalysis,
   updateStateAfterGeneration,
@@ -151,6 +152,9 @@ async function resumeFromAnalysis(
   currentState = updateStateAfterEvaluation(currentState, evaluation.results);
   currentState = updateStateComplete(currentState);
 
+  // Persist final state
+  saveState(currentState);
+
   logger.success("Resume complete!");
   return currentState;
 }
@@ -197,6 +201,9 @@ async function resumeFromGeneration(
   currentState = updateStateAfterEvaluation(currentState, evaluation.results);
   currentState = updateStateComplete(currentState);
 
+  // Persist final state
+  saveState(currentState);
+
   logger.success("Resume complete!");
   return currentState;
 }
@@ -239,6 +246,9 @@ async function resumeFromExecution(
   currentState = updateStateAfterEvaluation(currentState, evaluation.results);
   currentState = updateStateComplete(currentState);
 
+  // Persist final state
+  saveState(currentState);
+
   logger.success("Resume complete!");
   return currentState;
 }
@@ -276,6 +286,9 @@ async function resumeFromEvaluation(
     evaluation.results,
   );
   currentState = updateStateComplete(currentState);
+
+  // Persist final state
+  saveState(currentState);
 
   logger.success("Resume complete!");
   return currentState;
@@ -542,6 +555,7 @@ program
         runId,
       });
       state = updateStateAfterAnalysis(state, analysis);
+      saveState(state);
 
       const resultsDir = getResultsDir(analysis.plugin_name, runId);
       writeJson(`${resultsDir}/analysis.json`, analysis);
@@ -550,6 +564,7 @@ program
       // Stage 2: Generation
       const generation = await runGeneration(analysis, config);
       state = updateStateAfterGeneration(state, generation.scenarios);
+      saveState(state);
 
       writeJson(`${resultsDir}/scenarios.json`, generation.scenarios);
       writeGenerationMetadata(resultsDir, generation);
@@ -589,6 +604,7 @@ program
         consoleProgress,
       );
       state = updateStateAfterExecution(state, execution.results);
+      saveState(state);
 
       writeJson(`${resultsDir}/execution-metadata.json`, {
         timestamp: new Date().toISOString(),
@@ -609,6 +625,7 @@ program
         consoleProgress,
       );
       state = updateStateAfterEvaluation(state, evaluation.results);
+      saveState(state);
 
       writeJson(`${resultsDir}/evaluation.json`, {
         timestamp: new Date().toISOString(),
@@ -618,7 +635,8 @@ program
       });
 
       // Mark as complete
-      updateStateComplete(state);
+      state = updateStateComplete(state);
+      saveState(state);
 
       // Output final summary
       outputFinalSummary(resultsDir, evaluation.metrics);
@@ -749,6 +767,7 @@ program
         runId,
       });
       state = updateStateAfterAnalysis(state, analysis);
+      saveState(state);
 
       const resultsDir = getResultsDir(analysis.plugin_name, runId);
       writeJson(`${resultsDir}/analysis.json`, analysis);
@@ -756,6 +775,7 @@ program
       // Stage 2: Generation
       const generation = await runGeneration(analysis, config);
       state = updateStateAfterGeneration(state, generation.scenarios);
+      saveState(state);
 
       writeJson(`${resultsDir}/scenarios.json`, generation.scenarios);
 
@@ -766,7 +786,8 @@ program
         config,
         consoleProgress,
       );
-      updateStateAfterExecution(state, execution.results);
+      state = updateStateAfterExecution(state, execution.results);
+      saveState(state);
 
       writeJson(`${resultsDir}/execution-metadata.json`, {
         timestamp: new Date().toISOString(),

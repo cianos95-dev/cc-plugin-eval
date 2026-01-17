@@ -608,7 +608,7 @@ describe("runGeneration", () => {
       });
       const onProgress = vi.fn();
 
-      await runGeneration(analysis, config, onProgress);
+      await runGeneration(analysis, config, { onProgress });
 
       // Commands should trigger progress callback
       expect(onProgress).toHaveBeenCalledWith("commands", 1, 1);
@@ -635,7 +635,7 @@ describe("runGeneration", () => {
       });
       const onProgress = vi.fn();
 
-      await runGeneration(analysis, config, onProgress);
+      await runGeneration(analysis, config, { onProgress });
 
       expect(onProgress).toHaveBeenCalledWith("hooks", 1, 1);
     });
@@ -661,7 +661,7 @@ describe("runGeneration", () => {
       });
       const onProgress = vi.fn();
 
-      await runGeneration(analysis, config, onProgress);
+      await runGeneration(analysis, config, { onProgress });
 
       expect(onProgress).toHaveBeenCalledWith("mcp_servers", 1, 1);
     });

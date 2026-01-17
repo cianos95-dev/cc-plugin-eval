@@ -43,6 +43,17 @@ import type {
 } from "../../types/index.js";
 
 /**
+ * Discriminated union representing a resolved execution strategy with its data.
+ *
+ * This provides type-safe handling of different execution modes:
+ * - "batched": Scenarios are grouped by component for session reuse
+ * - "isolated": Each scenario runs in its own session
+ */
+export type ResolvedExecutionStrategy =
+  | { type: "batched"; groups: Map<string, TestScenario[]> }
+  | { type: "isolated"; scenarios: TestScenario[] };
+
+/**
  * Resolve the effective session strategy from config.
  *
  * Handles backward compatibility with the deprecated `session_isolation` field.
@@ -63,6 +74,34 @@ export function resolveSessionStrategy(
   // true = isolated, false (default) = batched_by_component
   // eslint-disable-next-line @typescript-eslint/no-deprecated
   return config.session_isolation ? "isolated" : "batched_by_component";
+}
+
+/**
+ * Resolve the execution strategy with its associated data.
+ *
+ * This returns a discriminated union that includes both the strategy type
+ * and the data needed to execute that strategy, enabling type-safe handling
+ * with exhaustive pattern matching.
+ *
+ * @param config - Execution configuration
+ * @param scenarios - Scenarios to execute
+ * @returns Resolved strategy with associated data
+ */
+export function resolveExecutionStrategy(
+  config: ExecutionConfig,
+  scenarios: TestScenario[],
+): ResolvedExecutionStrategy {
+  const strategy = resolveSessionStrategy(config);
+
+  if (strategy === "batched_by_component") {
+    const groups = groupScenariosByComponent(
+      scenarios,
+      config.additional_plugins,
+    );
+    return { type: "batched", groups };
+  }
+
+  return { type: "isolated", scenarios };
 }
 
 /**
