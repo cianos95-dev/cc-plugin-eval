@@ -41,10 +41,10 @@ export function resolveComponentPaths(
   const customAgents = toArray(manifest.agents).map(normalize);
 
   return {
-    commands: [...defaultCommands, ...customCommands].filter((p) =>
-      existsSync(p),
-    ),
-    agents: [...defaultAgents, ...customAgents].filter((p) => existsSync(p)),
+    commands: defaultCommands
+      .concat(customCommands)
+      .filter((p) => existsSync(p)),
+    agents: defaultAgents.concat(customAgents).filter((p) => existsSync(p)),
     skills: defaultSkills.filter((p) => existsSync(p)),
     hooks: manifest.hooks ? normalize(manifest.hooks) : null,
     mcpServers: manifest.mcpServers ? normalize(manifest.mcpServers) : null,

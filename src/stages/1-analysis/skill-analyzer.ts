@@ -10,6 +10,19 @@ import { parseFrontmatter, readText } from "../../utils/index.js";
 import type { SemanticIntent, SkillComponent } from "../../types/index.js";
 
 /**
+ * Regex pattern for extracting trigger phrases after keywords.
+ * Cached at module level to avoid recompilation on every function call.
+ */
+const TRIGGER_KEYWORDS_PATTERN =
+  /(?:asks?\s+to|needs?\s+to|wants?\s+to|mentions?|says?)\s*["']([^"']+)["']/gi;
+
+/**
+ * Regex pattern for extracting standalone quoted strings.
+ * Cached at module level to avoid recompilation on every function call.
+ */
+const STANDALONE_QUOTES_PATTERN = /["']([^"']{3,50})["']/g;
+
+/**
  * Analyze a skill directory.
  *
  * @param skillDir - Path to skill directory containing SKILL.md
@@ -70,10 +83,10 @@ export function extractTriggerPhrases(description: string): string[] {
   const phrases: string[] = [];
 
   // Match quoted strings after trigger keywords
-  const triggerKeywords =
-    /(?:asks?\s+to|needs?\s+to|wants?\s+to|mentions?|says?)\s*["']([^"']+)["']/gi;
+  // Reset lastIndex for global regex to ensure consistent behavior
+  TRIGGER_KEYWORDS_PATTERN.lastIndex = 0;
   let match: RegExpExecArray | null;
-  while ((match = triggerKeywords.exec(description)) !== null) {
+  while ((match = TRIGGER_KEYWORDS_PATTERN.exec(description)) !== null) {
     const phrase = match[1];
     if (phrase) {
       phrases.push(phrase.trim());
@@ -81,8 +94,9 @@ export function extractTriggerPhrases(description: string): string[] {
   }
 
   // Also match standalone quoted strings that look like commands
-  const standaloneQuotes = /["']([^"']{3,50})["']/g;
-  while ((match = standaloneQuotes.exec(description)) !== null) {
+  // Reset lastIndex for global regex to ensure consistent behavior
+  STANDALONE_QUOTES_PATTERN.lastIndex = 0;
+  while ((match = STANDALONE_QUOTES_PATTERN.exec(description)) !== null) {
     const phrase = match[1];
     if (phrase) {
       const trimmed = phrase.trim();

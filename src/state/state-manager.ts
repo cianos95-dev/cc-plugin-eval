@@ -28,6 +28,12 @@ import type {
 } from "../types/index.js";
 
 /**
+ * Regex pattern for validating run IDs.
+ * Cached at module level to avoid recompilation on every function call.
+ */
+const RUN_ID_PATTERN = /^\d{8}-\d{6}-/;
+
+/**
  * Pipeline stage identifiers.
  */
 export type PipelineStage =
@@ -296,7 +302,7 @@ export function findLatestRun(pluginName: string): string | null {
   const runDirs = entries
     .filter((e) => e.isDirectory())
     .map((e) => e.name)
-    .filter((name) => /^\d{8}-\d{6}-/.test(name))
+    .filter((name) => RUN_ID_PATTERN.test(name))
     .sort()
     .reverse();
 
@@ -692,7 +698,7 @@ export function listRuns(pluginName: string): RunSummary[] {
     if (!entry.isDirectory()) {
       continue;
     }
-    if (!/^\d{8}-\d{6}-/.test(entry.name)) {
+    if (!RUN_ID_PATTERN.test(entry.name)) {
       continue;
     }
 

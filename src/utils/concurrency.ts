@@ -159,12 +159,15 @@ export function createRateLimiter(
       const timeSinceLastCall = now - lastCall;
 
       if (timeSinceLastCall < minInterval) {
-        await new Promise((resolve) =>
-          setTimeout(resolve, minInterval - timeSinceLastCall),
-        );
+        const waitTime = minInterval - timeSinceLastCall;
+        await new Promise((resolve) => setTimeout(resolve, waitTime));
       }
 
+      // Capture actual time after any wait to ensure accurate rate limiting.
+      // Using Date.now() here is correct - setTimeout timing is not exact,
+      // so calculating from pre-wait values would introduce timing drift.
       lastCall = Date.now();
+
       return await fn();
     } finally {
       release();

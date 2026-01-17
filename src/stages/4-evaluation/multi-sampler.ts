@@ -52,7 +52,7 @@ export function aggregateScores(
       return scores.reduce((a, b) => a + b, 0) / scores.length;
 
     case "median": {
-      const sorted = [...scores].sort((a, b) => a - b);
+      const sorted = scores.slice().sort((a, b) => a - b);
       const mid = Math.floor(sorted.length / 2);
       return sorted.length % 2 !== 0
         ? (sorted[mid] ?? 0)

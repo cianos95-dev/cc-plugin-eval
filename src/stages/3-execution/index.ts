@@ -371,8 +371,9 @@ async function executeBatchedScenarios(
       );
 
       // Execute all scenarios in this batch with session reuse
-      const executeBatchWithOptions = async (): Promise<ExecutionResult[]> =>
-        executeBatch({
+      // Pass rate limiter to executeBatch for per-scenario rate limiting
+      try {
+        const batchResults = await executeBatch({
           scenarios: batchScenarios,
           pluginPath,
           pluginName,
@@ -381,6 +382,7 @@ async function executeBatchedScenarios(
           queryFn,
           useCheckpointing,
           enableMcpDiscovery,
+          rateLimiter: rateLimiter ?? undefined,
           onScenarioComplete: (result, _index) => {
             completedCount++;
             progress?.onScenarioComplete?.(
@@ -395,11 +397,6 @@ async function executeBatchedScenarios(
             );
           },
         });
-
-      try {
-        const batchResults = rateLimiter
-          ? await rateLimiter(executeBatchWithOptions)
-          : await executeBatchWithOptions();
 
         return batchResults;
       } catch (err) {

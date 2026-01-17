@@ -139,6 +139,11 @@ export interface BatchExecutionOptions {
    * @default true
    */
   enableMcpDiscovery?: boolean | undefined;
+  /**
+   * Optional rate limiter function to apply to each scenario execution.
+   * When provided, wraps each scenario's query execution to enforce rate limits.
+   */
+  rateLimiter?: (<T>(fn: () => Promise<T>) => Promise<T>) | undefined;
 }
 
 /**
@@ -231,6 +236,8 @@ interface ExecuteScenarioWithRetryOptions {
    * to capture maps and can be reused across scenarios.
    */
   sharedStatelessHooks?: StatelessHooks | undefined;
+  /** Optional rate limiter function */
+  rateLimiter?: (<T>(fn: () => Promise<T>) => Promise<T>) | undefined;
 }
 
 /**
@@ -278,6 +285,7 @@ async function executeScenarioWithRetry(
     queryFn,
     sharedCaptureMaps,
     sharedStatelessHooks,
+    rateLimiter,
   } = options;
 
   const scenarioMessages: SDKMessage[] = [];
@@ -330,56 +338,70 @@ async function executeScenarioWithRetry(
   // Execute with retry for transient errors
   // Keep reference to query object for rewindFiles
   let queryObject: Awaited<ReturnType<typeof executeQuery>> | undefined;
-  await withRetry(async () => {
-    const q = queryFn ? queryFn(queryInput) : executeQuery(queryInput);
-    queryObject = q;
 
-    for await (const message of q) {
-      scenarioMessages.push(message);
-      hookCollector.processMessage(message);
+  // Wrap execution in rate limiter if provided
+  const executeWithRateLimit = async (): Promise<void> => {
+    await withRetry(async () => {
+      const q = queryFn ? queryFn(queryInput) : executeQuery(queryInput);
+      queryObject = q;
 
-      // Capture the FIRST user message ID for file checkpointing.
-      // We only need the first because we want to rewind to the state
-      // before the scenario prompt, not any follow-up messages.
-      // Note: /clear commands are sent via a separate query object
-      // (sendClearCommand), so they don't appear in this iteration.
-      if (message.type === "user" && !userMessageId) {
-        // SDK may use 'id' or 'uuid' for the message identifier
-        // Use intermediate Record<string, unknown> for safer property access
-        const msgRecord = message as Record<string, unknown>;
-        const msgId =
-          (typeof msgRecord["id"] === "string" ? msgRecord["id"] : undefined) ??
-          (typeof msgRecord["uuid"] === "string"
-            ? msgRecord["uuid"]
-            : undefined);
-        if (msgId) {
-          userMessageId = msgId;
+      for await (const message of q) {
+        scenarioMessages.push(message);
+        hookCollector.processMessage(message);
+
+        // Capture the FIRST user message ID for file checkpointing.
+        // We only need the first because we want to rewind to the state
+        // before the scenario prompt, not any follow-up messages.
+        // Note: /clear commands are sent via a separate query object
+        // (sendClearCommand), so they don't appear in this iteration.
+        if (message.type === "user" && !userMessageId) {
+          // SDK may use 'id' or 'uuid' for the message identifier
+          // Use intermediate Record<string, unknown> for safer property access
+          const msgRecord = message as Record<string, unknown>;
+          const msgId =
+            (typeof msgRecord["id"] === "string"
+              ? msgRecord["id"]
+              : undefined) ??
+            (typeof msgRecord["uuid"] === "string"
+              ? msgRecord["uuid"]
+              : undefined);
+          if (msgId) {
+            userMessageId = msgId;
+          }
+        }
+
+        // Capture errors
+        // Note: SDK may send error messages not in its TypeScript union
+        if (isErrorMessage(message as unknown)) {
+          scenarioErrors.push({
+            type: "error",
+            error_type: "api_error",
+            message:
+              (message as unknown as { error?: string }).error ??
+              "Unknown error",
+            timestamp: Date.now(),
+            recoverable: false,
+          });
         }
       }
 
-      // Capture errors
-      // Note: SDK may send error messages not in its TypeScript union
-      if (isErrorMessage(message as unknown)) {
-        scenarioErrors.push({
-          type: "error",
-          error_type: "api_error",
-          message:
-            (message as unknown as { error?: string }).error ?? "Unknown error",
-          timestamp: Date.now(),
-          recoverable: false,
-        });
+      // Rewind file changes after scenario execution if checkpointing is enabled.
+      // This works with persistSession: true because the SDK maintains file
+      // checkpoints per message ID, independent of session state. The rewind
+      // happens BEFORE /clear is sent, ensuring filesystem is reset while
+      // keeping the session alive for the next scenario.
+      if (useCheckpointing && userMessageId) {
+        await rewindFileChanges(queryObject, userMessageId, scenario.id);
       }
-    }
+    });
+  };
 
-    // Rewind file changes after scenario execution if checkpointing is enabled.
-    // This works with persistSession: true because the SDK maintains file
-    // checkpoints per message ID, independent of session state. The rewind
-    // happens BEFORE /clear is sent, ensuring filesystem is reset while
-    // keeping the session alive for the next scenario.
-    if (useCheckpointing && userMessageId) {
-      await rewindFileChanges(queryObject, userMessageId, scenario.id);
-    }
-  });
+  // Apply rate limiting if configured
+  if (rateLimiter) {
+    await rateLimiter(executeWithRateLimit);
+  } else {
+    await executeWithRateLimit();
+  }
 
   return {
     messages: scenarioMessages,
@@ -664,6 +686,7 @@ export async function executeBatch(
         queryFn,
         sharedCaptureMaps,
         sharedStatelessHooks,
+        rateLimiter: options.rateLimiter,
       });
 
       // Build result for this scenario
