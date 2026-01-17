@@ -18,6 +18,8 @@ npm run dev            # Watch mode
 # Lint & Type Check
 npm run lint           # ESLint
 npm run lint:fix       # Auto-fix
+npm run format         # Prettier auto-fix
+npm run format:check   # Prettier check only
 npm run typecheck      # tsc --noEmit
 
 # Test
@@ -105,10 +107,12 @@ Use this decision tree to pick the right tool:
 | **Edit a complete method** | `replace_symbol_body` (Serena) | When replacing entire function body |
 
 **When to use Morph tools:**
+
 - `edit_file`: ALL file edits (faster than search-and-replace, handles partial context)
 - `warpgrep_codebase_search`: Exploring code you don't know ("how does X work?", "where is Y handled?")
 
 **When to use Serena tools:**
+
 - `find_symbol`: You know the symbol name and want its location/body
 - `find_referencing_symbols`: Understanding call sites before refactoring
 - `replace_symbol_body`: Replacing a complete function/method (cleaner than edit_file for whole symbols)
@@ -135,6 +139,7 @@ export async function fetchData(url: string) {
 ```
 
 **Key patterns:**
+
 - Use `// ... existing code ...` with hints: `// ... keep validation logic ...`
 - Batch all edits to the same file in one call
 - Preserve exact indentation from the original file
