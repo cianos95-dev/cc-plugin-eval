@@ -16,7 +16,7 @@ import type {
 } from "../../../../src/types/index.js";
 
 import { parallel } from "../../../../src/utils/concurrency.js";
-import { writeJson } from "../../../../src/utils/file-io.js";
+import { writeJsonAsync } from "../../../../src/utils/file-io.js";
 import { logger } from "../../../../src/utils/logging.js";
 
 import {
@@ -60,6 +60,7 @@ vi.mock("../../../../src/utils/file-io.js", () => ({
   ensureDir: vi.fn(),
   getResultsDir: vi.fn(() => "/mock/results/test-plugin"),
   writeJson: vi.fn(),
+  writeJsonAsync: vi.fn().mockResolvedValue(undefined),
 }));
 
 vi.mock("../../../../src/utils/logging.js", () => ({
@@ -558,7 +559,7 @@ describe("runExecution", () => {
 
       await runExecution(analysis, scenarios, config);
 
-      expect(writeJson).toHaveBeenCalled();
+      expect(writeJsonAsync).toHaveBeenCalled();
     });
 
     it("should respect sanitize_transcripts setting", async () => {
@@ -577,7 +578,7 @@ describe("runExecution", () => {
       await runExecution(analysis, scenarios, config);
 
       // Verify execution completes with sanitization enabled
-      expect(writeJson).toHaveBeenCalled();
+      expect(writeJsonAsync).toHaveBeenCalled();
     });
   });
 

@@ -40,8 +40,11 @@ export {
 
 export {
   ensureDir,
+  ensureDirAsync,
   readJson,
+  readJsonAsync,
   writeJson,
+  writeJsonAsync,
   readYaml,
   writeYaml,
   readText,

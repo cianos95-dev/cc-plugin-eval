@@ -17,7 +17,11 @@
  */
 
 import { parallel } from "../../utils/concurrency.js";
-import { ensureDir, getResultsDir, writeJson } from "../../utils/file-io.js";
+import {
+  ensureDir,
+  getResultsDir,
+  writeJsonAsync,
+} from "../../utils/file-io.js";
 import { logger } from "../../utils/logging.js";
 import { formatErrorWithRequestId } from "../../utils/retry.js";
 import { createAnthropicClient } from "../2-generation/cost-estimator.js";
@@ -559,7 +563,7 @@ function aggregateBatchResults(
  * @param sampleData - Sample data for multi-sampling metrics
  * @returns Calculated metrics
  */
-function calculateAndSaveMetrics(
+async function calculateAndSaveMetrics(
   pluginName: string,
   resultsWithContext: {
     result: EvaluationResult;
@@ -574,7 +578,7 @@ function calculateAndSaveMetrics(
     numSamples: number;
     hasConsensus: boolean;
   }[],
-): EvalMetrics {
+): Promise<EvalMetrics> {
   // Build metrics options
   const metricsOptions: {
     numSamples?: number;
@@ -602,7 +606,7 @@ function calculateAndSaveMetrics(
 
   // Save evaluation results
   const results = resultsWithContext.map((r) => r.result);
-  saveEvaluationResults(pluginName, results, metrics, config);
+  await saveEvaluationResults(pluginName, results, metrics, config);
 
   return metrics;
 }
@@ -740,7 +744,7 @@ export async function runEvaluation(
   });
 
   // Calculate metrics and save results
-  const metrics = calculateAndSaveMetrics(
+  const metrics = await calculateAndSaveMetrics(
     pluginName,
     resultsWithContext,
     executions,
@@ -767,17 +771,19 @@ export async function runEvaluation(
 /**
  * Save evaluation results to disk.
  *
+ * Asynchronous to avoid blocking the event loop for large evaluation files.
+ *
  * @param pluginName - Plugin name
  * @param results - Evaluation results
  * @param metrics - Evaluation metrics
  * @param config - Configuration
  */
-function saveEvaluationResults(
+async function saveEvaluationResults(
   pluginName: string,
   results: EvaluationResult[],
   metrics: EvalMetrics,
   config: EvalConfig,
-): void {
+): Promise<void> {
   const resultsDir = getResultsDir(pluginName);
   ensureDir(resultsDir);
 
@@ -796,7 +802,7 @@ function saveEvaluationResults(
     results,
   };
 
-  writeJson(evaluationPath, output);
+  await writeJsonAsync(evaluationPath, output);
   logger.info(`Saved evaluation results to ${evaluationPath}`);
 }
 

@@ -16,6 +16,7 @@ import type {
 vi.mock("../../../src/utils/file-io.js", () => ({
   readJson: vi.fn(),
   writeJson: vi.fn(),
+  writeJsonAsync: vi.fn().mockResolvedValue(undefined),
   ensureDir: vi.fn(),
   generateRunId: vi.fn(() => "20240101-120000-mock"),
   getResultsDir: vi.fn((pluginName: string, runId?: string) => {
@@ -71,6 +72,7 @@ import {
 import {
   readJson,
   writeJson,
+  writeJsonAsync,
   ensureDir,
   generateRunId,
   getResultsDir,
@@ -115,7 +117,7 @@ describe("saveState", () => {
     vi.clearAllMocks();
   });
 
-  it("saves state to correct path", () => {
+  it("saves state to correct path", async () => {
     const state: PipelineState = {
       run_id: "test-run-123",
       plugin_name: "test-plugin",
@@ -124,16 +126,16 @@ describe("saveState", () => {
       config: { plugin: { path: "/test" } } as EvalConfig,
     };
 
-    const result = saveState(state);
+    const result = await saveState(state);
 
     expect(ensureDir).toHaveBeenCalledWith(
       `${process.cwd()}/results/test-plugin/test-run-123`,
     );
-    expect(writeJson).toHaveBeenCalled();
+    expect(writeJsonAsync).toHaveBeenCalled();
     expect(result).toBe("results/test-plugin/test-run-123/state.json");
   });
 
-  it("updates timestamp when saving", () => {
+  it("updates timestamp when saving", async () => {
     const state: PipelineState = {
       run_id: "test-run-123",
       plugin_name: "test-plugin",
@@ -142,9 +144,10 @@ describe("saveState", () => {
       config: { plugin: { path: "/test" } } as EvalConfig,
     };
 
-    saveState(state);
+    await saveState(state);
 
-    const savedState = (writeJson as ReturnType<typeof vi.fn>).mock.calls[0][1];
+    const savedState = (writeJsonAsync as ReturnType<typeof vi.fn>).mock
+      .calls[0][1];
     expect(savedState.timestamp).not.toBe("2024-01-01T00:00:00.000Z");
   });
 });

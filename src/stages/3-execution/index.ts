@@ -19,7 +19,11 @@ import {
   parallel,
   type ParallelResult,
 } from "../../utils/concurrency.js";
-import { ensureDir, getResultsDir, writeJson } from "../../utils/file-io.js";
+import {
+  ensureDir,
+  getResultsDir,
+  writeJsonAsync,
+} from "../../utils/file-io.js";
 import { logger } from "../../utils/logging.js";
 import {
   createSanitizer,
@@ -226,7 +230,7 @@ export async function runExecution(
   logger.info(formatExecutionStats(results));
 
   // Save transcripts to disk
-  saveTranscripts(pluginName, results, config);
+  await saveTranscripts(pluginName, results, config);
 
   logger.success(
     `Execution complete: ${String(successCount)} succeeded, ${String(errorCount)} failed`,
@@ -524,20 +528,21 @@ async function executeAllScenariosIsolated(
 }
 
 /**
- * Save transcripts to disk.
+ * Save execution transcripts to disk.
  *
- * Optionally sanitizes PII from transcripts before saving when
+ * Asynchronous with parallel writes to avoid blocking the event loop
+ * when saving many transcripts. Applies sanitization if
  * config.output.sanitize_transcripts is enabled.
  *
  * @param pluginName - Plugin name for directory
  * @param results - Execution results
  * @param config - Evaluation configuration
  */
-function saveTranscripts(
+async function saveTranscripts(
   pluginName: string,
   results: ExecutionResult[],
   config: EvalConfig,
-): void {
+): Promise<void> {
   const transcriptsDir = getResultsDir(pluginName) + "/transcripts";
   ensureDir(transcriptsDir);
 
@@ -585,39 +590,42 @@ function saveTranscripts(
         : createSanitizer(sanitizerOptions);
   }
 
-  for (const result of results) {
-    // Sanitize transcript events if configured
-    const transcript =
-      shouldSanitize && sanitizer
-        ? {
-            ...result.transcript,
-            events: result.transcript.events.map((event) =>
-              sanitizeTranscriptEvent(event, sanitizer),
-            ),
-          }
-        : result.transcript;
+  // Write all transcripts in parallel for better performance
+  await Promise.all(
+    results.map(async (result) => {
+      // Sanitize transcript events if configured
+      const transcript =
+        shouldSanitize && sanitizer
+          ? {
+              ...result.transcript,
+              events: result.transcript.events.map((event) =>
+                sanitizeTranscriptEvent(event, sanitizer),
+              ),
+            }
+          : result.transcript;
 
-    // Sanitize permission denial messages (may contain user input)
-    const permissionDenials =
-      shouldSanitize && sanitizer
-        ? result.permission_denials.map((d) => ({
-            ...d,
-            tool_name: sanitizer(d.tool_name),
-          }))
-        : result.permission_denials;
+      // Sanitize permission denial messages (may contain user input)
+      const permissionDenials =
+        shouldSanitize && sanitizer
+          ? result.permission_denials.map((d) => ({
+              ...d,
+              tool_name: sanitizer(d.tool_name),
+            }))
+          : result.permission_denials;
 
-    const filename = `${transcriptsDir}/${result.scenario_id}.json`;
-    writeJson(filename, {
-      scenario_id: result.scenario_id,
-      transcript,
-      detected_tools: result.detected_tools,
-      cost_usd: result.cost_usd,
-      api_duration_ms: result.api_duration_ms,
-      num_turns: result.num_turns,
-      permission_denials: permissionDenials,
-      errors: result.errors,
-    });
-  }
+      const filename = `${transcriptsDir}/${result.scenario_id}.json`;
+      await writeJsonAsync(filename, {
+        scenario_id: result.scenario_id,
+        transcript,
+        detected_tools: result.detected_tools,
+        cost_usd: result.cost_usd,
+        api_duration_ms: result.api_duration_ms,
+        num_turns: result.num_turns,
+        permission_denials: permissionDenials,
+        errors: result.errors,
+      });
+    }),
+  );
 
   const sanitizeNote = shouldSanitize ? " (sanitized)" : "";
   logger.info(

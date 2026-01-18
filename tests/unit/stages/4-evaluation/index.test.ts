@@ -15,7 +15,7 @@ import type {
   ToolCapture,
   Transcript,
 } from "../../../../src/types/index.js";
-import { writeJson } from "../../../../src/utils/file-io.js";
+import { writeJsonAsync } from "../../../../src/utils/file-io.js";
 import { logger } from "../../../../src/utils/logging.js";
 
 import { runJudgment } from "../../../../src/stages/4-evaluation/multi-sampler.js";
@@ -53,6 +53,7 @@ vi.mock("../../../../src/utils/file-io.js", () => ({
   ensureDir: vi.fn(),
   getResultsDir: vi.fn(() => "/mock/results/test-plugin"),
   writeJson: vi.fn(),
+  writeJsonAsync: vi.fn().mockResolvedValue(undefined),
 }));
 
 vi.mock("../../../../src/utils/logging.js", () => ({
@@ -272,8 +273,8 @@ describe("runEvaluation", () => {
 
       await runEvaluation("test-plugin", scenarios, executions, config);
 
-      expect(writeJson).toHaveBeenCalledTimes(1);
-      expect(writeJson).toHaveBeenCalledWith(
+      expect(writeJsonAsync).toHaveBeenCalledTimes(1);
+      expect(writeJsonAsync).toHaveBeenCalledWith(
         "/mock/results/test-plugin/evaluation.json",
         expect.objectContaining({
           plugin_name: "test-plugin",

@@ -3,6 +3,7 @@
  */
 
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 import { nanoid } from "nanoid";
@@ -46,6 +47,50 @@ export function writeJson(
   ensureDir(path.dirname(filePath));
   const content = pretty ? JSON.stringify(data, null, 2) : JSON.stringify(data);
   writeFileSync(filePath, content, "utf-8");
+}
+
+/**
+ * Ensure a directory exists asynchronously, creating it if necessary.
+ *
+ * @param dirPath - Path to directory
+ */
+export async function ensureDirAsync(dirPath: string): Promise<void> {
+  await mkdir(dirPath, { recursive: true });
+}
+
+/**
+ * Read a JSON file asynchronously.
+ *
+ * Use for large files (state files, transcripts) that may block the event loop.
+ * For small config files at startup, prefer the sync version.
+ *
+ * @param filePath - Path to file
+ * @returns Parsed JSON content
+ * @throws Error if file doesn't exist or isn't valid JSON
+ */
+export async function readJsonAsync(filePath: string): Promise<unknown> {
+  const content = await readFile(filePath, "utf-8");
+  return JSON.parse(content) as unknown;
+}
+
+/**
+ * Write a JSON file asynchronously.
+ *
+ * Use for large files (state files, transcripts) that may block the event loop.
+ * For small config files at startup, prefer the sync version.
+ *
+ * @param filePath - Path to file
+ * @param data - Data to write
+ * @param pretty - Whether to format with indentation (default: true)
+ */
+export async function writeJsonAsync(
+  filePath: string,
+  data: unknown,
+  pretty = true,
+): Promise<void> {
+  await ensureDirAsync(path.dirname(filePath));
+  const content = pretty ? JSON.stringify(data, null, 2) : JSON.stringify(data);
+  await writeFile(filePath, content, "utf-8");
 }
 
 /**

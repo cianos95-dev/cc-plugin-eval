@@ -19,7 +19,7 @@ import {
   generateRunId,
   getResultsDir,
   readJson,
-  writeJson,
+  writeJsonAsync,
 } from "../utils/file-io.js";
 import { logger } from "../utils/logging.js";
 
@@ -143,10 +143,12 @@ export function createPipelineState(options: CreateRunOptions): PipelineState {
 /**
  * Save pipeline state to disk.
  *
+ * Asynchronous to avoid blocking the event loop for large state files.
+ *
  * @param state - Pipeline state to save
  * @returns Path to saved state file
  */
-export function saveState(state: PipelineState): string {
+export async function saveState(state: PipelineState): Promise<string> {
   const dir = getResultsDir(state.plugin_name, state.run_id);
   ensureDir(dir);
 
@@ -158,9 +160,8 @@ export function saveState(state: PipelineState): string {
     timestamp: new Date().toISOString(),
   };
 
-  writeJson(filePath, updatedState);
+  await writeJsonAsync(filePath, updatedState);
   logger.debug(`State saved to ${filePath}`);
-
   return filePath;
 }
 
@@ -227,6 +228,8 @@ function migrateState(state: PipelineState): PipelineState {
 /**
  * Load pipeline state from disk.
  *
+ * Synchronous for use in resume startup operations.
+ *
  * @param pluginName - Plugin name
  * @param runId - Run identifier
  * @returns Pipeline state or null if not found
@@ -250,6 +253,8 @@ export function loadState(
 
 /**
  * Find the most recent run for a plugin.
+ *
+ * Synchronous for use in resume startup operations.
  *
  * @param pluginName - Plugin name
  * @returns Most recent run ID or null
@@ -636,6 +641,8 @@ interface RunSummary {
 
 /**
  * List all runs for a plugin.
+ *
+ * Synchronous for use in startup operations.
  *
  * @param pluginName - Plugin name
  * @returns Array of run summaries
