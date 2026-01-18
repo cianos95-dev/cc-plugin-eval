@@ -27,6 +27,14 @@ import { formatErrorWithRequestId } from "../../utils/retry.js";
 import { createAnthropicClient } from "../2-generation/cost-estimator.js";
 
 import {
+  aggregateBatchResults,
+  buildFinalResult,
+  type EvaluationContext,
+  type JudgeStrategy,
+  type ProgrammaticResult,
+  type ScenarioEvaluationResult,
+} from "./aggregation/index.js";
+import {
   shouldUseBatching,
   createEvaluationBatch,
   pollBatchCompletion,
@@ -34,14 +42,13 @@ import {
   type BatchEvaluationRequest,
 } from "./batch-evaluator.js";
 import { calculateConflictSeverity } from "./conflict-tracker.js";
-import { getMajorityVote } from "./judge-utils.js";
 import { createErrorJudgeResponse } from "./llm-judge.js";
 import {
   calculateEvalMetrics,
   createEmptyMetrics,
   formatMetrics,
 } from "./metrics.js";
-import { calculateVariance, runJudgment } from "./multi-sampler.js";
+import { runJudgment } from "./multi-sampler.js";
 import {
   detectAllComponents,
   detectAllComponentsWithHooks,
@@ -51,7 +58,6 @@ import {
 } from "./programmatic-detector.js";
 
 import type {
-  DetectionSource,
   EvalConfig,
   EvalMetrics,
   EvaluationResult,
@@ -60,7 +66,6 @@ import type {
   MultiSampleResult,
   ProgressCallbacks,
   TestScenario,
-  TriggeredComponent,
 } from "../../types/index.js";
 import type Anthropic from "@anthropic-ai/sdk";
 
@@ -73,44 +78,6 @@ export interface EvaluationOutput {
   metrics: EvalMetrics;
   total_cost_usd: number;
   total_duration_ms: number;
-}
-
-/**
- * Scenario evaluation context.
- */
-interface EvaluationContext {
-  scenario: TestScenario;
-  execution: ExecutionResult;
-}
-
-/**
- * Result of judge strategy determination.
- */
-interface JudgeStrategy {
-  needsLLMJudge: boolean;
-  detectionSource: DetectionSource;
-}
-
-/**
- * Intermediate result from programmatic detection phase.
- */
-interface ProgrammaticResult {
-  context: EvaluationContext;
-  uniqueDetections: ReturnType<typeof getUniqueDetections>;
-  triggered: boolean;
-  conflictAnalysis: ReturnType<typeof calculateConflictSeverity>;
-  judgeStrategy: JudgeStrategy;
-}
-
-/**
- * Result from evaluating a single scenario.
- * Includes both the evaluation result and variance/consensus for metrics.
- */
-interface ScenarioEvaluationResult {
-  result: EvaluationResult;
-  variance: number;
-  /** Whether all samples agreed on trigger_accuracy */
-  isUnanimous: boolean;
 }
 
 /**
@@ -143,56 +110,6 @@ function determineJudgeStrategy(
 
   // True negatives with direct scenarios - programmatic is sufficient
   return { needsLLMJudge: false, detectionSource: "programmatic" };
-}
-
-/**
- * Build the evaluation result object.
- */
-function buildEvaluationResult(
-  scenario: TestScenario,
-  triggered: boolean,
-  uniqueDetections: ReturnType<typeof getUniqueDetections>,
-  conflictAnalysis: ReturnType<typeof calculateConflictSeverity>,
-  judgment: MultiSampleResult | null,
-  detectionSource: DetectionSource,
-): EvaluationResult {
-  const allTriggeredComponents: TriggeredComponent[] = uniqueDetections.map(
-    (d) => ({
-      component_type: d.component_type,
-      component_name: d.component_name,
-      confidence: d.confidence,
-    }),
-  );
-
-  const evidence = uniqueDetections.map((d) => d.evidence);
-
-  // Use LLM quality score if available, otherwise infer from trigger correctness
-  let qualityScore: number | null = null;
-  if (judgment) {
-    qualityScore = judgment.aggregated_score;
-  } else if (triggered === scenario.expected_trigger) {
-    qualityScore = triggered ? 7 : null;
-  }
-
-  const isCorrect = triggered === scenario.expected_trigger;
-
-  return {
-    scenario_id: scenario.id,
-    triggered,
-    confidence: uniqueDetections.length > 0 ? 100 : 0,
-    quality_score: qualityScore,
-    evidence,
-    issues: judgment?.all_issues ?? [],
-    summary:
-      judgment?.representative_response.summary ??
-      (isCorrect
-        ? `Correctly ${triggered ? "triggered" : "did not trigger"} component`
-        : `Incorrectly ${triggered ? "triggered" : "did not trigger"} component`),
-    detection_source: detectionSource,
-    all_triggered_components: allTriggeredComponents,
-    has_conflict: conflictAnalysis.has_conflict,
-    conflict_severity: conflictAnalysis.conflict_severity,
-  };
 }
 
 /**
@@ -259,53 +176,6 @@ function runProgrammaticDetection(
     triggered,
     conflictAnalysis,
     judgeStrategy,
-  };
-}
-
-/**
- * Build final evaluation result from programmatic result and optional judgment.
- */
-function buildFinalResult(
-  programmatic: ProgrammaticResult,
-  judgment: MultiSampleResult | null,
-): ScenarioEvaluationResult {
-  const {
-    context,
-    triggered,
-    uniqueDetections,
-    conflictAnalysis,
-    judgeStrategy,
-  } = programmatic;
-
-  const result = buildEvaluationResult(
-    context.scenario,
-    triggered,
-    uniqueDetections,
-    conflictAnalysis,
-    judgment,
-    judgeStrategy.detectionSource,
-  );
-
-  const variance = judgment?.score_variance ?? 0;
-  const isUnanimous = judgment?.is_unanimous ?? true;
-
-  return { result, variance, isUnanimous };
-}
-
-/**
- * Convert JudgeResponse to MultiSampleResult for compatibility.
- */
-function judgeResponseToMultiSample(
-  response: JudgeResponse,
-): MultiSampleResult {
-  return {
-    individual_scores: [response.quality_score],
-    aggregated_score: response.quality_score,
-    score_variance: 0,
-    consensus_trigger_accuracy: response.trigger_accuracy,
-    is_unanimous: true,
-    all_issues: response.issues,
-    representative_response: response,
   };
 }
 
@@ -465,92 +335,6 @@ async function runSynchronousEvaluation(
   return (
     parallelResult.results as (ScenarioEvaluationResult | undefined)[]
   ).filter((r): r is ScenarioEvaluationResult => r !== undefined);
-}
-
-/**
- * Aggregate batch results into final evaluation results.
- *
- * @param programmaticResults - Results from programmatic detection
- * @param batchResults - Map of batch responses by custom ID
- * @param config - Evaluation configuration
- * @param sampleData - Array to track sample data for metrics
- * @returns Array of scenario evaluation results
- */
-function aggregateBatchResults(
-  programmaticResults: ProgrammaticResult[],
-  batchResults: Map<string, JudgeResponse>,
-  config: EvalConfig,
-  sampleData: {
-    scenarioId: string;
-    variance: number;
-    numSamples: number;
-    hasConsensus: boolean;
-  }[],
-): ScenarioEvaluationResult[] {
-  return programmaticResults.map((pr) => {
-    if (!pr.judgeStrategy.needsLLMJudge) {
-      return buildFinalResult(pr, null);
-    }
-
-    // Collect all sample results for this scenario
-    const sampleResponses: JudgeResponse[] = [];
-    for (
-      let sampleIdx = 0;
-      sampleIdx < config.evaluation.num_samples;
-      sampleIdx++
-    ) {
-      const customId = `${pr.context.scenario.id}_sample-${String(sampleIdx)}`;
-      const response = batchResults.get(customId);
-      if (response) {
-        sampleResponses.push(response);
-      }
-    }
-
-    if (sampleResponses.length === 0) {
-      // All samples failed
-      const errorResponse = createErrorJudgeResponse(
-        "No batch results received",
-      );
-      return buildFinalResult(pr, judgeResponseToMultiSample(errorResponse));
-    }
-
-    // Aggregate samples
-    const scores = sampleResponses.map((r) => r.quality_score);
-    const aggregatedScore = scores.reduce((a, b) => a + b, 0) / scores.length;
-    const accuracyVotes = sampleResponses.map((r) => r.trigger_accuracy);
-    const consensus = getMajorityVote(accuracyVotes);
-    const isUnanimous = accuracyVotes.every((v) => v === accuracyVotes[0]);
-    const variance = calculateVariance(scores);
-
-    // sampleResponses[0] is guaranteed to exist because sampleResponses.length > 0
-    // eslint-disable-next-line @typescript-eslint/non-nullable-type-assertion-style
-    const firstResponse = sampleResponses[0] as JudgeResponse;
-    const multiSample: MultiSampleResult = {
-      individual_scores: scores,
-      aggregated_score: aggregatedScore,
-      score_variance: variance,
-      consensus_trigger_accuracy: consensus,
-      is_unanimous: isUnanimous,
-      all_issues: [...new Set(sampleResponses.flatMap((r) => r.issues))],
-      representative_response: {
-        ...firstResponse,
-        quality_score: aggregatedScore,
-        trigger_accuracy: consensus,
-      },
-    };
-
-    // Track sample data
-    if (config.evaluation.num_samples > 1) {
-      sampleData.push({
-        scenarioId: pr.context.scenario.id,
-        variance,
-        numSamples: config.evaluation.num_samples,
-        hasConsensus: isUnanimous,
-      });
-    }
-
-    return buildFinalResult(pr, multiSample);
-  });
 }
 
 /**
@@ -865,3 +649,14 @@ export {
   type BatchingOptions,
   type PollOptions,
 } from "./batch-evaluator.js";
+
+export {
+  aggregateBatchResults,
+  buildEvaluationResult,
+  buildFinalResult,
+  judgeResponseToMultiSample,
+  type EvaluationContext,
+  type JudgeStrategy,
+  type ProgrammaticResult,
+  type ScenarioEvaluationResult,
+} from "./aggregation/index.js";
