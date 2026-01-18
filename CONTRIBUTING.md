@@ -45,14 +45,19 @@ src/
 │   ├── commands/         # Individual CLI commands (run, analyze, etc.)
 │   ├── formatters.ts     # Output formatters (JUnit, TAP, CLI)
 │   ├── helpers.ts        # State lookup utilities
-│   └── options.ts        # CLI option parsing
+│   ├── options.ts        # CLI option parsing
+│   └── styles.ts         # Commander help styling
 ├── config/               # Configuration loading with Zod validation
 ├── stages/
 │   ├── 1-analysis/       # Plugin parsing, trigger extraction
 │   ├── 2-generation/     # Scenario generation (LLM + deterministic)
 │   ├── 3-execution/      # Agent SDK integration, tool capture
 │   └── 4-evaluation/     # Programmatic detection, LLM judge, metrics
+│       └── detection/    # Decomposed detection logic
 ├── state/                # Resume capability, checkpointing
+│   ├── core.ts           # Core state operations
+│   ├── queries.ts        # State query utilities
+│   └── updates.ts        # State update operations
 ├── types/                # TypeScript interfaces
 └── utils/                # Retry, concurrency, logging utilities
 

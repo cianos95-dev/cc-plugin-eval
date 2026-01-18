@@ -427,7 +427,9 @@ src/
 │   ├── index.ts          # Config exports
 │   ├── loader.ts         # YAML/JSON config loading with Zod
 │   ├── schema.ts         # Zod validation schemas
+│   ├── cli-schema.ts     # CLI-specific schema validation
 │   ├── defaults.ts       # Default configuration values
+│   ├── models.ts         # Model definitions
 │   └── pricing.ts        # Model pricing for cost estimation
 ├── stages/
 │   ├── 1-analysis/       # Plugin parsing, trigger extraction
@@ -439,7 +441,8 @@ src/
 │   │   ├── path-resolver.ts
 │   │   ├── plugin-parser.ts
 │   │   ├── preflight.ts
-│   │   └── skill-analyzer.ts
+│   │   ├── skill-analyzer.ts
+│   │   └── trigger-builder.ts
 │   ├── 2-generation/     # Scenario generation
 │   │   ├── index.ts      # runGeneration() entry point
 │   │   ├── agent-scenario-generator.ts
@@ -454,7 +457,9 @@ src/
 │   │   ├── index.ts      # runExecution() entry point
 │   │   ├── agent-executor.ts
 │   │   ├── hook-capture.ts
+│   │   ├── hooks-factory.ts
 │   │   ├── plugin-loader.ts
+│   │   ├── progress-formatters.ts
 │   │   ├── progress-reporters.ts
 │   │   ├── sdk-client.ts
 │   │   ├── session-batching.ts
@@ -464,20 +469,39 @@ src/
 │       ├── index.ts      # runEvaluation() entry point
 │       ├── batch-evaluator.ts
 │       ├── conflict-tracker.ts
+│       ├── judge-utils.ts
 │       ├── llm-judge.ts
 │       ├── metrics.ts
 │       ├── multi-sampler.ts
-│       └── programmatic-detector.ts
+│       ├── aggregation/  # Result aggregation utilities
+│       └── detection/    # Programmatic detection
+│           ├── index.ts  # Detection entry point
+│           ├── core.ts   # Core detection logic
+│           ├── agents.ts # Agent detection
+│           ├── commands.ts # Command detection
+│           ├── hooks.ts  # Hook detection
+│           ├── capture-detection.ts
+│           ├── correlation.ts
+│           ├── helpers.ts
+│           └── types.ts
 ├── state/                # Resume capability
-│   └── state-manager.ts
+│   ├── index.ts          # State exports
+│   ├── core.ts           # Core state operations
+│   ├── queries.ts        # State query utilities
+│   ├── updates.ts        # State update operations
+│   ├── display.ts        # State display formatting
+│   └── types.ts          # State type definitions
 ├── types/                # TypeScript interfaces
 └── utils/                # Retry, concurrency, logging
     ├── index.ts
-    ├── retry.ts
+    ├── array.ts
     ├── concurrency.ts
-    ├── sanitizer.ts
+    ├── file-io.ts
+    ├── llm.ts
     ├── logging.ts
-    └── file-io.ts
+    ├── parsing.ts
+    ├── retry.ts
+    └── sanitizer.ts
 
 tests/
 ├── unit/                 # Unit tests (mirror src/ structure)

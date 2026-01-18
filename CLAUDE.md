@@ -121,17 +121,17 @@ Functions in `src/cli/` marked with `@internal` JSDoc are CLI-only helpers not i
 
 ### Key Entry Points
 
-| Component         | File                                               | Main Export                      |
-| ----------------- | -------------------------------------------------- | -------------------------------- |
-| CLI               | `src/cli/index.ts`                                 | Commander `program`              |
-| Stage 1           | `src/stages/1-analysis/index.ts`                   | `runAnalysis()`                  |
-| Stage 2           | `src/stages/2-generation/index.ts`                 | `runGeneration()`                |
-| Stage 3           | `src/stages/3-execution/index.ts`                  | `runExecution()`                 |
-| Stage 4           | `src/stages/4-evaluation/index.ts`                 | `runEvaluation()`                |
-| Detection         | `src/stages/4-evaluation/programmatic-detector.ts` | `detectAllComponentsWithHooks()` |
-| Conflict Tracking | `src/stages/4-evaluation/conflict-tracker.ts`      | `calculateConflictSeverity()`    |
-| Metrics           | `src/stages/4-evaluation/metrics.ts`               | `calculateEvalMetrics()`         |
-| State             | `src/state/state-manager.ts`                       | `loadState()`, `saveState()`     |
+| Component         | File                                          | Main Export                   |
+| ----------------- | --------------------------------------------- | ----------------------------- |
+| CLI               | `src/cli/index.ts`                            | Commander `program`           |
+| Stage 1           | `src/stages/1-analysis/index.ts`              | `runAnalysis()`               |
+| Stage 2           | `src/stages/2-generation/index.ts`            | `runGeneration()`             |
+| Stage 3           | `src/stages/3-execution/index.ts`             | `runExecution()`              |
+| Stage 4           | `src/stages/4-evaluation/index.ts`            | `runEvaluation()`             |
+| Detection         | `src/stages/4-evaluation/detection/index.ts`  | `detectAllComponents()`       |
+| Conflict Tracking | `src/stages/4-evaluation/conflict-tracker.ts` | `calculateConflictSeverity()` |
+| Metrics           | `src/stages/4-evaluation/metrics.ts`          | `calculateEvalMetrics()`      |
+| State             | `src/state/index.ts`                          | `loadState()`, `saveState()`  |
 
 ## Code Navigation
 
@@ -208,7 +208,7 @@ export async function fetchData(url: string) {
 
 **Refactoring types**: Use `find_referencing_symbols` on a type from `src/types/` to find all usages before making changes.
 
-**Tracing detection logic**: The detection flow is `detectAllComponents` → `detectFromCaptures` / `detectFromTranscript` → type-specific detectors. Agent detection uses SubagentStart/SubagentStop hooks. Use `find_symbol` to navigate this chain.
+**Tracing detection logic**: Detection is in `src/stages/4-evaluation/detection/`. The flow is `detectAllComponents` (in `core.ts`) → `detectFromCaptures` (in `capture-detection.ts`) → type-specific detectors (`agents.ts`, `commands.ts`, `hooks.ts`). Agent detection uses SubagentStart/SubagentStop hooks. Use `find_symbol` to navigate this chain.
 
 **Adding a new component type**: Follow the type through all four stages using `find_referencing_symbols` on similar component types (e.g., trace how `hooks` is handled to understand where to add `mcp_servers`).
 
@@ -273,16 +273,26 @@ src/
 │   ├── options.ts        # CLI option parsing
 │   └── styles.ts         # Commander help styling
 ├── config/               # Configuration loading with Zod validation
+│   ├── index.ts          # Config exports
 │   ├── defaults.ts       # Default configuration values
 │   ├── loader.ts         # YAML/JSON config loading
 │   ├── pricing.ts        # Model pricing for cost estimation
-│   └── schema.ts         # Zod validation schemas
+│   ├── models.ts         # Model definitions
+│   ├── schema.ts         # Zod validation schemas
+│   └── cli-schema.ts     # CLI-specific schema validation
 ├── stages/
 │   ├── 1-analysis/       # Plugin parsing, trigger extraction
 │   ├── 2-generation/     # Scenario generation (LLM + deterministic)
 │   ├── 3-execution/      # Agent SDK integration, tool capture
 │   └── 4-evaluation/     # Programmatic detection, LLM judge, metrics
+│       └── detection/    # Decomposed detection logic
 ├── state/                # Resume capability, checkpointing
+│   ├── index.ts          # State exports
+│   ├── core.ts           # Core state operations
+│   ├── queries.ts        # State query utilities
+│   ├── updates.ts        # State update operations
+│   ├── display.ts        # State display formatting
+│   └── types.ts          # State type definitions
 ├── types/                # TypeScript interfaces
 └── utils/                # Retry, concurrency, logging utilities
 
@@ -301,15 +311,15 @@ When adding support for a new plugin component type (e.g., a new kind of trigger
 1. Define types in `src/types/`
 2. Create analyzer in `src/stages/1-analysis/`
 3. Create scenario generator in `src/stages/2-generation/`
-4. Extend detection in `src/stages/4-evaluation/programmatic-detector.ts`
+4. Add detector in `src/stages/4-evaluation/detection/` (create new file, add to `core.ts`)
 5. Update `AnalysisOutput` in `src/types/state.ts`
 6. Add to pipeline in `src/stages/{1,2,4}-*/index.ts`
-7. Add state migration in `src/state/state-manager.ts` (provide defaults for legacy state)
+7. Add state migration in `src/state/core.ts` (provide defaults for legacy state)
 8. Add tests
 
 ### State Migration
 
-When adding new component types, update `migrateState()` in `src/state/state-manager.ts` to provide defaults (e.g., `hooks: legacyComponents.hooks ?? []`) so existing state files remain compatible.
+When adding new component types, update `migrateState()` in `src/state/core.ts` to provide defaults (e.g., `hooks: legacyComponents.hooks ?? []`) so existing state files remain compatible.
 
 ### Resume Handlers
 
