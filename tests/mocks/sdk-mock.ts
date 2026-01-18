@@ -5,10 +5,7 @@
  * to enable deterministic testing without real API calls.
  */
 
-import type {
-  QueryFunction,
-  ScenarioExecutionOptions,
-} from "../../src/stages/3-execution/agent-executor.js";
+import type { QueryFunction } from "../../src/stages/3-execution/agent-executor.js";
 import type {
   SDKMessage,
   SDKSystemMessage,
@@ -24,12 +21,12 @@ import type {
   SubagentStartHookConfig,
   SubagentStopHookConfig,
 } from "../../src/stages/3-execution/sdk-client.js";
-import type { ToolCapture, ExecutionConfig } from "../../src/types/index.js";
+import type { ExecutionConfig } from "../../src/types/index.js";
 
 /**
  * Tool invocation configuration for mock responses.
  */
-export interface MockToolCall {
+interface MockToolCall {
   name: string;
   input: unknown;
   id?: string;
@@ -38,7 +35,7 @@ export interface MockToolCall {
 /**
  * Subagent spawn configuration for mock responses.
  */
-export interface MockSubagentSpawn {
+interface MockSubagentSpawn {
   agentId: string;
   agentType: string;
 }
@@ -75,10 +72,10 @@ export interface MockQueryConfig {
   customMessages?: SDKMessage[];
 
   /** Plugins to report as loaded */
-  loadedPlugins?: Array<{ name: string; path: string }>;
+  loadedPlugins?: { name: string; path: string }[];
 
   /** MCP servers to report */
-  mcpServers?: Array<{ name: string; status: string; error?: string }>;
+  mcpServers?: { name: string; status: string; error?: string }[];
 
   /** Available tools to report */
   availableTools?: string[];
@@ -93,11 +90,11 @@ export interface MockQueryConfig {
   userMessageId?: string;
 
   /** Tool results to inject after tool calls */
-  toolResults?: Array<{
+  toolResults?: {
     toolUseId: string;
     content: string;
     isError?: boolean;
-  }>;
+  }[];
 
   /** Whether rewindFiles should throw */
   rewindFilesError?: string;
@@ -168,7 +165,7 @@ export function createMockQueryFn(config: MockQueryConfig = {}): QueryFunction {
     const toolCalls =
       config.triggeredTools?.map((t) => ({
         type: "tool_use" as const,
-        id: t.id ?? `tool-use-${++toolCallCounter}`,
+        id: t.id ?? `tool-use-${String(++toolCallCounter)}`,
         name: t.name,
         input: t.input,
       })) ?? [];
@@ -182,11 +179,11 @@ export function createMockQueryFn(config: MockQueryConfig = {}): QueryFunction {
       slash_commands: config.slashCommands ?? MOCK_DEFAULTS.slashCommands,
       plugins:
         config.loadedPlugins ??
-        (input.options?.plugins?.map((p) => ({
+        input.options?.plugins?.map((p) => ({
           name: "test-plugin",
           path: p.path,
-        })) ||
-          []),
+        })) ??
+        [],
       ...(config.mcpServers ? { mcp_servers: config.mcpServers } : {}),
     };
     messages.push(systemMsg);
@@ -194,7 +191,7 @@ export function createMockQueryFn(config: MockQueryConfig = {}): QueryFunction {
     // 2. User message
     const userMsg: SDKUserMessage = {
       type: "user",
-      id: config.userMessageId ?? `user-msg-${Date.now()}`,
+      id: config.userMessageId ?? `user-msg-${String(Date.now())}`,
       message: {
         role: "user",
         content: input.prompt,
@@ -260,7 +257,7 @@ export function createMockQueryFn(config: MockQueryConfig = {}): QueryFunction {
       },
       modelUsage: {},
       permission_denials: config.permissionDenials ?? [],
-      uuid: `mock-uuid-${Date.now()}` as `${string}-${string}-${string}-${string}-${string}`,
+      uuid: `mock-uuid-${String(Date.now())}` as `${string}-${string}-${string}-${string}-${string}`,
       session_id: config.sessionId ?? MOCK_DEFAULTS.sessionId,
     } satisfies SDKResultMessage;
     messages.push(resultMsg);
@@ -368,7 +365,9 @@ export function createMockQueryFn(config: MockQueryConfig = {}): QueryFunction {
         }
       },
 
-      rewindFiles: async (_messageId: string) => {
+      rewindFiles: async (messageId: string) => {
+        // messageId parameter required by interface but not used in mock
+        void messageId;
         if (config.rewindFilesError) {
           throw new Error(config.rewindFilesError);
         }
@@ -396,29 +395,6 @@ export function createMockQueryFn(config: MockQueryConfig = {}): QueryFunction {
 }
 
 /**
- * Create a mock tool capture.
- *
- * Helper for creating ToolCapture objects in tests.
- *
- * @param toolName - Name of the tool
- * @param input - Tool input
- * @param toolUseId - Optional tool use ID
- * @returns ToolCapture object
- */
-export function createMockToolCapture(
-  toolName: string,
-  input: unknown,
-  toolUseId?: string,
-): ToolCapture {
-  return {
-    name: toolName,
-    input,
-    toolUseId: toolUseId ?? `mock-tool-${Date.now()}`,
-    timestamp: Date.now(),
-  };
-}
-
-/**
  * Create a mock execution config for testing.
  *
  * @param overrides - Partial config to override defaults
@@ -441,85 +417,23 @@ export function createMockExecutionConfig(
 }
 
 /**
- * Create mock scenario execution options.
- *
- * @param overrides - Partial options to override defaults
- * @returns ScenarioExecutionOptions
- */
-export function createMockScenarioOptions(
-  overrides: Partial<ScenarioExecutionOptions> = {},
-): ScenarioExecutionOptions {
-  return {
-    scenario: {
-      id: "test-scenario-1",
-      component_ref: "test-skill",
-      component_type: "skill",
-      scenario_type: "direct",
-      user_prompt: "Test prompt",
-      expected_trigger: true,
-      expected_component: "test-skill",
-    },
-    pluginPath: "/path/to/plugin",
-    pluginName: "test-plugin",
-    config: createMockExecutionConfig(),
-    ...overrides,
-  };
-}
-
-/**
  * Create a mock query function that throws an error.
  *
  * @param errorMessage - Error message
  * @returns QueryFunction that throws
  */
 export function createThrowingQueryFn(errorMessage: string): QueryFunction {
-  return (_input: QueryInput): QueryObject => {
+  return (input: QueryInput): QueryObject => {
+    // input parameter required by interface but not used in this mock
+    void input;
     return {
+      // eslint-disable-next-line require-yield
       [Symbol.asyncIterator]: async function* () {
         throw new Error(errorMessage);
       },
-      rewindFiles: async () => {},
-      supportedCommands: async () => [],
-    } as QueryObject;
-  };
-}
-
-/**
- * Create a mock query function that simulates timeout.
- *
- * @param delayMs - Delay before yielding (default: never yields)
- * @returns QueryFunction that hangs or yields after delay
- */
-export function createTimeoutQueryFn(delayMs?: number): QueryFunction {
-  return (input: QueryInput): QueryObject => {
-    return {
-      [Symbol.asyncIterator]: async function* () {
-        // If abort controller is provided, wait for it to abort
-        if (input.options?.abortController) {
-          if (delayMs !== undefined) {
-            await new Promise((resolve) => setTimeout(resolve, delayMs));
-          }
-
-          // Check if aborted
-          if (input.options.abortController.signal.aborted) {
-            const error = new Error("Operation aborted");
-            error.name = "AbortError";
-            throw error;
-          }
-
-          // If not aborted and delay passed, yield messages
-          const systemMsg: SDKSystemMessage = {
-            type: "system",
-            subtype: "init",
-            session_id: "timeout-test",
-            tools: [],
-            slash_commands: [],
-            plugins: [],
-          };
-          yield systemMsg;
-        }
+      rewindFiles: async () => {
+        // No-op for mock - intentionally empty
       },
-      rewindFiles: async () => {},
       supportedCommands: async () => [],
     } as QueryObject;
   };
