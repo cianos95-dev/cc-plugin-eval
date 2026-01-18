@@ -288,17 +288,63 @@ export function isErrorMessage(msg: unknown): msg is SDKErrorMessage {
 }
 
 /**
+ * Extract error text from an SDK message if it's an error message.
+ *
+ * The SDK may send error messages that aren't part of the SDKMessage TypeScript
+ * union. This helper encapsulates the type assertion needed to safely check for
+ * and extract error text from such messages.
+ *
+ * @param msg - SDK message to check
+ * @returns Error text if this is an error message, undefined otherwise
+ */
+export function getErrorFromMessage(msg: SDKMessage): string | undefined {
+  // Type assertion needed: SDK sends error messages not in SDKMessage union
+  const msgUnknown: unknown = msg;
+  if (isErrorMessage(msgUnknown)) {
+    return msgUnknown.error ?? "Unknown error";
+  }
+  return undefined;
+}
+
+/**
+ * Extract message ID from an SDK message.
+ *
+ * The SDK uses different property names for message IDs ('id' or 'uuid')
+ * and these properties may not be in the SDKMessage TypeScript definition.
+ * This helper encapsulates the type assertion needed to safely extract
+ * the message ID.
+ *
+ * @param msg - SDK message to check
+ * @returns Message ID if present, undefined otherwise
+ */
+export function getMessageId(msg: SDKMessage): string | undefined {
+  // Type assertion needed: SDK message ID properties not in SDKMessage union
+  const msgRecord = msg as Record<string, unknown>;
+  if (typeof msgRecord["id"] === "string") {
+    return msgRecord["id"];
+  }
+  if (typeof msgRecord["uuid"] === "string") {
+    return msgRecord["uuid"];
+  }
+  return undefined;
+}
+
+/**
  * Execute a query using the Agent SDK.
  *
  * This is a thin wrapper around the SDK's query function that returns
  * the Query object for both iteration and method access.
  *
+ * Note: The SDK's query() return type doesn't include optional methods like
+ * rewindFiles() that are available when enableFileCheckpointing is true.
+ * We use QueryObject interface to expose these methods with proper typing.
+ * The cast is unavoidable until the SDK exports a complete type definition.
+ *
  * @param input - Query input with prompt and options
  * @returns Query object for async iteration and methods
  */
 export function executeQuery(input: QueryInput): QueryObject {
-  // The SDK's query() returns an async iterable that may also have methods
-  // Cast to our QueryObject interface which extends AsyncIterable
+  // Type assertion: SDK's query() doesn't expose optional methods in its type
   return query(input) as unknown as QueryObject;
 }
 

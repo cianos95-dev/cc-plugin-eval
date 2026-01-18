@@ -19,7 +19,8 @@ import {
 } from "./hooks-factory.js";
 import {
   executeQuery,
-  isErrorMessage,
+  getErrorFromMessage,
+  getMessageId,
   isResultMessage,
   isUserMessage,
   type SDKMessage,
@@ -263,13 +264,12 @@ export async function executeScenario(
 
         // Capture errors for transcript
         // Note: SDK may send error messages not in its TypeScript union
-        if (isErrorMessage(message as unknown)) {
+        const errorText = getErrorFromMessage(message);
+        if (errorText !== undefined) {
           errors.push({
             type: "error",
             error_type: "api_error",
-            message:
-              (message as unknown as { error?: string }).error ??
-              "Unknown error",
+            message: errorText,
             timestamp: Date.now(),
             recoverable: false,
           });
@@ -412,19 +412,21 @@ export async function executeScenarioWithCheckpoint(
         hookCollector.processMessage(message);
 
         // Capture user message ID for potential rewind
-        if (isUserMessage(message) && "uuid" in message) {
-          userMessageId = message.uuid;
+        if (isUserMessage(message)) {
+          const msgId = getMessageId(message);
+          if (msgId) {
+            userMessageId = msgId;
+          }
         }
 
         // Capture errors
         // Note: SDK may send error messages not in its TypeScript union
-        if (isErrorMessage(message as unknown)) {
+        const errorText = getErrorFromMessage(message);
+        if (errorText !== undefined) {
           errors.push({
             type: "error",
             error_type: "api_error",
-            message:
-              (message as unknown as { error?: string }).error ??
-              "Unknown error",
+            message: errorText,
             timestamp: Date.now(),
             recoverable: false,
           });

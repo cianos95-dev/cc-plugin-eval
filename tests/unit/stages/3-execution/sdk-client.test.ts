@@ -13,6 +13,8 @@ import {
   isResultMessage,
   isSystemMessage,
   isErrorMessage,
+  getErrorFromMessage,
+  getMessageId,
   type SDKMessage,
   type SDKUserMessage,
   type SDKAssistantMessage,
@@ -342,6 +344,105 @@ describe("SDK Message Type Guards", () => {
       };
 
       expect(isUserMessage(msg)).toBe(true); // arrays are objects in JS
+    });
+  });
+
+  describe("getErrorFromMessage", () => {
+    it("returns error text for error message", () => {
+      const msg = {
+        type: "error",
+        error: "Rate limit exceeded",
+      } as SDKMessage;
+
+      expect(getErrorFromMessage(msg)).toBe("Rate limit exceeded");
+    });
+
+    it("returns 'Unknown error' when error property is undefined", () => {
+      const msg = {
+        type: "error",
+      } as SDKMessage;
+
+      expect(getErrorFromMessage(msg)).toBe("Unknown error");
+    });
+
+    it("returns undefined for non-error message", () => {
+      const msg: SDKMessage = {
+        type: "user",
+        message: { role: "user", content: "Hello" },
+      };
+
+      expect(getErrorFromMessage(msg)).toBeUndefined();
+    });
+
+    it("returns undefined for result message", () => {
+      const msg: SDKMessage = {
+        type: "result",
+        total_cost_usd: 0.01,
+      };
+
+      expect(getErrorFromMessage(msg)).toBeUndefined();
+    });
+  });
+
+  describe("getMessageId", () => {
+    it("returns id when present", () => {
+      const msg = {
+        type: "user",
+        id: "msg-123",
+        message: { role: "user", content: "Hello" },
+      } as SDKMessage;
+
+      expect(getMessageId(msg)).toBe("msg-123");
+    });
+
+    it("returns uuid when present", () => {
+      const msg = {
+        type: "user",
+        uuid: "uuid-456",
+        message: { role: "user", content: "Hello" },
+      } as SDKMessage;
+
+      expect(getMessageId(msg)).toBe("uuid-456");
+    });
+
+    it("prefers id over uuid when both present", () => {
+      const msg = {
+        type: "user",
+        id: "id-value",
+        uuid: "uuid-value",
+        message: { role: "user", content: "Hello" },
+      } as SDKMessage;
+
+      expect(getMessageId(msg)).toBe("id-value");
+    });
+
+    it("returns undefined when neither id nor uuid present", () => {
+      const msg: SDKMessage = {
+        type: "user",
+        message: { role: "user", content: "Hello" },
+      };
+
+      expect(getMessageId(msg)).toBeUndefined();
+    });
+
+    it("returns undefined when id is not a string", () => {
+      const msg = {
+        type: "user",
+        id: 123,
+        message: { role: "user", content: "Hello" },
+      } as SDKMessage;
+
+      expect(getMessageId(msg)).toBeUndefined();
+    });
+
+    it("returns undefined when uuid is not a string", () => {
+      const msg = {
+        type: "user",
+        uuid: { nested: "object" },
+        message: { role: "user", content: "Hello" },
+      } as SDKMessage;
+
+      expect(getMessageId(msg)).toBeUndefined();
     });
   });
 });

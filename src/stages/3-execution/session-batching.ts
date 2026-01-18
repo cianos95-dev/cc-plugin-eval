@@ -18,7 +18,8 @@ import {
 } from "./hooks-factory.js";
 import {
   executeQuery,
-  isErrorMessage,
+  getErrorFromMessage,
+  getMessageId,
   isResultMessage,
   type PluginReference,
   type QueryInput,
@@ -401,16 +402,7 @@ async function executeScenarioWithRetry(
         // Note: /clear commands are sent via a separate query object
         // (sendClearCommand), so they don't appear in this iteration.
         if (message.type === "user" && !userMessageId) {
-          // SDK may use 'id' or 'uuid' for the message identifier
-          // Use intermediate Record<string, unknown> for safer property access
-          const msgRecord = message as Record<string, unknown>;
-          const msgId =
-            (typeof msgRecord["id"] === "string"
-              ? msgRecord["id"]
-              : undefined) ??
-            (typeof msgRecord["uuid"] === "string"
-              ? msgRecord["uuid"]
-              : undefined);
+          const msgId = getMessageId(message);
           if (msgId) {
             userMessageId = msgId;
           }
@@ -418,13 +410,12 @@ async function executeScenarioWithRetry(
 
         // Capture errors
         // Note: SDK may send error messages not in its TypeScript union
-        if (isErrorMessage(message as unknown)) {
+        const errorText = getErrorFromMessage(message);
+        if (errorText !== undefined) {
           scenarioErrors.push({
             type: "error",
             error_type: "api_error",
-            message:
-              (message as unknown as { error?: string }).error ??
-              "Unknown error",
+            message: errorText,
             timestamp: Date.now(),
             recoverable: false,
           });

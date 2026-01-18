@@ -12,7 +12,7 @@ import { logger } from "../../utils/logging.js";
 import {
   executeQuery,
   isSystemMessage,
-  isErrorMessage,
+  getErrorFromMessage,
   type SDKSystemMessage,
   type QueryInput,
   type QueryObject,
@@ -191,10 +191,11 @@ export async function verifyPluginLoad(
 
       // Check for error messages during init
       // Note: SDK may send error messages not in its TypeScript union
-      if (isErrorMessage(message as unknown)) {
+      const errorText = getErrorFromMessage(message);
+      if (errorText !== undefined) {
         return createFailedResult(
           pluginPath,
-          `Plugin initialization error: ${(message as unknown as { error?: string }).error ?? "Unknown error"}`,
+          `Plugin initialization error: ${errorText}`,
           "unknown",
           timings,
         );
