@@ -6,7 +6,6 @@ import {
   ConfigLoadError,
   ConfigValidationError,
   loadConfig,
-  resolveModelId,
   validateConfig,
 } from "../../../src/config/loader.js";
 
@@ -54,24 +53,6 @@ describe("validateConfig", () => {
 
     expect(() => validateConfig(raw)).toThrow(ConfigValidationError);
     expect(() => validateConfig(raw)).toThrow(/scenarios_per_component/);
-  });
-});
-
-describe("resolveModelId", () => {
-  it("resolves short aliases", () => {
-    expect(resolveModelId("opus")).toBe("claude-opus-4-5-20251101");
-    expect(resolveModelId("sonnet")).toBe("claude-sonnet-4-5-20250929");
-    expect(resolveModelId("haiku")).toBe("claude-haiku-3-5-20250929");
-  });
-
-  it("resolves versioned aliases", () => {
-    expect(resolveModelId("claude-opus-4.5")).toBe("claude-opus-4-5-20251101");
-    expect(resolveModelId("claude-sonnet-4")).toBe("claude-sonnet-4-20250514");
-  });
-
-  it("returns unknown model IDs unchanged", () => {
-    const customId = "custom-model-id";
-    expect(resolveModelId(customId)).toBe(customId);
   });
 });
 

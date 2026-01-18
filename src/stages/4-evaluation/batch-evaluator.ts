@@ -12,9 +12,9 @@
  * - Graceful degradation on failures
  */
 
+import { resolveModelId } from "../../config/models.js";
 import { logger } from "../../utils/logging.js";
 import { sleep } from "../../utils/retry.js";
-import { resolveModelId } from "../2-generation/cost-estimator.js";
 
 import { parseJudgeResponse } from "./judge-utils.js";
 import {

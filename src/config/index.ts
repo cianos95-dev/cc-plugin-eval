@@ -6,7 +6,6 @@ export {
   loadConfig,
   loadConfigWithOverrides,
   validateConfig,
-  resolveModelId,
   ConfigLoadError,
   ConfigValidationError,
   type CLIOptions,
@@ -38,3 +37,5 @@ export {
   calculateCost,
   formatCost,
 } from "./pricing.js";
+
+export { MODEL_ALIASES, resolveModelId } from "./models.js";

@@ -7,6 +7,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 
 import { DEFAULT_TUNING, getResolvedTuning } from "../../config/defaults.js";
+import { resolveModelId } from "../../config/models.js";
 import { calculateCost, formatCost } from "../../config/pricing.js";
 import { parallel } from "../../utils/concurrency.js";
 import { logger } from "../../utils/logging.js";
@@ -25,53 +26,6 @@ import type { TextBlockParam } from "@anthropic-ai/sdk/resources/messages/messag
  * Type for system prompt - can be a string or array of text blocks (for prompt caching).
  */
 export type SystemPrompt = string | TextBlockParam[];
-
-/**
- * Model name resolution map.
- * Maps short names to full model IDs.
- */
-const MODEL_MAP: Record<string, string> = {
-  // Opus 4.5 (flagship, cost-reduced)
-  "claude-opus-4.5": "claude-opus-4-5-20251101",
-  "opus-4.5": "claude-opus-4-5-20251101",
-  opus: "claude-opus-4-5-20251101",
-
-  // Opus 4.1 (legacy flagship)
-  "claude-opus-4.1": "claude-opus-4-1-20250805",
-  "opus-4.1": "claude-opus-4-1-20250805",
-
-  // Opus 4 (legacy)
-  "claude-opus-4": "claude-opus-4-20250514",
-  "opus-4": "claude-opus-4-20250514",
-
-  // Sonnet 4.5 (balanced performance)
-  "claude-sonnet-4.5": "claude-sonnet-4-5-20250929",
-  "sonnet-4.5": "claude-sonnet-4-5-20250929",
-  sonnet: "claude-sonnet-4-5-20250929", // Default to latest Sonnet
-
-  // Sonnet 4 (previous generation)
-  "claude-sonnet-4": "claude-sonnet-4-20250514",
-  "sonnet-4": "claude-sonnet-4-20250514",
-
-  // Haiku 4.5 (newer fast model)
-  "claude-haiku-4.5": "claude-haiku-4-5-20251001",
-  "haiku-4.5": "claude-haiku-4-5-20251001",
-  haiku: "claude-haiku-4-5-20251001", // Default to latest Haiku
-
-  // Haiku 3.5 (fast and cost-effective)
-  "claude-haiku-3.5": "claude-haiku-3-5-20250929",
-  "haiku-3.5": "claude-haiku-3-5-20250929",
-};
-
-/**
- * Resolve short model names to full model IDs.
- *
- * @param shortName - Short or full model name
- * @returns Full model ID
- */
-export function resolveModelId(shortName: string): string {
-  return MODEL_MAP[shortName] ?? shortName;
-}
 
 /**
  * Default SDK timeout in milliseconds (2 minutes).

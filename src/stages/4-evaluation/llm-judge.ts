@@ -8,9 +8,9 @@
  */
 
 import { DEFAULT_TUNING } from "../../config/defaults.js";
+import { resolveModelId } from "../../config/models.js";
 import { callLLMForText } from "../../utils/llm.js";
 import { withRetry } from "../../utils/retry.js";
-import { resolveModelId } from "../2-generation/cost-estimator.js";
 
 import { parseJudgeResponse } from "./judge-utils.js";
 

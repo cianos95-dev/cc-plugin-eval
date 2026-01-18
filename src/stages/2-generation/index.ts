@@ -383,8 +383,10 @@ export {
   estimateGenerationCost,
   estimateExecutionCost,
   estimateEvaluationCost,
-  resolveModelId,
   createAnthropicClient,
   formatPipelineCostEstimate,
   type SystemPrompt,
 } from "./cost-estimator.js";
+
+// Re-export from config for backward compatibility
+export { resolveModelId } from "../../config/models.js";

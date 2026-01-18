@@ -2,7 +2,7 @@
  * LLM API utility functions for common patterns.
  */
 
-import { resolveModelId } from "../stages/2-generation/cost-estimator.js";
+import { resolveModelId } from "../config/models.js";
 
 import { withRetry } from "./retry.js";
 

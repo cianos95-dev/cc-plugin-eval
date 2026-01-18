@@ -6,7 +6,6 @@ import Anthropic from "@anthropic-ai/sdk";
 import { describe, expect, it, vi, beforeEach, type Mock } from "vitest";
 
 import {
-  resolveModelId,
   estimateExecutionCost,
   estimateEvaluationCost,
   estimatePipelineCost,
@@ -32,43 +31,6 @@ vi.mock("@anthropic-ai/sdk", () => {
     };
   });
   return { default: MockAnthropic };
-});
-
-describe("resolveModelId", () => {
-  it("should resolve haiku shorthand", () => {
-    const result = resolveModelId("haiku");
-    expect(result).toContain("haiku");
-    expect(result).toContain("claude");
-  });
-
-  it("should resolve sonnet shorthand", () => {
-    const result = resolveModelId("sonnet");
-    expect(result).toContain("sonnet");
-    expect(result).toContain("claude");
-  });
-
-  it("should resolve opus shorthand", () => {
-    const result = resolveModelId("opus");
-    expect(result).toContain("opus");
-    expect(result).toContain("claude");
-  });
-
-  it("should pass through full model IDs unchanged", () => {
-    const fullId = "claude-3-5-sonnet-20241022";
-    const result = resolveModelId(fullId);
-    expect(result).toBe(fullId);
-  });
-
-  it("should pass through unknown shorthands unchanged", () => {
-    const unknown = "unknown-model";
-    const result = resolveModelId(unknown);
-    expect(result).toBe(unknown);
-  });
-
-  it("should resolve versioned shorthands", () => {
-    expect(resolveModelId("sonnet-4.5")).toContain("sonnet");
-    expect(resolveModelId("haiku-3.5")).toContain("haiku");
-  });
 });
 
 describe("estimateExecutionCost", () => {

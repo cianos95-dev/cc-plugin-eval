@@ -240,23 +240,3 @@ function applyOverrides(
 
   return result;
 }
-
-/**
- * Resolve short model names to full model IDs.
- *
- * @param modelName - Short or full model name
- * @returns Full model ID
- */
-export function resolveModelId(modelName: string): string {
-  const modelAliases: Record<string, string> = {
-    opus: "claude-opus-4-5-20251101",
-    "claude-opus-4.5": "claude-opus-4-5-20251101",
-    sonnet: "claude-sonnet-4-5-20250929",
-    "claude-sonnet-4.5": "claude-sonnet-4-5-20250929",
-    "claude-sonnet-4": "claude-sonnet-4-20250514",
-    haiku: "claude-haiku-3-5-20250929",
-    "claude-haiku-3.5": "claude-haiku-3-5-20250929",
-  };
-
-  return modelAliases[modelName] ?? modelName;
-}
