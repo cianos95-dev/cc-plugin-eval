@@ -626,4 +626,36 @@ describe("validateRegexPattern", () => {
       ).toThrow(/Invalid regex pattern/);
     });
   });
+
+  describe("MAX_PATTERN_LENGTH boundary", () => {
+    it("accepts patterns at exactly 500 characters", async () => {
+      const { analyzePatternSafety } =
+        await import("../../../src/utils/sanitizer.js");
+      const pattern = "a".repeat(500);
+      const result = analyzePatternSafety(pattern);
+      expect(result.isSafe).toBe(true);
+      expect(result.warnings).not.toContain(
+        expect.stringMatching(/exceeds maximum length/),
+      );
+    });
+
+    it("rejects patterns exceeding 500 characters", async () => {
+      const { analyzePatternSafety } =
+        await import("../../../src/utils/sanitizer.js");
+      const pattern = "a".repeat(501);
+      const result = analyzePatternSafety(pattern);
+      expect(result.isSafe).toBe(false);
+      expect(result.warnings[0]).toMatch(/exceeds maximum length/);
+      expect(result.warnings[0]).toMatch(/501 > 500/);
+    });
+
+    it("returns correct score for oversized patterns", async () => {
+      const { analyzePatternSafety } =
+        await import("../../../src/utils/sanitizer.js");
+      const pattern = "a".repeat(1000);
+      const result = analyzePatternSafety(pattern);
+      expect(result.score).toBe(10); // REDOS_SAFETY_THRESHOLD
+      expect(result.isSafe).toBe(false);
+    });
+  });
 });

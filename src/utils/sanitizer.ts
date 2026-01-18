@@ -152,6 +152,13 @@ export const DEFAULT_REDACTION_PATTERNS: RedactionPattern[] = [
 const REDOS_SAFETY_THRESHOLD = 10;
 
 /**
+ * Maximum pattern length to analyze for ReDoS.
+ * Prevents ReDoS in the safety analysis itself by limiting input size.
+ * Patterns exceeding this are automatically flagged as potentially unsafe.
+ */
+const MAX_PATTERN_LENGTH = 500;
+
+/**
  * Analyze a regex pattern for potential ReDoS vulnerability.
  *
  * Uses heuristic analysis to detect patterns that may cause catastrophic
@@ -179,6 +186,18 @@ const REDOS_SAFETY_THRESHOLD = 10;
  * ```
  */
 export function analyzePatternSafety(pattern: string): PatternSafetyAnalysis {
+  // Limit input length to prevent ReDoS in the analysis itself
+  if (pattern.length > MAX_PATTERN_LENGTH) {
+    return {
+      score: REDOS_SAFETY_THRESHOLD,
+      warnings: [
+        `Pattern exceeds maximum length (${String(pattern.length)} > ${String(MAX_PATTERN_LENGTH)} chars). ` +
+          `Very long patterns are inherently risky and should be simplified.`,
+      ],
+      isSafe: false,
+    };
+  }
+
   let score = 0;
   const warnings: string[] = [];
 

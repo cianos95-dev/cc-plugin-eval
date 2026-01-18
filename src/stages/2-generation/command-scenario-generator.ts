@@ -11,6 +11,12 @@
 import type { CommandComponent, TestScenario } from "../../types/index.js";
 
 /**
+ * Maximum length for argument hints.
+ * Prevents potential issues with extremely long hints from untrusted sources.
+ */
+const MAX_HINT_LENGTH = 1000;
+
+/**
  * Generate test scenarios for a command.
  *
  * @param cmd - Command component
@@ -132,7 +138,30 @@ export function generateCommandScenarios(
  */
 export function generateArgFromHint(hint: string): string {
   // Parse argument hint like "[filename] [options]" → "test.ts --verbose"
-  const parts = hint.match(/\[([^\]]+)\]/g) ?? [];
+  // Use string operations instead of regex to avoid ReDoS vulnerability
+  if (hint.length > MAX_HINT_LENGTH) {
+    throw new Error(
+      `Argument hint exceeds maximum length of ${String(MAX_HINT_LENGTH)} characters.`,
+    );
+  }
+
+  const parts: string[] = [];
+  let i = 0;
+
+  while (i < hint.length) {
+    const openBracket = hint.indexOf("[", i);
+    if (openBracket === -1) {
+      break;
+    }
+
+    const closeBracket = hint.indexOf("]", openBracket + 1);
+    if (closeBracket === -1) {
+      break;
+    }
+
+    parts.push(hint.slice(openBracket, closeBracket + 1));
+    i = closeBracket + 1;
+  }
 
   return parts
     .map((p) => {

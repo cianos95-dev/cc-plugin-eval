@@ -305,3 +305,44 @@ describe("getExpectedCommandScenarioCount", () => {
     expect(count).toBe(5 + 6);
   });
 });
+
+describe("generateArgFromHint edge cases", () => {
+  it("should throw for hints exceeding MAX_HINT_LENGTH", () => {
+    const longHint = "[" + "a".repeat(1000) + "]";
+    expect(() => generateArgFromHint(longHint)).toThrow(
+      /exceeds maximum length/,
+    );
+  });
+
+  it("should handle unclosed brackets gracefully", () => {
+    const result = generateArgFromHint("[unclosed");
+    expect(result).toBe(""); // No valid bracket pairs found
+  });
+
+  it("should handle unopened brackets gracefully", () => {
+    const result = generateArgFromHint("unopened]");
+    expect(result).toBe(""); // No valid bracket pairs found
+  });
+
+  it("should handle empty brackets", () => {
+    const result = generateArgFromHint("[]");
+    expect(result).toBe("test-value"); // Empty name defaults to test-value
+  });
+
+  it("should handle multiple bracket pairs correctly", () => {
+    const result = generateArgFromHint("[file] [path] [option]");
+    expect(result).toBe("test-file.ts ./src --verbose");
+  });
+
+  it("should handle nested brackets by taking outer pair", () => {
+    const result = generateArgFromHint("[outer[inner]]");
+    // indexOf finds first [ and first ], so gets "[outer[inner]"
+    expect(result).toBe("test-value");
+  });
+
+  it("should handle hints at exactly MAX_HINT_LENGTH", () => {
+    // 1000 chars is the limit - create a hint just under
+    const hint = "[" + "a".repeat(996) + "]"; // 998 chars
+    expect(() => generateArgFromHint(hint)).not.toThrow();
+  });
+});
