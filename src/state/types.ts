@@ -77,11 +77,3 @@ export interface CreateRunOptions {
   config: EvalConfig;
   runId?: string;
 }
-
-/**
- * Options for resuming a pipeline run.
- */
-export interface ResumeOptions {
-  runId: string;
-  fromStage?: PipelineStage;
-}

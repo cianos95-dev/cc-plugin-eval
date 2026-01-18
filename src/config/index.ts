@@ -21,7 +21,6 @@ export {
   ExecutionConfigSchema,
   EvaluationConfigSchema,
   OutputConfigSchema,
-  type ValidatedEvalConfig,
 } from "./schema.js";
 
 export {

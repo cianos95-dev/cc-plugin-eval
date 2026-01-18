@@ -1,5 +1,5 @@
 /**
- * Core state management operations.
+ * State CRUD operations.
  *
  * Handles CRUD operations (create, save, load) and state file management.
  * All functions in this module are pure or have clearly documented side effects.

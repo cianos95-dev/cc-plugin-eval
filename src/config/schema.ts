@@ -314,8 +314,3 @@ export const EvalConfigSchema = z.object({
   verbose: z.boolean().default(false),
   max_concurrent: z.number().int().min(1).max(50).default(10),
 });
-
-/**
- * Type inference from schema.
- */
-export type ValidatedEvalConfig = z.infer<typeof EvalConfigSchema>;

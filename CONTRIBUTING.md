@@ -55,7 +55,7 @@ src/
 │   └── 4-evaluation/     # Programmatic detection, LLM judge, metrics
 │       └── detection/    # Decomposed detection logic
 ├── state/                # Resume capability, checkpointing
-│   ├── core.ts           # Core state operations
+│   ├── operations.ts           # State CRUD operations
 │   ├── queries.ts        # State query utilities
 │   └── updates.ts        # State update operations
 ├── types/                # TypeScript interfaces

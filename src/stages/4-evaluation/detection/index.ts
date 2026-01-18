@@ -8,7 +8,10 @@
  */
 
 // Core detection functions
-export { detectAllComponents, detectAllComponentsWithHooks } from "./core.js";
+export {
+  detectAllComponents,
+  detectAllComponentsWithHooks,
+} from "./orchestrator.js";
 
 // Capture-based detection
 export {

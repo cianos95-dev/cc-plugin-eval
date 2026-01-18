@@ -1,5 +1,5 @@
 /**
- * Core Detection - Main detection orchestration.
+ * Detection orchestration - Main detection entry points.
  *
  * Provides the main entry points for component detection, combining
  * all detection methods with proper priority ordering.

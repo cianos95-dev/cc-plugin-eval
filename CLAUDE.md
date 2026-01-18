@@ -209,7 +209,7 @@ export async function fetchData(url: string) {
 
 **Refactoring types**: Use `find_referencing_symbols` on a type from `src/types/` to find all usages before making changes.
 
-**Tracing detection logic**: Detection is in `src/stages/4-evaluation/detection/`. The flow is `detectAllComponents` (in `core.ts`) → `detectFromCaptures` (in `capture-detection.ts`) → type-specific detectors (`agents.ts`, `commands.ts`, `hooks.ts`). Agent detection uses SubagentStart/SubagentStop hooks. Use `find_symbol` to navigate this chain.
+**Tracing detection logic**: Detection is in `src/stages/4-evaluation/detection/`. The flow is `detectAllComponents` (in `orchestrator.ts`) → `detectFromCaptures` (in `capture-detection.ts`) → type-specific detectors (`agents.ts`, `commands.ts`, `hooks.ts`). Agent detection uses SubagentStart/SubagentStop hooks. Use `find_symbol` to navigate this chain.
 
 **Adding a new component type**: Follow the type through all four stages using `find_referencing_symbols` on similar component types (e.g., trace how `hooks` is handled to understand where to add `mcp_servers`).
 
@@ -289,7 +289,7 @@ src/
 │       └── detection/    # Decomposed detection logic
 ├── state/                # Resume capability, checkpointing
 │   ├── index.ts          # State exports
-│   ├── core.ts           # Core state operations
+│   ├── operations.ts           # State CRUD operations
 │   ├── queries.ts        # State query utilities
 │   ├── updates.ts        # State update operations
 │   ├── display.ts        # State display formatting
@@ -312,15 +312,15 @@ When adding support for a new plugin component type (e.g., a new kind of trigger
 1. Define types in `src/types/`
 2. Create analyzer in `src/stages/1-analysis/`
 3. Create scenario generator in `src/stages/2-generation/`
-4. Add detector in `src/stages/4-evaluation/detection/` (create new file, add to `core.ts`)
+4. Add detector in `src/stages/4-evaluation/detection/` (create new file, add to \`orchestrator.ts\`)
 5. Update `AnalysisOutput` in `src/types/state.ts`
 6. Add to pipeline in `src/stages/{1,2,4}-*/index.ts`
-7. Add state migration in `src/state/core.ts` (provide defaults for legacy state)
+7. Add state migration in \`src/state/operations.ts\` (provide defaults for legacy state)
 8. Add tests
 
 ### State Migration
 
-When adding new component types, update `migrateState()` in `src/state/core.ts` to provide defaults (e.g., `hooks: legacyComponents.hooks ?? []`) so existing state files remain compatible.
+When adding new component types, update `migrateState()` in \`src/state/operations.ts\` to provide defaults (e.g., `hooks: legacyComponents.hooks ?? []`) so existing state files remain compatible.
 
 ### Resume Handlers
 

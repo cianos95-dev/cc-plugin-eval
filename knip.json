@@ -5,6 +5,7 @@
   "ignore": ["dist/**", "coverage/**", "node_modules/**"],
   "ignoreDependencies": [],
   "ignoreExportsUsedInFile": true,
+  "tags": ["-internal"],
   "vitest": {
     "entry": ["tests/**/*.test.ts", "tests/**/*.spec.ts", "vitest.config.ts"],
     "project": ["tests/**/*.ts"]

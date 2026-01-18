@@ -12,7 +12,7 @@
  *
  * This module re-exports all state management functionality from focused submodules:
  * - types: Shared type definitions (PipelineState, PipelineStage, etc.)
- * - core: CRUD operations (create, save, load, paths)
+ * - operations: CRUD operations (create, save, load, paths)
  * - updates: State update functions (updateStateAfter*, etc.)
  * - queries: Query helpers (canResumeFrom, get*Scenarios, etc.)
  * - display: Formatting and listing (formatState, listRuns)
@@ -23,7 +23,6 @@ export type {
   CreateRunOptions,
   PipelineStage,
   PipelineState,
-  ResumeOptions,
 } from "./types.js";
 
 // Re-export core operations
@@ -34,7 +33,7 @@ export {
   getStateFilePath,
   loadState,
   saveState,
-} from "./core.js";
+} from "./operations.js";
 
 // Re-export update operations
 export {

@@ -476,7 +476,7 @@ src/
 │       ├── aggregation/  # Result aggregation utilities
 │       └── detection/    # Programmatic detection
 │           ├── index.ts  # Detection entry point
-│           ├── core.ts   # Core detection logic
+│           ├── orchestrator.ts   # Detection orchestration
 │           ├── agents.ts # Agent detection
 │           ├── commands.ts # Command detection
 │           ├── hooks.ts  # Hook detection
@@ -486,7 +486,7 @@ src/
 │           └── types.ts
 ├── state/                # Resume capability
 │   ├── index.ts          # State exports
-│   ├── core.ts           # Core state operations
+│   ├── operations.ts           # State CRUD operations
 │   ├── queries.ts        # State query utilities
 │   ├── updates.ts        # State update operations
 │   ├── display.ts        # State display formatting
