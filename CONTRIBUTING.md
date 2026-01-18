@@ -111,7 +111,7 @@ npm run lint
 npm run typecheck
 
 # Code formatting
-npx prettier --check "src/**/*.ts" "*.json" "*.md"
+npm run format:check
 
 # Markdown
 markdownlint "*.md"
@@ -221,7 +221,7 @@ npm test
 npm run build
 
 # Additional linters
-npx prettier --check "src/**/*.ts" "*.json" "*.md"
+npm run format:check
 markdownlint "*.md"
 uvx yamllint -c .yamllint.yml config.yaml .yamllint.yml
 actionlint .github/workflows/*.yml

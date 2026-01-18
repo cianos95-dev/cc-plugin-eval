@@ -44,7 +44,7 @@ RUN_E2E_TESTS=true E2E_MAX_COST_USD=2.00 npm test -- tests/e2e/
 ### Additional Linters
 
 ```bash
-npx prettier --check "src/**/*.ts" "*.json" "*.md"
+npm run format:check
 markdownlint "*.md"
 uvx yamllint -c .yamllint.yml config.yaml .yamllint.yml
 actionlint .github/workflows/*.yml
@@ -75,17 +75,17 @@ cc-plugin-eval run -p ./plugin --fast    # Re-run failed scenarios only
 
 ### Key Entry Points
 
-| Component         | File                                               | Main Export                   |
-| ----------------- | -------------------------------------------------- | ----------------------------- |
-| CLI               | `src/index.ts`                                     | Commander `program`           |
-| Stage 1           | `src/stages/1-analysis/index.ts`                   | `runAnalysis()`               |
-| Stage 2           | `src/stages/2-generation/index.ts`                 | `runGeneration()`             |
-| Stage 3           | `src/stages/3-execution/index.ts`                  | `runExecution()`              |
-| Stage 4           | `src/stages/4-evaluation/index.ts`                 | `runEvaluation()`             |
+| Component         | File                                               | Main Export                      |
+| ----------------- | -------------------------------------------------- | -------------------------------- |
+| CLI               | `src/index.ts`                                     | Commander `program`              |
+| Stage 1           | `src/stages/1-analysis/index.ts`                   | `runAnalysis()`                  |
+| Stage 2           | `src/stages/2-generation/index.ts`                 | `runGeneration()`                |
+| Stage 3           | `src/stages/3-execution/index.ts`                  | `runExecution()`                 |
+| Stage 4           | `src/stages/4-evaluation/index.ts`                 | `runEvaluation()`                |
 | Detection         | `src/stages/4-evaluation/programmatic-detector.ts` | `detectAllComponentsWithHooks()` |
-| Conflict Tracking | `src/stages/4-evaluation/conflict-tracker.ts`      | `calculateConflictSeverity()` |
-| Metrics           | `src/stages/4-evaluation/metrics.ts`               | `calculateEvalMetrics()`      |
-| State             | `src/state/state-manager.ts`                       | `loadState()`, `saveState()`  |
+| Conflict Tracking | `src/stages/4-evaluation/conflict-tracker.ts`      | `calculateConflictSeverity()`    |
+| Metrics           | `src/stages/4-evaluation/metrics.ts`               | `calculateEvalMetrics()`         |
+| State             | `src/state/state-manager.ts`                       | `loadState()`, `saveState()`     |
 
 ## Code Navigation
 

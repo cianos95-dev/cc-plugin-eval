@@ -127,7 +127,7 @@ jobs:
         run: npm ci
 
       - name: Check formatting
-        run: npx prettier --check "src/**/*.ts" "tests/**/*.ts" "*.json" "*.md"
+        run: npm run format:check
 
   test:
     name: Test

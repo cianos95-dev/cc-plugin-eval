@@ -39,7 +39,7 @@ jobs:
             **Before merge, please ensure:**
             - [ ] You've read our [Contributing Guide](CONTRIBUTING.md)
             - [ ] All tests pass (`npm test`)
-            - [ ] Code is properly formatted (`npx prettier --check "src/**/*.ts"`)
+            - [ ] Code is properly formatted (`npm run format:check`)
             - [ ] Types check successfully (`npm run typecheck`)
 
             A maintainer will review your PR soon. Feel free to ask questions if you need help!
