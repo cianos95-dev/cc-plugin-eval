@@ -268,36 +268,6 @@ export function isResultMessage(msg: SDKMessage): msg is SDKResultMessage {
 }
 
 /**
- * Type guard for successful result message.
- *
- * @example
- * ```typescript
- * if (isResultMessage(msg) && isResultSuccess(msg)) {
- *   console.log(msg.result); // Access success-specific fields
- * }
- * ```
- */
-export function isResultSuccess(
-  msg: SDKResultMessage,
-): msg is SDKResultSuccess {
-  return msg.subtype === "success";
-}
-
-/**
- * Type guard for error result message.
- *
- * @example
- * ```typescript
- * if (isResultMessage(msg) && isResultError(msg)) {
- *   console.error(msg.errors); // Access error-specific fields
- * }
- * ```
- */
-export function isResultError(msg: SDKResultMessage): msg is SDKResultError {
-  return msg.subtype !== "success";
-}
-
-/**
  * Type guard for system message.
  */
 export function isSystemMessage(msg: SDKMessage): msg is SDKSystemMessage {

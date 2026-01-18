@@ -5,30 +5,18 @@
  * scenario execution for programmatic detection in Stage 4.
  */
 
+import type { HookJSONOutput, PreToolUseHookInput } from "./sdk-client.js";
 import type { HookResponseCapture, ToolCapture } from "../../types/index.js";
 
 /**
- * PreToolUse hook input type.
- * Based on Claude Agent SDK PreToolUseHookInput interface.
+ * Callback specifically for PreToolUse hooks.
+ *
+ * This is a narrower type than the SDK's general HookCallback,
+ * which handles multiple hook event types. This type is used
+ * internally for tool capture collection where we only register
+ * PreToolUse hooks.
  */
-export interface PreToolUseHookInput {
-  tool_name: string;
-  tool_input: unknown;
-}
-
-/**
- * Hook JSON output type.
- * Empty object allows operation to proceed without modification.
- */
-export interface HookJSONOutput {
-  decision?: "allow" | "deny";
-  reason?: string;
-}
-
-/**
- * Hook callback signature matching Agent SDK.
- */
-export type HookCallback = (
+export type PreToolUseHookCallback = (
   input: PreToolUseHookInput,
   toolUseId: string | undefined,
   context: { signal: AbortSignal },
@@ -42,7 +30,7 @@ export interface ToolCaptureCollector {
   /** Captured tools */
   captures: ToolCapture[];
   /** The hook callback to register with SDK */
-  hook: HookCallback;
+  hook: PreToolUseHookCallback;
   /** Clear all captures */
   clear: () => void;
 }
@@ -80,7 +68,7 @@ export interface ToolCaptureCollector {
 export function createToolCaptureCollector(): ToolCaptureCollector {
   const captures: ToolCapture[] = [];
 
-  const hook: HookCallback = async (
+  const hook: PreToolUseHookCallback = async (
     input: PreToolUseHookInput,
     toolUseId: string | undefined,
     _context: { signal: AbortSignal },
