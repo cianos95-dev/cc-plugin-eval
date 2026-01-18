@@ -123,7 +123,7 @@ body:
       description: Your environment details
       placeholder: |
         - OS: macOS 26.2
-        - Node.js: v25.2.1
+        - Node.js: v25.3.0
         - npm/bun: npm 11.7.0
       render: yaml
     validations:

@@ -94,7 +94,7 @@ body:
     attributes:
       label: Node.js Version
       description: "Run `node --version` if this is about runtime issues"
-      placeholder: "e.g., v25.2.1"
+      placeholder: "e.g., v25.3.0"
     validations:
       required: false
 
