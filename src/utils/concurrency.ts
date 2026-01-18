@@ -191,23 +191,3 @@ export function batch<T>(items: T[], batchSize: number): T[][] {
 
   return batches;
 }
-
-/**
- * Process items in batches with concurrency control.
- *
- * @param items - Items to process
- * @param batchSize - Items per batch
- * @param fn - Function to process each batch
- * @param concurrency - Maximum concurrent batches
- * @returns Results from all batches
- */
-export async function processBatches<T, R>(
-  items: T[],
-  batchSize: number,
-  fn: (batch: T[], batchIndex: number) => Promise<R[]>,
-  concurrency = 1,
-): Promise<R[]> {
-  const batches = batch(items, batchSize);
-  const batchResults = await parallelMap(batches, fn, concurrency);
-  return batchResults.flat();
-}

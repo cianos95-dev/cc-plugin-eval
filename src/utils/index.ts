@@ -18,7 +18,6 @@ export {
   sequential,
   createRateLimiter,
   batch,
-  processBatches,
   type ParallelOptions,
   type ParallelResult,
 } from "./concurrency.js";
