@@ -13,6 +13,7 @@ on:
       - "tsconfig.json"
       - "vitest.config.ts"
       - "eslint.config.js"
+      - "knip.json"
       - ".nvmrc"
       - ".github/workflows/ci.yml"
   pull_request:
@@ -25,6 +26,7 @@ on:
       - "tsconfig.json"
       - "vitest.config.ts"
       - "eslint.config.js"
+      - "knip.json"
       - ".nvmrc"
       - ".github/workflows/ci.yml"
 
@@ -129,6 +131,37 @@ jobs:
       - name: Check formatting
         run: npm run format:check
 
+  dead-code:
+    name: Dead Code Check
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@6044e13b5dc448c55e2357c09f80417699197238 # v6.2.0
+        with:
+          node-version-file: ".nvmrc"
+
+      - name: Cache node_modules
+        uses: actions/cache@8b402f58fbc84540c8b491a91e594a4576fec3d7 # v5.0.2
+        id: node-modules-cache
+        with:
+          path: node_modules
+          key: ${{ runner.os }}-node-${{ hashFiles('.nvmrc') }}-modules-${{ hashFiles('package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-node-${{ hashFiles('.nvmrc') }}-modules-
+
+      - name: Install dependencies
+        if: steps.node-modules-cache.outputs.cache-hit != 'true'
+        run: npm ci
+
+      - name: Check for dead code
+        run: npm run knip
+
   test:
     name: Test
     runs-on: ubuntu-latest
@@ -207,7 +240,7 @@ jobs:
     name: Build
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    needs: [typecheck, lint, format, test]
+    needs: [typecheck, lint, format, dead-code, test]
     steps:
       - name: Checkout code
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
