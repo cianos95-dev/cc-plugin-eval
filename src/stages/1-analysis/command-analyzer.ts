@@ -3,7 +3,12 @@
  * Parses command markdown files and extracts frontmatter.
  */
 
-import { parseFrontmatter, readText, basename } from "../../utils/index.js";
+import {
+  basename,
+  parseFrontmatter,
+  parseStringOrArray,
+  readText,
+} from "../../utils/index.js";
 
 import { getFullName } from "./path-resolver.js";
 
@@ -44,15 +49,7 @@ export function analyzeCommand(
       : undefined;
 
   // Get allowed tools (note: uses hyphenated 'allowed-tools')
-  let allowedTools: string[] | undefined;
-  const rawAllowedTools = frontmatter["allowed-tools"];
-  if (typeof rawAllowedTools === "string") {
-    allowedTools = rawAllowedTools.split(",").map((t) => t.trim());
-  } else if (Array.isArray(rawAllowedTools)) {
-    allowedTools = rawAllowedTools.filter(
-      (t): t is string => typeof t === "string",
-    );
-  }
+  const allowedTools = parseStringOrArray(frontmatter["allowed-tools"]);
 
   // Get disable-model-invocation flag
   const disableModelInvocation =

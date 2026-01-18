@@ -5,7 +5,11 @@
 
 import path from "node:path";
 
-import { parseFrontmatter, readText } from "../../utils/index.js";
+import {
+  parseFrontmatter,
+  parseStringOrArray,
+  readText,
+} from "../../utils/index.js";
 
 import type { SemanticIntent, SkillComponent } from "../../types/index.js";
 
@@ -52,15 +56,7 @@ export function analyzeSkill(skillDir: string): SkillComponent {
   const semanticIntents = extractSemanticIntents(triggerPhrases);
 
   // Get allowed tools (note: YAML frontmatter uses hyphenated 'allowed-tools')
-  let allowedTools: string[] | undefined;
-  const rawAllowedTools = frontmatter["allowed-tools"];
-  if (typeof rawAllowedTools === "string") {
-    allowedTools = rawAllowedTools.split(",").map((t) => t.trim());
-  } else if (Array.isArray(rawAllowedTools)) {
-    allowedTools = rawAllowedTools.filter(
-      (t): t is string => typeof t === "string",
-    );
-  }
+  const allowedTools = parseStringOrArray(frontmatter["allowed-tools"]);
 
   return {
     name,

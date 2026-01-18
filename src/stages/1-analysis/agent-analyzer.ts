@@ -3,7 +3,12 @@
  * Parses agent markdown files and extracts example blocks.
  */
 
-import { parseFrontmatter, readText, basename } from "../../utils/index.js";
+import {
+  basename,
+  parseFrontmatter,
+  parseStringOrArray,
+  readText,
+} from "../../utils/index.js";
 import { logger } from "../../utils/logging.js";
 
 import type { AgentComponent, AgentExample } from "../../types/index.js";
@@ -35,13 +40,7 @@ export function analyzeAgent(agentPath: string): AgentComponent {
     typeof frontmatter["model"] === "string" ? frontmatter["model"] : "inherit";
 
   // Get tools
-  let tools: string[] | undefined;
-  const rawTools = frontmatter["tools"];
-  if (typeof rawTools === "string") {
-    tools = rawTools.split(",").map((t) => t.trim());
-  } else if (Array.isArray(rawTools)) {
-    tools = rawTools.filter((t): t is string => typeof t === "string");
-  }
+  const tools = parseStringOrArray(frontmatter["tools"]);
 
   // Extract example blocks from description/body
   const exampleTriggers = extractAgentExamples(description + "\n" + body);

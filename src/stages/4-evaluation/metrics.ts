@@ -6,6 +6,7 @@
  */
 
 import { calculateCacheSavings } from "../../config/pricing.js";
+import { averageBy } from "../../utils/array.js";
 
 import type {
   CacheStats,
@@ -81,12 +82,7 @@ export function calculateAvgQuality(results: EvaluationResult[]): number {
     (r) => r.quality_score !== null && r.quality_score > 0,
   );
 
-  if (withQuality.length === 0) {
-    return 0;
-  }
-
-  const sum = withQuality.reduce((acc, r) => acc + (r.quality_score ?? 0), 0);
-  return sum / withQuality.length;
+  return averageBy(withQuality, (r) => r.quality_score ?? 0);
 }
 
 /**

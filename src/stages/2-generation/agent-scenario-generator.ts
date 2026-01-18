@@ -15,10 +15,9 @@
  */
 
 import { createRateLimiter, parallel } from "../../utils/concurrency.js";
+import { callLLMForText } from "../../utils/llm.js";
 import { logger } from "../../utils/logging.js";
-import { withRetry } from "../../utils/retry.js";
 
-import { resolveModelId } from "./cost-estimator.js";
 import { distributeScenarioTypes } from "./diversity-manager.js";
 
 import type {
@@ -282,29 +281,13 @@ export async function generateAgentScenarios(
 ): Promise<TestScenario[]> {
   const userPrompt = buildAgentPrompt(agent, config.scenarios_per_component);
 
-  const response = await withRetry(async () => {
-    const result = await client.messages.create(
-      {
-        model: resolveModelId(config.model),
-        max_tokens: config.max_tokens,
-        temperature: config.temperature,
-        system: [
-          {
-            type: "text",
-            text: AGENT_SCENARIO_SYSTEM_PROMPT,
-            cache_control: { type: "ephemeral" },
-          },
-        ],
-        messages: [{ role: "user", content: userPrompt }],
-      },
-      { timeout: config.api_timeout_ms },
-    );
-
-    const textBlock = result.content.find((block) => block.type === "text");
-    if (textBlock?.type !== "text") {
-      throw new Error("No text content in response");
-    }
-    return textBlock.text;
+  const response = await callLLMForText(client, {
+    model: config.model,
+    maxTokens: config.max_tokens,
+    temperature: config.temperature,
+    systemPrompt: AGENT_SCENARIO_SYSTEM_PROMPT,
+    userPrompt,
+    timeoutMs: config.api_timeout_ms,
   });
 
   return parseAgentScenarioResponse(response, agent);

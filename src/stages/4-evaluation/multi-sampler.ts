@@ -10,6 +10,7 @@
  * - consensus: Most common value (mode)
  */
 
+import { average, sum } from "../../utils/array.js";
 import { parallel } from "../../utils/concurrency.js";
 
 import { getMajorityVote } from "./judge-utils.js";
@@ -50,7 +51,7 @@ export function aggregateScores(
 
   switch (method) {
     case "average":
-      return scores.reduce((a, b) => a + b, 0) / scores.length;
+      return average(scores);
 
     case "median": {
       const sorted = scores.slice().sort((a, b) => a - b);
@@ -96,10 +97,8 @@ export function calculateVariance(scores: number[]): number {
     return 0;
   }
 
-  const mean = scores.reduce((a, b) => a + b, 0) / scores.length;
-  return (
-    scores.reduce((sum, s) => sum + Math.pow(s - mean, 2), 0) / scores.length
-  );
+  const mean = average(scores);
+  return sum(scores.map((s) => Math.pow(s - mean, 2))) / scores.length;
 }
 
 /**

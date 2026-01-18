@@ -556,7 +556,7 @@ describe("generateAgentScenarios", () => {
 
     await expect(
       generateAgentScenarios(mockClient as unknown as Anthropic, agent, config),
-    ).rejects.toThrow("No text content in response");
+    ).rejects.toThrow("No text content in LLM response");
   });
 
   it("should use correct model from config", async () => {

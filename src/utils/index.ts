@@ -57,3 +57,13 @@ export {
   generateRunId,
   getResultsDir,
 } from "./file-io.js";
+
+export { sum, average, sumBy, averageBy } from "./array.js";
+
+export { parseStringOrArray } from "./parsing.js";
+
+export {
+  callLLMForText,
+  callLLMForMessage,
+  type LLMCallOptions,
+} from "./llm.js";

@@ -8,6 +8,7 @@
  */
 
 import { DEFAULT_TUNING } from "../../config/defaults.js";
+import { callLLMForText } from "../../utils/llm.js";
 import { withRetry } from "../../utils/retry.js";
 import { resolveModelId } from "../2-generation/cost-estimator.js";
 
@@ -407,29 +408,13 @@ async function evaluateWithJsonFallback(
     config,
   );
 
-  const response = await withRetry(async () => {
-    const result = await client.messages.create(
-      {
-        model: resolveModelId(config.model),
-        max_tokens: config.max_tokens,
-        temperature: config.temperature,
-        system: [
-          {
-            type: "text",
-            text: JUDGE_FALLBACK_SYSTEM_PROMPT,
-            cache_control: { type: "ephemeral" },
-          },
-        ],
-        messages: [{ role: "user", content: userPrompt }],
-      },
-      { timeout: config.api_timeout_ms },
-    );
-
-    const textBlock = result.content.find((block) => block.type === "text");
-    if (textBlock?.type !== "text") {
-      throw new Error("No text content in response");
-    }
-    return textBlock.text;
+  const response = await callLLMForText(client, {
+    model: config.model,
+    maxTokens: config.max_tokens,
+    temperature: config.temperature,
+    systemPrompt: JUDGE_FALLBACK_SYSTEM_PROMPT,
+    userPrompt,
+    timeoutMs: config.api_timeout_ms,
   });
 
   // Extract JSON from response (handle markdown code blocks)
