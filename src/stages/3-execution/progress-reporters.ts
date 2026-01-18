@@ -5,12 +5,19 @@
  * real-time progress reporting during long-running evaluations.
  */
 
-import { DEFAULT_TUNING } from "../../config/defaults.js";
 import {
   createSanitizer,
   validateRegexPattern,
   type SanitizerFunction,
 } from "../../utils/sanitizer.js";
+
+import {
+  formatStageHeader,
+  formatStageComplete,
+  formatError,
+  formatScenarioStart,
+  formatScenarioResult,
+} from "./progress-formatters.js";
 
 import type { OutputConfig, ProgressCallbacks } from "../../types/index.js";
 
@@ -31,11 +38,7 @@ import type { OutputConfig, ProgressCallbacks } from "../../types/index.js";
  * ```
  */
 export const consoleProgress: ProgressCallbacks = {
-  onStageStart: (stage, total) => {
-    console.log(`\n${"=".repeat(60)}`);
-    console.log(`STAGE: ${stage.toUpperCase()} (${String(total)} items)`);
-    console.log("=".repeat(60));
-  },
+  onStageStart: formatStageHeader,
 
   onScenarioComplete: (result, index, total) => {
     const pct = Math.round((index / total) * 100);
@@ -45,16 +48,10 @@ export const consoleProgress: ProgressCallbacks = {
     );
   },
 
-  onStageComplete: (stage, durationMs, count) => {
-    const durationSec = (durationMs / 1000).toFixed(1);
-    console.log(
-      `\n✅ ${stage} complete: ${String(count)} items in ${durationSec}s`,
-    );
-  },
+  onStageComplete: formatStageComplete,
 
   onError: (error, scenario) => {
-    const scenarioInfo = scenario ? ` in ${scenario.id}` : "";
-    console.error(`\n❌ Error${scenarioInfo}: ${error.message}`);
+    formatError(error, scenario?.id);
   },
 };
 
@@ -76,59 +73,29 @@ export const consoleProgress: ProgressCallbacks = {
  * ```
  */
 export const verboseProgress: ProgressCallbacks = {
-  // Inherit stage start/complete from console progress
-  onStageStart: (stage, total): void => {
-    console.log(`\n${"=".repeat(60)}`);
-    console.log(`STAGE: ${stage.toUpperCase()} (${String(total)} items)`);
-    console.log("=".repeat(60));
-  },
+  onStageStart: formatStageHeader,
 
-  onStageComplete: (stage, durationMs, count): void => {
-    const durationSec = (durationMs / 1000).toFixed(1);
-    console.log(
-      `\n✅ ${stage} complete: ${String(count)} items in ${durationSec}s`,
-    );
-  },
+  onStageComplete: formatStageComplete,
 
   onError: (error, scenario): void => {
-    const scenarioInfo = scenario ? ` in ${scenario.id}` : "";
-    console.error(`\n❌ Error${scenarioInfo}: ${error.message}`);
+    formatError(error, scenario?.id);
   },
 
   onScenarioStart: (scenario, index, total) => {
-    console.log(
-      `\n[${String(index + 1)}/${String(total)}] Starting: ${scenario.id}`,
+    formatScenarioStart(
+      {
+        id: scenario.id,
+        component_type: scenario.component_type,
+        expected_trigger: scenario.expected_trigger,
+        prompt: scenario.user_prompt,
+      },
+      index,
+      total,
     );
-    console.log(
-      `  Type: ${scenario.component_type} | Expected: ${scenario.expected_trigger ? "trigger" : "no trigger"}`,
-    );
-
-    // Truncate prompt if too long (limit from tuning config)
-    const maxPromptLen = DEFAULT_TUNING.limits.prompt_display_length;
-    const promptDisplay =
-      scenario.user_prompt.length > maxPromptLen
-        ? `${scenario.user_prompt.slice(0, maxPromptLen)}...`
-        : scenario.user_prompt;
-    console.log(`  Prompt: ${promptDisplay}`);
   },
 
   onScenarioComplete: (result, _index, _total) => {
-    const status = result.errors.length > 0 ? "❌ FAILED" : "✅ PASSED";
-    console.log(
-      `  Result: ${status} | Cost: $${result.cost_usd.toFixed(4)} | Duration: ${String(result.api_duration_ms)}ms`,
-    );
-
-    if (result.detected_tools.length > 0) {
-      const toolNames = result.detected_tools.map((t) => t.name).join(", ");
-      console.log(`  Detected: ${toolNames}`);
-    }
-
-    if (result.permission_denials.length > 0) {
-      const denialNames = result.permission_denials
-        .map((d) => d.tool_name)
-        .join(", ");
-      console.log(`  Denials: ${denialNames}`);
-    }
+    formatScenarioResult(result);
   },
 };
 
@@ -405,61 +372,30 @@ export function createSanitizedVerboseProgress(
   const sanitize = createSanitizerFromConfig(outputConfig);
 
   return {
-    onStageStart: (stage, total): void => {
-      console.log(`\n${"=".repeat(60)}`);
-      console.log(`STAGE: ${stage.toUpperCase()} (${String(total)} items)`);
-      console.log("=".repeat(60));
-    },
+    onStageStart: formatStageHeader,
 
-    onStageComplete: (stage, durationMs, count): void => {
-      const durationSec = (durationMs / 1000).toFixed(1);
-      console.log(
-        `\n✅ ${stage} complete: ${String(count)} items in ${durationSec}s`,
-      );
-    },
+    onStageComplete: formatStageComplete,
 
     onError: (error, scenario): void => {
-      const scenarioInfo = scenario ? ` in ${scenario.id}` : "";
-      console.error(`\n❌ Error${scenarioInfo}: ${error.message}`);
+      formatError(error, scenario?.id);
     },
 
     onScenarioStart: (scenario, index, total): void => {
-      console.log(
-        `\n[${String(index + 1)}/${String(total)}] Starting: ${scenario.id}`,
+      formatScenarioStart(
+        {
+          id: scenario.id,
+          component_type: scenario.component_type,
+          expected_trigger: scenario.expected_trigger,
+          prompt: scenario.user_prompt,
+        },
+        index,
+        total,
+        sanitize,
       );
-      console.log(
-        `  Type: ${scenario.component_type} | Expected: ${scenario.expected_trigger ? "trigger" : "no trigger"}`,
-      );
-
-      // Truncate prompt if too long (limit from tuning config)
-      const maxPromptLen = DEFAULT_TUNING.limits.prompt_display_length;
-      const promptDisplay =
-        scenario.user_prompt.length > maxPromptLen
-          ? `${scenario.user_prompt.slice(0, maxPromptLen)}...`
-          : scenario.user_prompt;
-
-      // Sanitize the prompt before logging
-      console.log(`  Prompt: ${sanitize(promptDisplay)}`);
     },
 
     onScenarioComplete: (result, _index, _total): void => {
-      const status = result.errors.length > 0 ? "❌ FAILED" : "✅ PASSED";
-      console.log(
-        `  Result: ${status} | Cost: $${result.cost_usd.toFixed(4)} | Duration: ${String(result.api_duration_ms)}ms`,
-      );
-
-      if (result.detected_tools.length > 0) {
-        const toolNames = result.detected_tools.map((t) => t.name).join(", ");
-        console.log(`  Detected: ${toolNames}`);
-      }
-
-      if (result.permission_denials.length > 0) {
-        // Sanitize denial messages (may contain user input)
-        const sanitizedDenials = result.permission_denials
-          .map((d) => sanitize(d.tool_name))
-          .join(", ");
-        console.log(`  Denials: ${sanitizedDenials}`);
-      }
+      formatScenarioResult(result, sanitize);
     },
   };
 }
