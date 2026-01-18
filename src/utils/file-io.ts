@@ -3,7 +3,7 @@
  */
 
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 import { nanoid } from "nanoid";
@@ -56,21 +56,6 @@ export function writeJson(
  */
 export async function ensureDirAsync(dirPath: string): Promise<void> {
   await mkdir(dirPath, { recursive: true });
-}
-
-/**
- * Read a JSON file asynchronously.
- *
- * Use for large files (state files, transcripts) that may block the event loop.
- * For small config files at startup, prefer the sync version.
- *
- * @param filePath - Path to file
- * @returns Parsed JSON content
- * @throws Error if file doesn't exist or isn't valid JSON
- */
-export async function readJsonAsync(filePath: string): Promise<unknown> {
-  const content = await readFile(filePath, "utf-8");
-  return JSON.parse(content) as unknown;
 }
 
 /**

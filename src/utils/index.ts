@@ -42,7 +42,6 @@ export {
   ensureDir,
   ensureDirAsync,
   readJson,
-  readJsonAsync,
   writeJson,
   writeJsonAsync,
   readYaml,

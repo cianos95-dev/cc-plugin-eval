@@ -49,27 +49,3 @@ export function getUniqueDetections(
     return true;
   });
 }
-
-/**
- * Check if expected MCP server was used.
- *
- * @public Intentionally exported for external consumers testing MCP server detection.
- * @param detections - Programmatic detections
- * @param expectedServerName - Expected MCP server name
- * @returns True if expected MCP server's tools were invoked
- *
- * @example
- * ```typescript
- * const used = wasExpectedMcpServerUsed(detections, "github");
- * ```
- */
-export function wasExpectedMcpServerUsed(
-  detections: ProgrammaticDetection[],
-  expectedServerName: string,
-): boolean {
-  return detections.some(
-    (d) =>
-      d.component_type === "mcp_server" &&
-      d.component_name === expectedServerName,
-  );
-}

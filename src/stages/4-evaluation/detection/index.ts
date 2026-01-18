@@ -32,7 +32,6 @@ export { detectFromSubagentCaptures } from "./agents.js";
 export {
   getUniqueDetections,
   wasExpectedComponentTriggered,
-  wasExpectedMcpServerUsed,
 } from "./helpers.js";
 
 // Type guards and interfaces
