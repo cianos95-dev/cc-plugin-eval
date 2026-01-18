@@ -21,7 +21,11 @@ import { Command } from "commander";
 import YAML from "yaml";
 
 // Import stage runners locally for CLI implementation
-import { loadConfigWithOverrides, type CLIOptions } from "./config/index.js";
+import {
+  loadConfigWithOverrides,
+  extractCLIOptions,
+  type CLIOptions,
+} from "./config/index.js";
 import { runAnalysis } from "./stages/1-analysis/index.js";
 import {
   runGeneration,
@@ -373,65 +377,6 @@ program
   .name("cc-plugin-eval")
   .description("Claude Code plugin component triggering evaluation framework")
   .version(packageJson.version);
-
-/**
- * Extract CLI options from commander options object.
- *
- * @internal CLI helper - not part of public API
- */
-function extractCLIOptions(
-  options: Record<string, unknown>,
-): Partial<CLIOptions> {
-  const cliOptions: Partial<CLIOptions> = {};
-
-  if (typeof options["plugin"] === "string") {
-    cliOptions.plugin = options["plugin"];
-  }
-  if (typeof options["marketplace"] === "string") {
-    cliOptions.marketplace = options["marketplace"];
-  }
-  if (typeof options["dryRun"] === "boolean") {
-    cliOptions.dryRun = options["dryRun"];
-  }
-  if (typeof options["verbose"] === "boolean") {
-    cliOptions.verbose = options["verbose"];
-  }
-  if (typeof options["debug"] === "boolean") {
-    cliOptions.debug = options["debug"];
-  }
-  if (typeof options["fast"] === "boolean") {
-    cliOptions.fast = options["fast"];
-  }
-  if (typeof options["failedRun"] === "string") {
-    cliOptions.failedRun = options["failedRun"];
-  }
-  if (typeof options["withPlugins"] === "string") {
-    cliOptions.withPlugins = options["withPlugins"].split(",");
-  }
-  if (typeof options["output"] === "string") {
-    cliOptions.output = options["output"] as CLIOptions["output"];
-  }
-  if (typeof options["estimate"] === "boolean") {
-    cliOptions.estimate = options["estimate"];
-  }
-  if (typeof options["noBatch"] === "boolean") {
-    cliOptions.noBatch = options["noBatch"];
-  }
-  if (typeof options["rewind"] === "boolean") {
-    cliOptions.rewind = options["rewind"];
-  }
-  if (typeof options["semantic"] === "boolean") {
-    cliOptions.semantic = options["semantic"];
-  }
-  if (typeof options["samples"] === "number") {
-    cliOptions.samples = options["samples"];
-  }
-  if (typeof options["reps"] === "number") {
-    cliOptions.reps = options["reps"];
-  }
-
-  return cliOptions;
-}
 
 /**
  * Valid pipeline stages for resume command.

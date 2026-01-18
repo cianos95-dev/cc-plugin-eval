@@ -11,6 +11,8 @@ export {
   type CLIOptions,
 } from "./loader.js";
 
+export { CLIOptionsSchema, extractCLIOptions } from "./cli-schema.js";
+
 export {
   EvalConfigSchema,
   PluginConfigSchema,

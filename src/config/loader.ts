@@ -10,6 +10,7 @@ import { readJson, readYaml } from "../utils/file-io.js";
 import { createDefaultConfig } from "./defaults.js";
 import { EvalConfigSchema } from "./schema.js";
 
+import type { CLIOptions } from "./cli-schema.js";
 import type { EvalConfig } from "../types/index.js";
 import type { ZodError } from "zod";
 
@@ -133,26 +134,8 @@ export function loadConfigWithOverrides(
   return applyOverrides(config, cliOptions);
 }
 
-/**
- * CLI options that can override config.
- */
-export interface CLIOptions {
-  plugin?: string;
-  marketplace?: string;
-  dryRun?: boolean;
-  verbose?: boolean;
-  debug?: boolean;
-  fast?: boolean;
-  failedRun?: string;
-  withPlugins?: string[];
-  output?: "json" | "yaml" | "junit-xml" | "tap" | undefined;
-  estimate?: boolean;
-  noBatch?: boolean;
-  rewind?: boolean;
-  semantic?: boolean;
-  samples?: number;
-  reps?: number;
-}
+// Re-export CLIOptions from the schema module
+export { type CLIOptions } from "./cli-schema.js";
 
 /**
  * Apply CLI overrides to configuration.
