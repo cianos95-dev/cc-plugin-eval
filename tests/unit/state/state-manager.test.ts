@@ -17,6 +17,11 @@ vi.mock("../../../src/utils/file-io.js", () => ({
   readJson: vi.fn(),
   writeJson: vi.fn(),
   ensureDir: vi.fn(),
+  generateRunId: vi.fn(() => "20240101-120000-mock"),
+  getResultsDir: vi.fn((pluginName: string, runId?: string) => {
+    const base = `${process.cwd()}/results/${pluginName}`;
+    return runId ? `${base}/${runId}` : base;
+  }),
 }));
 
 // Mock the logger
@@ -43,9 +48,7 @@ vi.mock("node:fs", async (importOriginal) => {
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 
 import {
-  generateRunId,
   getStateFilePath,
-  getRunResultsDir,
   createPipelineState,
   saveState,
   loadState,
@@ -65,55 +68,18 @@ import {
   formatState,
   type PipelineState,
 } from "../../../src/state/state-manager.js";
-import { readJson, writeJson, ensureDir } from "../../../src/utils/file-io.js";
-
-describe("generateRunId", () => {
-  it("generates a valid run ID format", () => {
-    const runId = generateRunId();
-    // Format: YYYYMMDD-HHMMSS-XXXX
-    expect(runId).toMatch(/^\d{8}-\d{6}-[a-zA-Z0-9_-]{4}$/);
-  });
-
-  it("generates unique IDs", () => {
-    const ids = new Set<string>();
-    for (let i = 0; i < 100; i++) {
-      ids.add(generateRunId());
-    }
-    // All IDs should be unique
-    expect(ids.size).toBe(100);
-  });
-
-  it("includes current date components", () => {
-    const now = new Date();
-    const runId = generateRunId();
-    const datePart = runId.split("-")[0];
-
-    expect(datePart).toBe(
-      [
-        now.getFullYear(),
-        String(now.getMonth() + 1).padStart(2, "0"),
-        String(now.getDate()).padStart(2, "0"),
-      ].join(""),
-    );
-  });
-});
+import {
+  readJson,
+  writeJson,
+  ensureDir,
+  generateRunId,
+  getResultsDir,
+} from "../../../src/utils/file-io.js";
 
 describe("getStateFilePath", () => {
   it("returns correct path for plugin and run", () => {
     const result = getStateFilePath("my-plugin", "20240101-120000-abcd");
     expect(result).toBe("results/my-plugin/20240101-120000-abcd/state.json");
-  });
-});
-
-describe("getRunResultsDir", () => {
-  it("returns correct path with run ID", () => {
-    const result = getRunResultsDir("my-plugin", "20240101-120000-abcd");
-    expect(result).toBe("results/my-plugin/20240101-120000-abcd");
-  });
-
-  it("returns correct path without run ID", () => {
-    const result = getRunResultsDir("my-plugin");
-    expect(result).toBe("results/my-plugin");
   });
 });
 
@@ -160,7 +126,9 @@ describe("saveState", () => {
 
     const result = saveState(state);
 
-    expect(ensureDir).toHaveBeenCalledWith("results/test-plugin/test-run-123");
+    expect(ensureDir).toHaveBeenCalledWith(
+      `${process.cwd()}/results/test-plugin/test-run-123`,
+    );
     expect(writeJson).toHaveBeenCalled();
     expect(result).toBe("results/test-plugin/test-run-123/state.json");
   });

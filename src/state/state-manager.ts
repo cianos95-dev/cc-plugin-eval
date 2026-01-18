@@ -14,9 +14,13 @@
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
-import { nanoid } from "nanoid";
-
-import { ensureDir, readJson, writeJson } from "../utils/file-io.js";
+import {
+  ensureDir,
+  generateRunId,
+  getResultsDir,
+  readJson,
+  writeJson,
+} from "../utils/file-io.js";
 import { logger } from "../utils/logging.js";
 
 import type {
@@ -108,33 +112,6 @@ export interface ResumeOptions {
 }
 
 /**
- * Generate a unique run ID.
- *
- * Format: YYYYMMDD-HHMMSS-XXXX (timestamp + random suffix)
- *
- * @returns Unique run identifier
- */
-export function generateRunId(): string {
-  const now = new Date();
-
-  const datePart = [
-    now.getFullYear(),
-    String(now.getMonth() + 1).padStart(2, "0"),
-    String(now.getDate()).padStart(2, "0"),
-  ].join("");
-
-  const timePart = [
-    String(now.getHours()).padStart(2, "0"),
-    String(now.getMinutes()).padStart(2, "0"),
-    String(now.getSeconds()).padStart(2, "0"),
-  ].join("");
-
-  const randomPart = nanoid(4);
-
-  return `${datePart}-${timePart}-${randomPart}`;
-}
-
-/**
  * Get the state file path for a run.
  *
  * @param pluginName - Plugin name
@@ -143,20 +120,6 @@ export function generateRunId(): string {
  */
 export function getStateFilePath(pluginName: string, runId: string): string {
   return `results/${pluginName}/${runId}/state.json`;
-}
-
-/**
- * Get the results directory for a run.
- *
- * @param pluginName - Plugin name
- * @param runId - Run identifier (optional)
- * @returns Path to results directory
- */
-export function getRunResultsDir(pluginName: string, runId?: string): string {
-  if (runId) {
-    return `results/${pluginName}/${runId}`;
-  }
-  return `results/${pluginName}`;
 }
 
 /**
@@ -184,7 +147,7 @@ export function createPipelineState(options: CreateRunOptions): PipelineState {
  * @returns Path to saved state file
  */
 export function saveState(state: PipelineState): string {
-  const dir = getRunResultsDir(state.plugin_name, state.run_id);
+  const dir = getResultsDir(state.plugin_name, state.run_id);
   ensureDir(dir);
 
   const filePath = getStateFilePath(state.plugin_name, state.run_id);

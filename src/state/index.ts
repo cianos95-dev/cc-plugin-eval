@@ -10,9 +10,7 @@ export {
   type ResumeOptions,
 
   // Run ID management
-  generateRunId,
   getStateFilePath,
-  getRunResultsDir,
 
   // State lifecycle
   createPipelineState,

@@ -404,29 +404,34 @@ describe("generateRunId", () => {
     expect(id1).not.toBe(id2);
   });
 
-  it("uses default prefix", () => {
+  it("generates a valid run ID format", () => {
     const id = generateRunId();
 
-    expect(id).toMatch(/^run-\d+-[a-z0-9]+$/);
+    // Format: YYYYMMDD-HHMMSS-XXXX (nanoid 4 chars)
+    expect(id).toMatch(/^\d{8}-\d{6}-[a-zA-Z0-9_-]{4}$/);
   });
 
-  it("uses custom prefix", () => {
-    const id = generateRunId("custom");
-
-    expect(id).toMatch(/^custom-\d+-[a-z0-9]+$/);
-  });
-
-  it("includes timestamp component", () => {
-    const before = Date.now();
+  it("includes current date components", () => {
+    const now = new Date();
     const id = generateRunId();
-    const after = Date.now();
+    const datePart = id.split("-")[0];
 
-    // Extract timestamp from ID (format: prefix-timestamp-random)
-    const timestampStr = id.split("-")[1];
-    const timestamp = Number(timestampStr);
+    expect(datePart).toBe(
+      [
+        now.getFullYear(),
+        String(now.getMonth() + 1).padStart(2, "0"),
+        String(now.getDate()).padStart(2, "0"),
+      ].join(""),
+    );
+  });
 
-    expect(timestamp).toBeGreaterThanOrEqual(before);
-    expect(timestamp).toBeLessThanOrEqual(after);
+  it("generates multiple unique IDs", () => {
+    const ids = new Set<string>();
+    for (let i = 0; i < 100; i++) {
+      ids.add(generateRunId());
+    }
+    // All IDs should be unique
+    expect(ids.size).toBe(100);
   });
 });
 

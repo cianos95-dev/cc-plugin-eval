@@ -5,6 +5,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 
+import { nanoid } from "nanoid";
 import { parse as parseYaml, stringify as stringifyYaml } from "yaml";
 
 /**
@@ -199,13 +200,28 @@ export function parseFrontmatter(content: string): {
 /**
  * Generate a unique run ID.
  *
- * @param prefix - Optional prefix
+ * Format: YYYYMMDD-HHMMSS-XXXX (timestamp + random suffix)
+ *
  * @returns Unique run ID
  */
-export function generateRunId(prefix = "run"): string {
-  const timestamp = Date.now();
-  const random = Math.random().toString(36).substring(2, 8);
-  return `${prefix}-${String(timestamp)}-${random}`;
+export function generateRunId(): string {
+  const now = new Date();
+
+  const datePart = [
+    now.getFullYear(),
+    String(now.getMonth() + 1).padStart(2, "0"),
+    String(now.getDate()).padStart(2, "0"),
+  ].join("");
+
+  const timePart = [
+    String(now.getHours()).padStart(2, "0"),
+    String(now.getMinutes()).padStart(2, "0"),
+    String(now.getSeconds()).padStart(2, "0"),
+  ].join("");
+
+  const randomPart = nanoid(4);
+
+  return `${datePart}-${timePart}-${randomPart}`;
 }
 
 /**
