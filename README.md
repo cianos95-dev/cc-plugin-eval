@@ -414,8 +414,15 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for detailed development setup, code styl
 
 ```text
 src/
-├── index.ts              # CLI entry point (requires env.ts first import)
+├── index.ts              # Entry point: public API exports + CLI init
 ├── env.ts                # Environment setup (dotenv loading)
+├── cli/                  # CLI implementation
+│   ├── index.ts          # Program setup and command registration
+│   ├── commands/         # Individual CLI commands (run, analyze, etc.)
+│   ├── formatters.ts     # Output formatters (JUnit, TAP, CLI)
+│   ├── helpers.ts        # State lookup utilities
+│   ├── options.ts        # CLI option parsing
+│   └── styles.ts         # Commander help styling
 ├── config/               # Configuration loading & validation
 │   ├── index.ts          # Config exports
 │   ├── loader.ts         # YAML/JSON config loading with Zod

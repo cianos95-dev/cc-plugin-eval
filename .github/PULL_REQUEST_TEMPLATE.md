@@ -17,8 +17,6 @@
 
 ## Component(s) Affected
 
-<!-- Mark all that apply -->
-
 ### Pipeline Stages
 
 - [ ] Stage 1: Analysis (`src/stages/1-analysis/`)
@@ -28,7 +26,8 @@
 
 ### Core Infrastructure
 
-- [ ] CLI & Pipeline Orchestration (`src/index.ts`)
+- [ ] CLI (`src/cli/`)
+- [ ] Entry Point (`src/index.ts`)
 - [ ] Configuration (`src/config/`)
 - [ ] State Management (`src/state/`)
 - [ ] Types (`src/types/`)

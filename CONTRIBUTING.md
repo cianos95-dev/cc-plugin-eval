@@ -38,8 +38,14 @@ By participating, you agree to uphold this code.
 
 ```text
 src/
-├── index.ts              # CLI entry point (env.ts MUST be first import)
+├── index.ts              # Entry point: public API exports + CLI init
 ├── env.ts                # Environment setup (dotenv loading)
+├── cli/                  # CLI implementation
+│   ├── index.ts          # Program setup and command registration
+│   ├── commands/         # Individual CLI commands (run, analyze, etc.)
+│   ├── formatters.ts     # Output formatters (JUnit, TAP, CLI)
+│   ├── helpers.ts        # State lookup utilities
+│   └── options.ts        # CLI option parsing
 ├── config/               # Configuration loading with Zod validation
 ├── stages/
 │   ├── 1-analysis/       # Plugin parsing, trigger extraction

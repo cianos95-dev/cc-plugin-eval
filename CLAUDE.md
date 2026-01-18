@@ -106,7 +106,7 @@ const { scenarios } = await runGeneration(analysis, config);
 
 ### Internal vs Public
 
-Functions in `src/index.ts` marked with `@internal` JSDoc are CLI-only helpers not intended for external use. These include resume handlers, option extractors, and output formatters.
+Functions in `src/cli/` marked with `@internal` JSDoc are CLI-only helpers not intended for external use. These include resume handlers, option extractors, and output formatters.
 
 ## Architecture
 
@@ -123,7 +123,7 @@ Functions in `src/index.ts` marked with `@internal` JSDoc are CLI-only helpers n
 
 | Component         | File                                               | Main Export                      |
 | ----------------- | -------------------------------------------------- | -------------------------------- |
-| CLI               | `src/index.ts`                                     | Commander `program`              |
+| CLI               | `src/cli/index.ts`                                 | Commander `program`              |
 | Stage 1           | `src/stages/1-analysis/index.ts`                   | `runAnalysis()`                  |
 | Stage 2           | `src/stages/2-generation/index.ts`                 | `runGeneration()`                |
 | Stage 3           | `src/stages/3-execution/index.ts`                  | `runExecution()`                 |
@@ -256,8 +256,22 @@ search_for_pattern("pattern", paths_include_glob="*.json")
 
 ```text
 src/
-├── index.ts              # CLI entry point (env.ts MUST be first import)
+├── index.ts              # Entry point: public API exports + CLI init
 ├── env.ts                # Environment setup (dotenv loading)
+├── cli/                  # CLI implementation
+│   ├── index.ts          # Program setup and command registration
+│   ├── commands/         # Individual CLI commands
+│   │   ├── run.ts        # Full pipeline command
+│   │   ├── analyze.ts    # Stage 1 only
+│   │   ├── generate.ts   # Stages 1-2
+│   │   ├── execute.ts    # Stages 1-3
+│   │   ├── resume.ts     # Resume with handlers
+│   │   ├── report.ts     # Report generation
+│   │   └── list.ts       # List runs
+│   ├── formatters.ts     # Output formatters (JUnit, TAP, CLI)
+│   ├── helpers.ts        # State lookup utilities
+│   ├── options.ts        # CLI option parsing
+│   └── styles.ts         # Commander help styling
 ├── config/               # Configuration loading with Zod validation
 │   ├── defaults.ts       # Default configuration values
 │   ├── loader.ts         # YAML/JSON config loading
@@ -299,7 +313,7 @@ When adding new component types, update `migrateState()` in `src/state/state-man
 
 ### Resume Handlers
 
-The CLI uses a handler map in `src/index.ts` for stage-based resume. State files are stored at `results/<plugin-name>/<run-id>/state.json`.
+The CLI uses a handler map in `src/cli/commands/resume.ts` for stage-based resume. State files are stored at `results/<plugin-name>/<run-id>/state.json`.
 
 ## Component-Specific Notes
 
