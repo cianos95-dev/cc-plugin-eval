@@ -32,12 +32,20 @@ const DANGEROUS_UNIX_PATHS = ["/etc/", "/sys/", "/proc/", "/root/"];
 /**
  * Validate path boundaries for security (defense-in-depth).
  *
+ * SECURITY NOTE: This function implements path traversal protection as a
+ * defense-in-depth measure. The trailing separator technique (normalizing
+ * paths with `path.sep`) prevents bypass attacks like "/etcetera" matching
+ * "/etc/". While the SDK may have its own path validation, this preflight
+ * check catches malicious paths early with actionable error messages.
+ *
  * Checks for:
  * 1. Dangerous system directories (Unix only) - returns error
  * 2. Paths outside current working directory - returns warning
  *
  * @param absolutePath - Already-resolved absolute path (via path.resolve())
  * @returns Object with optional error and optional warning
+ *
+ * @see https://owasp.org/www-community/attacks/Path_Traversal
  */
 function validatePathBoundaries(absolutePath: string): {
   error: PreflightError | null;

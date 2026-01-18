@@ -361,6 +361,13 @@ async function executeScenarioWithRetry(
     onToolCapture: (capture) => detectedTools.push(capture),
     subagentCaptureMap,
     onSubagentCapture: (capture) => subagentCaptures.push(capture),
+    /**
+     * SECURITY NOTE: The template literal below uses `pluginName` which comes
+     * from local plugin configuration (plugin.json), not user input. This is
+     * safe for format string usage as it's controlled by the plugin author,
+     * not runtime input. Semgrep may flag this as "unsafe-formatstring" but
+     * it's a false positive.
+     */
     onStderr: (data) => {
       const elapsed = Date.now() - startTime;
       console.error(

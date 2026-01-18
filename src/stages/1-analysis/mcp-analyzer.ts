@@ -15,17 +15,16 @@ import type {
 } from "../../types/index.js";
 
 /**
- * Infer the server type from configuration.
+ * Infer the MCP server type from configuration.
  *
- * @param config - MCP server configuration
- * @returns Inferred server type
+ * SECURITY NOTE: The WebSocket URL prefix check (`ws://` or `wss://`) only
+ * performs string matching to determine the server type. No network connections
+ * are made in this function. The actual WebSocket/HTTP connection (if any)
+ * happens in the SDK with proper security controls. Semgrep may flag this as
+ * "detect-insecure-websocket" but it's a false positive.
  *
- * @example
- * ```typescript
- * inferServerType({ command: "npx" });           // "stdio"
- * inferServerType({ type: "sse", url: "..." });  // "sse"
- * inferServerType({ url: "http://localhost" });  // "http"
- * ```
+ * @param config - The MCP server configuration
+ * @returns The inferred server type
  */
 export function inferServerType(config: McpServerConfig): McpServerType {
   // Explicit type takes precedence
