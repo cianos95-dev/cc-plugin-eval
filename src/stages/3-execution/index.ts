@@ -73,15 +73,6 @@ export interface ExecutionOutput {
 }
 
 /**
- * Execution progress callback.
- */
-export type ExecutionProgressCallback = (
-  completed: number,
-  total: number,
-  current?: string,
-) => void;
-
-/**
  * Run Stage 3: Execution.
  *
  * Executes all test scenarios against the plugin using the
@@ -631,88 +622,6 @@ async function saveTranscripts(
   logger.info(
     `Saved ${String(results.length)} transcripts${sanitizeNote} to ${transcriptsDir}`,
   );
-}
-
-/**
- * Run a single scenario for quick testing.
- *
- * @param scenario - Scenario to run
- * @param pluginPath - Plugin path
- * @param config - Execution configuration
- * @param queryFn - Optional query function
- * @returns Execution result
- */
-export async function runSingleScenario(
-  scenario: TestScenario,
-  pluginPath: string,
-  config: EvalConfig,
-  queryFn?: QueryFunction,
-): Promise<ExecutionResult> {
-  const pluginName = config.plugin.name ?? "unknown";
-
-  return executeScenario({
-    scenario,
-    pluginPath,
-    pluginName,
-    config: config.execution,
-    queryFn,
-  });
-}
-
-/**
- * Resume execution from partial results.
- *
- * @param previousResults - Results from interrupted run
- * @param allScenarios - All scenarios to execute
- * @param analysis - Plugin analysis
- * @param config - Configuration
- * @param progress - Progress callbacks
- * @param queryFn - Query function
- * @returns Combined results
- */
-export async function resumeExecution(
-  previousResults: ExecutionResult[],
-  allScenarios: TestScenario[],
-  analysis: AnalysisOutput,
-  config: EvalConfig,
-  progress?: ProgressCallbacks,
-  queryFn?: QueryFunction,
-): Promise<ExecutionOutput> {
-  // Find scenarios that weren't executed
-  const completedIds = new Set(previousResults.map((r) => r.scenario_id));
-  const remainingScenarios = allScenarios.filter(
-    (s) => !completedIds.has(s.id),
-  );
-
-  logger.info(
-    `Resuming execution: ${String(completedIds.size)} completed, ${String(remainingScenarios.length)} remaining`,
-  );
-
-  // Run remaining scenarios
-  const newOutput = await runExecution(
-    analysis,
-    remainingScenarios,
-    config,
-    progress,
-    queryFn,
-  );
-
-  // Combine results
-  const combinedResults = [...previousResults, ...newOutput.results];
-
-  return {
-    ...newOutput,
-    results: combinedResults,
-    success_count:
-      previousResults.filter((r) => r.errors.length === 0).length +
-      newOutput.success_count,
-    error_count:
-      previousResults.filter((r) => r.errors.length > 0).length +
-      newOutput.error_count,
-    total_tools_captured:
-      previousResults.reduce((sum, r) => sum + r.detected_tools.length, 0) +
-      newOutput.total_tools_captured,
-  };
 }
 
 // Re-export key types and functions from submodules
