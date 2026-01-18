@@ -198,6 +198,7 @@ export function calculateConflictSeverity(
 /**
  * Check if any major conflicts exist in analysis results.
  *
+ * @public Intentionally exported as a convenience utility for conflict severity checks.
  * @param analyses - Array of conflict analyses
  * @returns True if any major conflict exists
  */
@@ -258,49 +259,4 @@ export function getConflictSummary(analyses: ConflictAnalysis[]): string {
   }
 
   return `${String(counts.total)} conflict${counts.total > 1 ? "s" : ""}: ${parts.join(", ")}`;
-}
-
-/**
- * Analyze conflicts across a cross-plugin test.
- *
- * Used when testing component triggering with additional_plugins loaded.
- *
- * @param expected - Expected component name
- * @param expectedType - Expected component type
- * @param expectedPlugin - Expected plugin name
- * @param triggered - All detected components
- * @returns Extended conflict analysis with plugin info
- */
-export function analyzeCrossPluginConflict(
-  expected: string,
-  expectedType: ComponentType,
-  expectedPlugin: string,
-  triggered: ProgrammaticDetection[],
-): ConflictAnalysis & { cross_plugin_conflict: boolean } {
-  const baseAnalysis = calculateConflictSeverity(
-    expected,
-    expectedType,
-    triggered,
-  );
-
-  // For cross-plugin analysis, check if conflict involves different plugins
-  // Note: Plugin info would need to be added to ProgrammaticDetection for full support
-  // This is a placeholder for future extension
-  const crossPluginConflict =
-    baseAnalysis.has_conflict && baseAnalysis.conflict_severity === "major";
-
-  const newReason = crossPluginConflict
-    ? `${baseAnalysis.conflict_reason ?? ""} (cross-plugin: expected from ${expectedPlugin})`
-    : baseAnalysis.conflict_reason;
-
-  const result: ConflictAnalysis & { cross_plugin_conflict: boolean } = {
-    ...baseAnalysis,
-    cross_plugin_conflict: crossPluginConflict,
-  };
-
-  if (newReason !== undefined) {
-    result.conflict_reason = newReason;
-  }
-
-  return result;
 }

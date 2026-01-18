@@ -879,7 +879,6 @@ export {
   createEvaluationBatch,
   pollBatchCompletion,
   collectBatchResults,
-  cancelBatch,
   parseCustomId,
   type BatchEvaluationRequest,
   type BatchingOptions,

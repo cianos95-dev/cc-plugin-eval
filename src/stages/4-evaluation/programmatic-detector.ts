@@ -583,6 +583,7 @@ export function wasExpectedHookTriggered(
 /**
  * Check if expected MCP server was used.
  *
+ * @public Intentionally exported for external consumers testing MCP server detection.
  * @param detections - Programmatic detections
  * @param expectedServerName - Expected MCP server name
  * @returns True if expected MCP server's tools were invoked

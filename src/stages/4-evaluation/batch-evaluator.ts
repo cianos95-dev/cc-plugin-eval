@@ -525,20 +525,3 @@ export async function collectBatchResults(
 
   return results;
 }
-
-/**
- * Cancel a batch that is in progress.
- *
- * Use this for graceful shutdown when a pipeline is interrupted.
- * Note: Some requests may still complete after cancellation is initiated.
- *
- * @param client - Anthropic client
- * @param batchId - Batch ID to cancel
- * @returns Updated batch status
- */
-export async function cancelBatch(
-  client: Anthropic,
-  batchId: string,
-): Promise<Anthropic.Messages.Batches.MessageBatch> {
-  return client.messages.batches.cancel(batchId);
-}
