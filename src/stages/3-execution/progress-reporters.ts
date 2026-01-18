@@ -335,28 +335,41 @@ function createSanitizerFromConfig(
   const sanitizationConfig = outputConfig.sanitization;
   const skipSafetyCheck =
     sanitizationConfig?.pattern_safety_acknowledged ?? false;
+  // Extract config values (these have defaults in the Zod schema)
+  const fuzzTimeoutMs = sanitizationConfig?.pattern_fuzz_timeout_ms;
+  const maxInputLength = sanitizationConfig?.max_input_length;
+
   const customPatterns = sanitizationConfig?.custom_patterns?.map(
     (p, index) => ({
       name: `custom_${String(index)}`,
       pattern: validateRegexPattern(
         p.pattern,
         `custom_patterns[${String(index)}]`,
-        { skipSafetyCheck },
+        // Only include fuzzTimeoutMs if defined (exactOptionalPropertyTypes)
+        fuzzTimeoutMs !== undefined
+          ? { skipSafetyCheck, fuzzTimeoutMs }
+          : { skipSafetyCheck },
       ),
       replacement: p.replacement,
     }),
   );
 
+  // Build sanitizer options, only including maxInputLength if defined
+  const sanitizerOptions =
+    maxInputLength !== undefined
+      ? { enabled: true as const, maxInputLength }
+      : { enabled: true as const };
+
   // Only pass patterns if they exist to satisfy exactOptionalPropertyTypes
   if (customPatterns && customPatterns.length > 0) {
     return createSanitizer({
-      enabled: true,
+      ...sanitizerOptions,
       patterns: customPatterns,
       mergeWithDefaults: true,
     });
   }
 
-  return createSanitizer({ enabled: true });
+  return createSanitizer(sanitizerOptions);
 }
 
 /**

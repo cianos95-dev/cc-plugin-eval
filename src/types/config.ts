@@ -167,6 +167,19 @@ export interface SanitizationConfig {
    * Set to true to bypass ReDoS validation for patterns you trust.
    */
   pattern_safety_acknowledged?: boolean;
+  /**
+   * Maximum input length for sanitization (characters).
+   * Content exceeding this limit will be replaced with [REDACTED_OVERSIZED_CONTENT].
+   * Provides defense-in-depth against ReDoS by bounding worst-case execution time.
+   * @default 100000 (100KB)
+   */
+  max_input_length?: number;
+  /**
+   * Timeout in milliseconds for fuzz testing regex patterns during validation.
+   * Patterns that take longer than this on adversarial inputs will be rejected.
+   * @default 50
+   */
+  pattern_fuzz_timeout_ms?: number;
 }
 
 /**

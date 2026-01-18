@@ -546,29 +546,43 @@ function saveTranscripts(
   let sanitizer: ReturnType<typeof createSanitizer> | undefined;
 
   if (shouldSanitize) {
+    const sanitizationConfig = config.output.sanitization;
     const skipSafetyCheck =
-      config.output.sanitization?.pattern_safety_acknowledged ?? false;
-    const customPatterns = config.output.sanitization?.custom_patterns?.map(
+      sanitizationConfig?.pattern_safety_acknowledged ?? false;
+    // Extract config values (these have defaults in the Zod schema)
+    const fuzzTimeoutMs = sanitizationConfig?.pattern_fuzz_timeout_ms;
+    const maxInputLength = sanitizationConfig?.max_input_length;
+
+    const customPatterns = sanitizationConfig?.custom_patterns?.map(
       (p, index) => ({
         name: `custom_${String(index)}`,
         pattern: validateRegexPattern(
           p.pattern,
           `custom_patterns[${String(index)}]`,
-          { skipSafetyCheck },
+          // Only include fuzzTimeoutMs if defined (exactOptionalPropertyTypes)
+          fuzzTimeoutMs !== undefined
+            ? { skipSafetyCheck, fuzzTimeoutMs }
+            : { skipSafetyCheck },
         ),
         replacement: p.replacement,
       }),
     );
 
+    // Build sanitizer options, only including maxInputLength if defined
+    const sanitizerOptions =
+      maxInputLength !== undefined
+        ? { enabled: true as const, maxInputLength }
+        : { enabled: true as const };
+
     // Only pass patterns if they exist to satisfy exactOptionalPropertyTypes
     sanitizer =
       customPatterns && customPatterns.length > 0
         ? createSanitizer({
-            enabled: true,
+            ...sanitizerOptions,
             patterns: customPatterns,
             mergeWithDefaults: true,
           })
-        : createSanitizer({ enabled: true });
+        : createSanitizer(sanitizerOptions);
   }
 
   for (const result of results) {

@@ -42,12 +42,34 @@ export interface CustomPatternConfig {
  * Result of analyzing a regex pattern for ReDoS vulnerability.
  */
 export interface PatternSafetyAnalysis {
-  /** Risk score (0 = safe, higher = riskier). Score >= 10 is considered unsafe. */
+  /** Risk score (0 = safe, higher = riskier). Score >= REDOS_SAFETY_THRESHOLD is considered unsafe. */
   score: number;
   /** Human-readable warnings explaining risk factors */
   warnings: string[];
-  /** Whether the pattern is considered safe (score < 10) */
+  /** Whether the pattern is considered safe (score < REDOS_SAFETY_THRESHOLD) */
   isSafe: boolean;
+}
+
+/**
+ * Result of fuzz testing a regex pattern against adversarial inputs.
+ */
+export interface FuzzTestResult {
+  /** Whether the pattern passed all fuzz tests within the timeout */
+  passed: boolean;
+  /** Maximum execution time observed across all tests (in ms) */
+  maxExecutionMs: number;
+  /** Number of tests run */
+  testsRun: number;
+  /** The input that caused failure (if any) */
+  failedInput?: string;
+}
+
+/**
+ * Options for fuzz testing regex patterns.
+ */
+export interface FuzzTestOptions {
+  /** Maximum time allowed per test in milliseconds (default: 50) */
+  timeoutMs?: number;
 }
 
 /**
@@ -56,6 +78,8 @@ export interface PatternSafetyAnalysis {
 export interface ValidateRegexPatternOptions {
   /** Skip ReDoS safety analysis (default: false) */
   skipSafetyCheck?: boolean;
+  /** Timeout for fuzz testing in milliseconds (default: 50) */
+  fuzzTimeoutMs?: number;
 }
 
 /**
@@ -78,6 +102,13 @@ export interface CreateSanitizerOptions {
   patterns?: RedactionPattern[];
   /** Merge custom patterns with defaults (default: false) */
   mergeWithDefaults?: boolean;
+  /**
+   * Maximum input length to process (characters).
+   * Content exceeding this limit will be replaced with [REDACTED_OVERSIZED_CONTENT].
+   * Provides defense-in-depth against ReDoS by bounding worst-case execution time.
+   * @default 100000 (100KB)
+   */
+  maxInputLength?: number;
 }
 
 /**
@@ -148,8 +179,11 @@ export const DEFAULT_REDACTION_PATTERNS: RedactionPattern[] = [
   },
 ];
 
-/** Threshold for considering a pattern unsafe. */
-const REDOS_SAFETY_THRESHOLD = 10;
+/**
+ * Threshold for considering a pattern unsafe.
+ * Lowered from 10 to 7 for stricter protection as part of defense-in-depth.
+ */
+export const REDOS_SAFETY_THRESHOLD = 7;
 
 /**
  * Maximum pattern length to analyze for ReDoS.
@@ -157,6 +191,12 @@ const REDOS_SAFETY_THRESHOLD = 10;
  * Patterns exceeding this are automatically flagged as potentially unsafe.
  */
 const MAX_PATTERN_LENGTH = 500;
+
+/**
+ * Default maximum input length for sanitization (100KB).
+ * Content exceeding this will be replaced with [REDACTED_OVERSIZED_CONTENT].
+ */
+const DEFAULT_MAX_INPUT_LENGTH = 100_000;
 
 /**
  * Analyze a regex pattern for potential ReDoS vulnerability.
@@ -169,7 +209,7 @@ const MAX_PATTERN_LENGTH = 500;
  * - Deep nesting: > 3 levels of parentheses - 1 point per extra level
  * - Unbounded repetition in groups: `(a*)+` - 5 points each
  *
- * Patterns with a score >= 10 are considered potentially unsafe.
+ * Patterns with a score >= REDOS_SAFETY_THRESHOLD (currently 7) are considered potentially unsafe.
  *
  * @param pattern - The regex pattern string to analyze
  * @returns Analysis result with score, warnings, and safety determination
@@ -270,6 +310,99 @@ export function analyzePatternSafety(pattern: string): PatternSafetyAnalysis {
 }
 
 /**
+ * Adversarial test inputs designed to trigger catastrophic backtracking.
+ * These inputs are short enough to be safe for testing but long enough
+ * to expose exponential behavior in pathological patterns.
+ */
+const ADVERSARIAL_INPUTS = [
+  // Tests nested quantifiers like (a+)+
+  "aaaaaaaaaaaaaaaaaaaaX",
+  // Tests overlapping alternations like (a|ab)*
+  "ababababababababababX",
+  // Tests mixed patterns
+  "aaaaabbbbbaaaaaX",
+  // Tests with different character classes
+  "xxxxxxxxxxxxxxxxxxxx!",
+  // Tests word boundaries
+  "wordwordwordwordwordX",
+];
+
+/**
+ * Fuzz test a regex pattern against adversarial inputs.
+ *
+ * Tests the pattern against inputs designed to trigger catastrophic backtracking.
+ * Uses synchronous timing to detect patterns that take too long to execute.
+ *
+ * This provides runtime protection complementing static analysis:
+ * - Static analysis may miss some pathological patterns
+ * - Fuzz testing catches them at config load time (not during hot path)
+ *
+ * @param pattern - The compiled regex pattern to test
+ * @param options - Options including timeout threshold
+ * @returns Result indicating whether the pattern passed and timing metrics
+ *
+ * @example
+ * ```typescript
+ * // Safe pattern passes
+ * const result1 = fuzzTestPattern(/\d{3}-\d{4}/g, { timeoutMs: 50 });
+ * console.log(result1.passed); // true
+ *
+ * // Pathological pattern fails
+ * const result2 = fuzzTestPattern(/(a+)+$/g, { timeoutMs: 50 });
+ * console.log(result2.passed); // false
+ * ```
+ */
+export function fuzzTestPattern(
+  pattern: RegExp,
+  options: FuzzTestOptions = {},
+): FuzzTestResult {
+  const { timeoutMs = 50 } = options;
+
+  let maxExecutionMs = 0;
+  let testsRun = 0;
+  let failedInputValue: string | undefined;
+
+  for (const input of ADVERSARIAL_INPUTS) {
+    testsRun++;
+
+    // Reset lastIndex for global patterns
+    pattern.lastIndex = 0;
+
+    const start = performance.now();
+    try {
+      pattern.test(input);
+    } catch {
+      // Pattern threw an error - treat as failure
+      return {
+        passed: false,
+        maxExecutionMs,
+        testsRun,
+        failedInput: input,
+      };
+    }
+    const elapsed = performance.now() - start;
+
+    maxExecutionMs = Math.max(maxExecutionMs, elapsed);
+
+    if (elapsed > timeoutMs) {
+      failedInputValue = input;
+      return {
+        passed: false,
+        maxExecutionMs,
+        testsRun,
+        failedInput: failedInputValue,
+      };
+    }
+  }
+
+  return {
+    passed: true,
+    maxExecutionMs,
+    testsRun,
+  };
+}
+
+/**
  * Validate and compile a regex pattern string.
  *
  * Validates that the pattern is syntactically correct and compiles it
@@ -321,6 +454,28 @@ export function validateRegexPattern(
       throw new ConfigLoadError(
         `Pattern "${name}" may be vulnerable to ReDoS (risk score: ${String(safety.score)}/${String(REDOS_SAFETY_THRESHOLD)}):\n` +
           `${warningList}\n\n` +
+          `💡 Tip: Consider using possessive quantifiers (a++, a*+) or atomic groups (?> ...)\n` +
+          `   to prevent backtracking. Node.js 20+ supports these features.\n\n` +
+          `To bypass this check, add the following to your config.yaml:\n\n` +
+          `  output:\n` +
+          `    sanitization:\n` +
+          `      pattern_safety_acknowledged: true\n\n` +
+          `Learn more: https://owasp.org/www-community/attacks/Regular_expression_Denial_of_Service_-_ReDoS`,
+      );
+    }
+
+    // Fuzz test the pattern against adversarial inputs
+    const fuzzResult = fuzzTestPattern(regex, {
+      timeoutMs: options?.fuzzTimeoutMs ?? 50,
+    });
+
+    if (!fuzzResult.passed) {
+      throw new ConfigLoadError(
+        `Pattern "${name}" failed fuzz testing - took ${fuzzResult.maxExecutionMs.toFixed(1)}ms on adversarial input.\n` +
+          `This pattern may cause performance issues at runtime.\n\n` +
+          `💡 Tip: Consider using possessive quantifiers (a++, a*+) or atomic groups (?> ...)\n` +
+          `   to prevent backtracking. Node.js 20+ supports these features.\n\n` +
+          `Failed input: "${fuzzResult.failedInput ?? "unknown"}"\n\n` +
           `To bypass this check, add the following to your config.yaml:\n\n` +
           `  output:\n` +
           `    sanitization:\n` +
@@ -356,7 +511,12 @@ export function validateRegexPattern(
 export function createSanitizer(
   options: CreateSanitizerOptions = {},
 ): SanitizerFunction {
-  const { enabled = true, patterns, mergeWithDefaults = false } = options;
+  const {
+    enabled = true,
+    patterns,
+    mergeWithDefaults = false,
+    maxInputLength = DEFAULT_MAX_INPUT_LENGTH,
+  } = options;
 
   // If disabled, return identity function
   if (!enabled) {
@@ -379,8 +539,13 @@ export function createSanitizer(
     activePatterns = DEFAULT_REDACTION_PATTERNS;
   }
 
-  // Return sanitizer function
+  // Return sanitizer function with input length protection
   return (content: string): string => {
+    // Defense-in-depth: reject oversized content to bound worst-case execution time
+    if (content.length > maxInputLength) {
+      return "[REDACTED_OVERSIZED_CONTENT]";
+    }
+
     let sanitized = content;
 
     for (const { pattern, replacement } of activePatterns) {
