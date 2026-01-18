@@ -100,3 +100,43 @@ export function parseJudgeResponse(text: string): JudgeResponse {
 
   return response;
 }
+
+/**
+ * Result type for judge voting operations.
+ */
+export type VoteResult = "correct" | "incorrect" | "partial";
+
+/**
+ * Get majority vote for trigger accuracy.
+ *
+ * Counts votes and returns the result with the highest count.
+ * Returns "incorrect" for empty vote arrays as a safe default.
+ *
+ * @param votes - Array of vote results to aggregate
+ * @returns The vote result with the highest count
+ */
+export function getMajorityVote(votes: VoteResult[]): VoteResult {
+  if (votes.length === 0) {
+    return "incorrect";
+  }
+
+  const counts: Record<VoteResult, number> = {
+    correct: 0,
+    incorrect: 0,
+    partial: 0,
+  };
+  for (const v of votes) {
+    counts[v]++;
+  }
+
+  let maxKey: VoteResult = "incorrect";
+  let maxCount = 0;
+  for (const [key, count] of Object.entries(counts) as [VoteResult, number][]) {
+    if (count > maxCount) {
+      maxCount = count;
+      maxKey = key;
+    }
+  }
+
+  return maxKey;
+}

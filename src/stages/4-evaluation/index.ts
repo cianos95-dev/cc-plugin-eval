@@ -30,6 +30,7 @@ import {
   type BatchEvaluationRequest,
 } from "./batch-evaluator.js";
 import { calculateConflictSeverity } from "./conflict-tracker.js";
+import { getMajorityVote } from "./judge-utils.js";
 import { createErrorJudgeResponse } from "./llm-judge.js";
 import {
   calculateEvalMetrics,
@@ -764,33 +765,6 @@ export async function runEvaluation(
 }
 
 /**
- * Get majority vote for trigger accuracy.
- */
-function getMajorityVote(
-  votes: ("correct" | "incorrect" | "partial")[],
-): "correct" | "incorrect" | "partial" {
-  if (votes.length === 0) {
-    return "incorrect";
-  }
-  const counts = { correct: 0, incorrect: 0, partial: 0 };
-  for (const v of votes) {
-    counts[v]++;
-  }
-  let maxKey: keyof typeof counts = "incorrect";
-  let maxCount = 0;
-  for (const [key, count] of Object.entries(counts) as [
-    keyof typeof counts,
-    number,
-  ][]) {
-    if (count > maxCount) {
-      maxCount = count;
-      maxKey = key;
-    }
-  }
-  return maxKey;
-}
-
-/**
  * Save evaluation results to disk.
  *
  * @param pluginName - Plugin name
@@ -859,9 +833,10 @@ export {
   runJudgment,
   aggregateScores,
   calculateVariance,
-  getMajorityVote,
   isUnanimousVote,
 } from "./multi-sampler.js";
+
+export { getMajorityVote, type VoteResult } from "./judge-utils.js";
 
 export {
   calculateEvalMetrics,

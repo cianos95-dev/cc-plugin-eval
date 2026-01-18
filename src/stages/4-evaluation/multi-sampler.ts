@@ -12,6 +12,7 @@
 
 import { parallel } from "../../utils/concurrency.js";
 
+import { getMajorityVote } from "./judge-utils.js";
 import { evaluateWithFallback } from "./llm-judge.js";
 
 import type {
@@ -111,38 +112,8 @@ export function calculateStdDev(scores: number[]): number {
   return Math.sqrt(calculateVariance(scores));
 }
 
-/**
- * Get majority vote for trigger accuracy.
- *
- * @param votes - Array of trigger accuracy values
- * @returns Most common value
- */
-export function getMajorityVote(
-  votes: ("correct" | "incorrect" | "partial")[],
-): "correct" | "incorrect" | "partial" {
-  if (votes.length === 0) {
-    return "incorrect";
-  }
-
-  const counts = { correct: 0, incorrect: 0, partial: 0 };
-  for (const v of votes) {
-    counts[v]++;
-  }
-
-  // Find the highest count
-  let maxKey: "correct" | "incorrect" | "partial" = "incorrect";
-  let maxCount = 0;
-  (Object.entries(counts) as [keyof typeof counts, number][]).forEach(
-    ([key, count]) => {
-      if (count > maxCount) {
-        maxCount = count;
-        maxKey = key;
-      }
-    },
-  );
-
-  return maxKey;
-}
+// Re-export getMajorityVote from judge-utils for backward compatibility
+export { getMajorityVote } from "./judge-utils.js";
 
 /**
  * Check if all votes are unanimous (all samples agree on trigger_accuracy).
