@@ -125,17 +125,18 @@ export type {
   EvalConfig,
 } from "./config.js";
 
-// State types
+// State types from state.ts
 export type {
-  PipelineStage,
   SkillTriggerInfo,
   AgentTriggerInfo,
   CommandTriggerInfo,
   HookTriggerInfo,
   McpTriggerInfo,
   AnalysisOutput,
-  PipelineState,
 } from "./state.js";
+
+// State types from state module (canonical source)
+export type { PipelineStage, PipelineState } from "../state/index.js";
 
 // Progress types
 export type { ProgressCallbacks } from "./progress.js";

@@ -14,17 +14,6 @@ import type {
 } from "./components.js";
 import type { McpComponent, McpServerType } from "./mcp.js";
 import type { PluginLoadResult } from "./plugin.js";
-import type { TestScenario } from "./scenario.js";
-import type { ExecutionResult } from "./transcript.js";
-
-/**
- * Pipeline stage names.
- */
-export type PipelineStage =
-  | "analysis"
-  | "generation"
-  | "execution"
-  | "evaluation";
 
 /**
  * Trigger understanding for skills.
@@ -90,16 +79,4 @@ export interface AnalysisOutput {
     hooks: Record<string, HookTriggerInfo>;
     mcp_servers: Record<string, McpTriggerInfo>;
   };
-}
-
-/**
- * Pipeline state for resume capability.
- */
-export interface PipelineState {
-  run_id: string;
-  stage: PipelineStage;
-  analysis?: AnalysisOutput;
-  scenarios?: TestScenario[];
-  executions?: ExecutionResult[];
-  timestamp: string;
 }
