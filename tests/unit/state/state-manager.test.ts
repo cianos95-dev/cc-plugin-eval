@@ -68,7 +68,7 @@ import {
   getIncompleteScenarios,
   formatState,
   type PipelineState,
-} from "../../../src/state/state-manager.js";
+} from "../../../src/state/index.js";
 import {
   readJson,
   writeJson,
