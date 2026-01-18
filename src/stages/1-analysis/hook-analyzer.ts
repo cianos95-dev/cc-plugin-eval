@@ -3,8 +3,9 @@
  * Parses hooks.json files and extracts hook components for evaluation.
  */
 
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync } from "node:fs";
 
+import { readJson } from "../../utils/file-io.js";
 import { logger } from "../../utils/logging.js";
 
 import type {
@@ -199,8 +200,7 @@ export function analyzeHook(hooksPath: string): HookComponent[] {
 
   let manifest: HooksManifest;
   try {
-    const content = readFileSync(hooksPath, "utf-8");
-    manifest = JSON.parse(content) as HooksManifest;
+    manifest = readJson(hooksPath) as HooksManifest;
   } catch (error) {
     logger.error(`Failed to parse hooks.json: ${hooksPath}`, { error });
     return [];

@@ -1182,12 +1182,10 @@ describe("listRuns", () => {
       { name: "some-file.txt", isDirectory: () => false },
       { name: "another-file.json", isDirectory: () => false },
     ] as unknown as ReturnType<typeof readdirSync>);
-    vi.mocked(readFileSync).mockReturnValue(
-      JSON.stringify({
-        stage: "complete",
-        timestamp: "2024-01-01T12:00:00.000Z",
-      }),
-    );
+    vi.mocked(readJson).mockReturnValue({
+      stage: "complete",
+      timestamp: "2024-01-01T12:00:00.000Z",
+    });
 
     const result = listRuns("test-plugin");
 
@@ -1208,12 +1206,10 @@ describe("listRuns", () => {
       { name: "invalid-format", isDirectory: () => true },
       { name: "backup", isDirectory: () => true },
     ] as unknown as ReturnType<typeof readdirSync>);
-    vi.mocked(readFileSync).mockReturnValue(
-      JSON.stringify({
-        stage: "analysis",
-        timestamp: "2024-01-01T12:00:00.000Z",
-      }),
-    );
+    vi.mocked(readJson).mockReturnValue({
+      stage: "analysis",
+      timestamp: "2024-01-01T12:00:00.000Z",
+    });
 
     const result = listRuns("test-plugin");
 
@@ -1235,12 +1231,10 @@ describe("listRuns", () => {
       { name: "20240101-120000-abcd", isDirectory: () => true },
       { name: "20240102-120000-efgh", isDirectory: () => true },
     ] as unknown as ReturnType<typeof readdirSync>);
-    vi.mocked(readFileSync).mockReturnValue(
-      JSON.stringify({
-        stage: "complete",
-        timestamp: "2024-01-01T12:00:00.000Z",
-      }),
-    );
+    vi.mocked(readJson).mockReturnValue({
+      stage: "complete",
+      timestamp: "2024-01-01T12:00:00.000Z",
+    });
 
     const result = listRuns("test-plugin");
 
@@ -1258,15 +1252,15 @@ describe("listRuns", () => {
       { name: "20240101-120000-abcd", isDirectory: () => true },
       { name: "20240102-120000-efgh", isDirectory: () => true },
     ] as unknown as ReturnType<typeof readdirSync>);
-    vi.mocked(readFileSync).mockImplementation((path) => {
+    vi.mocked(readJson).mockImplementation((path) => {
       if (String(path).includes("20240101")) {
-        return JSON.stringify({
+        return {
           stage: "complete",
           timestamp: "2024-01-01T12:00:00.000Z",
-        });
+        };
       }
-      // Second run has corrupted JSON
-      return "{ invalid json }}}";
+      // Second run throws error (simulating corrupted JSON)
+      throw new Error("Invalid JSON");
     });
 
     const result = listRuns("test-plugin");
@@ -1284,12 +1278,10 @@ describe("listRuns", () => {
       { name: "20240101-120000-abcd", isDirectory: () => true },
     ] as unknown as ReturnType<typeof readdirSync>);
     // State file missing stage and timestamp fields
-    vi.mocked(readFileSync).mockReturnValue(
-      JSON.stringify({
-        run_id: "20240101-120000-abcd",
-        plugin_name: "test-plugin",
-      }),
-    );
+    vi.mocked(readJson).mockReturnValue({
+      run_id: "20240101-120000-abcd",
+      plugin_name: "test-plugin",
+    });
 
     const result = listRuns("test-plugin");
 
@@ -1310,13 +1302,13 @@ describe("listRuns", () => {
       { name: "20240103-120000-ijkl", isDirectory: () => true },
       { name: "20240102-120000-efgh", isDirectory: () => true },
     ] as unknown as ReturnType<typeof readdirSync>);
-    vi.mocked(readFileSync).mockImplementation((path) => {
+    vi.mocked(readJson).mockImplementation((path) => {
       const match = String(path).match(/(\d{8}-\d{6})/);
       const runId = match ? match[1] : "";
-      return JSON.stringify({
+      return {
         stage: "complete",
         timestamp: `2024-01-0${runId.charAt(6)}T12:00:00.000Z`,
-      });
+      };
     });
 
     const result = listRuns("test-plugin");

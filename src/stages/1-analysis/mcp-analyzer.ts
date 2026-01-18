@@ -3,8 +3,9 @@
  * Parses .mcp.json files and extracts MCP server components for evaluation.
  */
 
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync } from "node:fs";
 
+import { readJson } from "../../utils/file-io.js";
 import { logger } from "../../utils/logging.js";
 
 import type {
@@ -221,8 +222,7 @@ export function analyzeMcp(mcpConfigPath: string): McpComponent[] {
 
   let config: McpConfigFile;
   try {
-    const content = readFileSync(mcpConfigPath, "utf-8");
-    config = JSON.parse(content) as McpConfigFile;
+    config = readJson(mcpConfigPath) as McpConfigFile;
   } catch (error) {
     logger.error(`Failed to parse .mcp.json: ${mcpConfigPath}`, { error });
     return [];

@@ -11,7 +11,7 @@
  * - Fast mode: only re-run failed scenarios
  */
 
-import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 
 import {
@@ -664,8 +664,7 @@ export function listRuns(pluginName: string): RunSummary[] {
     }
 
     try {
-      const content = readFileSync(statePath, "utf-8");
-      const state = JSON.parse(content) as {
+      const state = readJson(statePath) as {
         stage?: PipelineStage;
         timestamp?: string;
       };

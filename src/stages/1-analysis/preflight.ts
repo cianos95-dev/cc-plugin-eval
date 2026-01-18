@@ -3,8 +3,10 @@
  * Catches errors before SDK initialization with actionable suggestions.
  */
 
-import { existsSync, lstatSync, readFileSync, realpathSync } from "node:fs";
+import { existsSync, lstatSync, realpathSync } from "node:fs";
 import path from "node:path";
+
+import { readJson } from "../../utils/file-io.js";
 
 import type {
   PreflightError,
@@ -101,9 +103,7 @@ function parseManifestJson(manifestPath: string): {
   error: PreflightError | null;
 } {
   try {
-    const content = readFileSync(manifestPath, "utf-8");
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment -- JSON.parse returns any
-    const parsed = JSON.parse(content);
+    const parsed = readJson(manifestPath);
 
     // Validate JSON.parse result is an object
     if (typeof parsed !== "object" || parsed === null) {

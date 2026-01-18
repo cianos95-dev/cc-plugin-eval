@@ -2,10 +2,10 @@
  * Configuration loader with YAML/JSON support and Zod validation.
  */
 
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync } from "node:fs";
 import path from "node:path";
 
-import { parse as parseYaml } from "yaml";
+import { readJson, readYaml } from "../utils/file-io.js";
 
 import { createDefaultConfig } from "./defaults.js";
 import { EvalConfigSchema } from "./schema.js";
@@ -55,37 +55,26 @@ export function loadConfig(configPath: string): EvalConfig {
     throw new ConfigLoadError(`Configuration file not found: ${absolutePath}`);
   }
 
-  // Read file content
-  let content: string;
-  try {
-    content = readFileSync(absolutePath, "utf-8");
-  } catch (err) {
-    throw new ConfigLoadError(
-      `Failed to read configuration file: ${absolutePath}`,
-      err instanceof Error ? err : undefined,
-    );
-  }
-
   // Parse based on extension
   let rawConfig: unknown;
   const ext = path.extname(absolutePath).toLowerCase();
 
   try {
     if (ext === ".yaml" || ext === ".yml") {
-      rawConfig = parseYaml(content);
+      rawConfig = readYaml(absolutePath);
     } else if (ext === ".json") {
-      rawConfig = JSON.parse(content);
+      rawConfig = readJson(absolutePath);
     } else {
       // Try YAML first, fall back to JSON
       try {
-        rawConfig = parseYaml(content);
+        rawConfig = readYaml(absolutePath);
       } catch {
-        rawConfig = JSON.parse(content);
+        rawConfig = readJson(absolutePath);
       }
     }
   } catch (err) {
     throw new ConfigLoadError(
-      `Failed to parse configuration file: ${absolutePath}`,
+      `Failed to load configuration file: ${absolutePath}`,
       err instanceof Error ? err : undefined,
     );
   }

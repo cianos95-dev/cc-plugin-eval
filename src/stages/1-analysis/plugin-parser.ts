@@ -3,8 +3,6 @@
  * Parses plugin.json and discovers component files.
  */
 
-import { readFileSync } from "node:fs";
-
 import { readJson } from "../../utils/index.js";
 
 import type { PluginManifest } from "../../types/index.js";
@@ -89,6 +87,5 @@ function parsePathField(value: unknown): string | string[] {
  * @returns Raw manifest content
  */
 export function readRawManifest(manifestPath: string): unknown {
-  const content = readFileSync(manifestPath, "utf-8");
-  return JSON.parse(content);
+  return readJson(manifestPath);
 }
