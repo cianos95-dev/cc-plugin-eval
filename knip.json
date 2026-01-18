@@ -1,24 +1,12 @@
 {
   "$schema": "https://unpkg.com/knip@latest/schema.json",
-  "entry": [
-    "src/index.ts",
-    "src/cli/index.ts",
-    "src/cli/commands/**/*.ts"
-  ],
+  "entry": ["src/index.ts", "src/cli/index.ts", "src/cli/commands/**/*.ts"],
   "project": ["src/**/*.ts"],
-  "ignore": [
-    "dist/**",
-    "coverage/**",
-    "node_modules/**"
-  ],
+  "ignore": ["dist/**", "coverage/**", "node_modules/**"],
   "ignoreDependencies": [],
   "ignoreExportsUsedInFile": true,
   "vitest": {
-    "entry": [
-      "tests/**/*.test.ts",
-      "tests/**/*.spec.ts",
-      "vitest.config.ts"
-    ],
+    "entry": ["tests/**/*.test.ts", "tests/**/*.spec.ts", "vitest.config.ts"],
     "project": ["tests/**/*.ts"]
   }
 }
