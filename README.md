@@ -167,6 +167,90 @@ cc-plugin-eval report -r <run-id> --output junit-xml
 | `--reps <n>`          | Repetitions per scenario                          |
 | `--output <format>`   | Output format: `json`, `yaml`, `junit-xml`, `tap` |
 
+## Programmatic Usage
+
+In addition to the CLI, cc-plugin-eval exports a programmatic API for integration into build systems, test frameworks, and custom tooling.
+
+### Installation
+
+```bash
+npm install cc-plugin-eval
+```
+
+### Basic Usage
+
+```typescript
+import {
+  runAnalysis,
+  runGeneration,
+  runExecution,
+  runEvaluation,
+  loadConfigWithOverrides,
+  consoleProgress,
+} from "cc-plugin-eval";
+import type {
+  EvalConfig,
+  AnalysisOutput,
+  TestScenario,
+} from "cc-plugin-eval/types";
+
+// Load configuration
+const config = loadConfigWithOverrides("config.yaml", {
+  plugin: "./path/to/plugin",
+});
+
+// Stage 1: Analyze plugin structure
+const analysis = await runAnalysis(config);
+
+// Stage 2: Generate test scenarios
+const generation = await runGeneration(analysis, config);
+
+// Stage 3: Execute scenarios (captures tool interactions)
+const execution = await runExecution(
+  analysis,
+  generation.scenarios,
+  config,
+  consoleProgress, // or provide custom progress callbacks
+);
+
+// Stage 4: Evaluate results
+const evaluation = await runEvaluation(
+  analysis.plugin_name,
+  generation.scenarios,
+  execution.results,
+  config,
+  consoleProgress,
+);
+
+console.log(`Accuracy: ${(evaluation.metrics.accuracy * 100).toFixed(1)}%`);
+```
+
+### Public API Exports
+
+| Export                    | Description                                              |
+| ------------------------- | -------------------------------------------------------- |
+| `runAnalysis`             | Stage 1: Parse plugin structure and extract triggers     |
+| `runGeneration`           | Stage 2: Generate test scenarios for components          |
+| `runExecution`            | Stage 3: Execute scenarios and capture tool interactions |
+| `runEvaluation`           | Stage 4: Evaluate results and calculate metrics          |
+| `loadConfigWithOverrides` | Load configuration with CLI-style overrides              |
+| `consoleProgress`         | Default progress reporter (console output)               |
+
+### Types
+
+Import types via the `cc-plugin-eval/types` subpath:
+
+```typescript
+import type {
+  EvalConfig,
+  AnalysisOutput,
+  TestScenario,
+  ExecutionResult,
+  EvaluationResult,
+  EvalMetrics,
+} from "cc-plugin-eval/types";
+```
+
 ## Configuration
 
 Configuration is managed via `config.yaml`. Here's a quick reference:

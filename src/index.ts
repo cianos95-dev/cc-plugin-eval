@@ -7,6 +7,11 @@
  */
 import "./env.js";
 
+// =============================================================================
+// CLI Implementation
+// =============================================================================
+// Local imports for CLI use (re-importing what was exported above for local use)
+
 import { existsSync, readdirSync } from "node:fs";
 import { createRequire } from "node:module";
 import { join } from "node:path";
@@ -15,6 +20,7 @@ import chalk from "chalk";
 import { Command } from "commander";
 import YAML from "yaml";
 
+// Import stage runners locally for CLI implementation
 import { loadConfigWithOverrides, type CLIOptions } from "./config/index.js";
 import { runAnalysis } from "./stages/1-analysis/index.js";
 import {
@@ -50,6 +56,27 @@ import {
 import type { EvalMetrics } from "./types/index.js";
 
 // =============================================================================
+// Public API Exports
+// =============================================================================
+// These exports form the public programmatic API of cc-plugin-eval.
+// Import them via: import { runAnalysis } from 'cc-plugin-eval';
+
+/** Stage 1: Analyze plugin structure and extract component triggers */
+export { runAnalysis } from "./stages/1-analysis/index.js";
+
+/** Stage 2: Generate test scenarios for components */
+export { runGeneration } from "./stages/2-generation/index.js";
+
+/** Stage 3: Execute scenarios and capture tool interactions */
+export { runExecution, consoleProgress } from "./stages/3-execution/index.js";
+
+/** Stage 4: Evaluate results and calculate metrics */
+export { runEvaluation } from "./stages/4-evaluation/index.js";
+
+/** Configuration loading with CLI overrides */
+export { loadConfigWithOverrides, type CLIOptions } from "./config/index.js";
+
+// =============================================================================
 // Package Version
 // =============================================================================
 
@@ -63,6 +90,7 @@ const packageJson = require("../package.json") as { version: string };
 /**
  * Find plugin name by searching results directories for a run ID.
  *
+ * @internal CLI helper - not part of public API
  * @param runId - Run ID to search for
  * @returns Plugin name if found, null otherwise
  */
@@ -85,6 +113,7 @@ function findPluginByRunId(runId: string): string | null {
 /**
  * Find and load pipeline state.
  *
+ * @internal CLI helper - not part of public API
  * @param pluginName - Optional plugin name hint
  * @param runId - Run ID to load
  * @returns Loaded state or null if not found
@@ -116,6 +145,8 @@ function findAndLoadState(
 
 /**
  * Resume from analysis stage (run full pipeline).
+ *
+ * @internal CLI helper - not part of public API
  */
 async function resumeFromAnalysis(
   initialState: NonNullable<ReturnType<typeof loadState>>,
@@ -161,6 +192,8 @@ async function resumeFromAnalysis(
 
 /**
  * Resume from generation stage.
+ *
+ * @internal CLI helper - not part of public API
  */
 async function resumeFromGeneration(
   initialState: NonNullable<ReturnType<typeof loadState>>,
@@ -210,6 +243,8 @@ async function resumeFromGeneration(
 
 /**
  * Resume from execution stage.
+ *
+ * @internal CLI helper - not part of public API
  */
 async function resumeFromExecution(
   initialState: NonNullable<ReturnType<typeof loadState>>,
@@ -255,6 +290,8 @@ async function resumeFromExecution(
 
 /**
  * Resume from evaluation stage.
+ *
+ * @internal CLI helper - not part of public API
  */
 async function resumeFromEvaluation(
   initialState: NonNullable<ReturnType<typeof loadState>>,
@@ -296,6 +333,8 @@ async function resumeFromEvaluation(
 
 /**
  * Stage handler type for resume operations.
+ *
+ * @internal CLI type - not part of public API
  */
 type ResumeHandler = (
   state: NonNullable<ReturnType<typeof loadState>>,
@@ -305,6 +344,8 @@ type ResumeHandler = (
 
 /**
  * Map of stages to their resume handlers.
+ *
+ * @internal CLI constant - not part of public API
  */
 const resumeHandlers: Record<PipelineStage, ResumeHandler> = {
   pending: resumeFromAnalysis,
@@ -335,6 +376,8 @@ program
 
 /**
  * Extract CLI options from commander options object.
+ *
+ * @internal CLI helper - not part of public API
  */
 function extractCLIOptions(
   options: Record<string, unknown>,
@@ -392,6 +435,8 @@ function extractCLIOptions(
 
 /**
  * Valid pipeline stages for resume command.
+ *
+ * @internal CLI constant - not part of public API
  */
 const VALID_STAGES = [
   "analysis",
@@ -402,6 +447,8 @@ const VALID_STAGES = [
 
 /**
  * Extract and validate resume command options.
+ *
+ * @internal CLI helper - not part of public API
  */
 function extractResumeOptions(options: Record<string, unknown>): {
   pluginName: string | undefined;
@@ -441,6 +488,8 @@ function extractResumeOptions(options: Record<string, unknown>): {
 
 /**
  * Extract and validate report command options.
+ *
+ * @internal CLI helper - not part of public API
  */
 function extractReportOptions(options: Record<string, unknown>): {
   pluginName: string | undefined;
@@ -463,6 +512,8 @@ function extractReportOptions(options: Record<string, unknown>): {
 
 /**
  * Evaluation file structure for report command.
+ *
+ * @internal CLI type - not part of public API
  */
 interface EvaluationFile {
   plugin_name: string;
@@ -473,6 +524,8 @@ interface EvaluationFile {
 /**
  * Load and validate evaluation file.
  * Returns null if validation fails.
+ *
+ * @internal CLI helper - not part of public API
  */
 function loadEvaluationFile(evaluationPath: string): EvaluationFile | null {
   const rawEvaluation = readJson(evaluationPath);
@@ -1009,6 +1062,8 @@ program
 
 /**
  * Output CLI summary of evaluation results.
+ *
+ * @internal CLI helper - not part of public API
  */
 function outputCLISummary(evaluation: {
   plugin_name: string;
@@ -1047,6 +1102,8 @@ function outputCLISummary(evaluation: {
 
 /**
  * Output JUnit XML format.
+ *
+ * @internal CLI helper - not part of public API
  */
 function outputJUnitXML(
   pluginName: string,
@@ -1091,6 +1148,8 @@ function outputJUnitXML(
 
 /**
  * Output TAP format.
+ *
+ * @internal CLI helper - not part of public API
  */
 function outputTAP(results: Record<string, unknown>[]): void {
   console.log(`TAP version 14`);
@@ -1126,6 +1185,8 @@ function outputTAP(results: Record<string, unknown>[]): void {
 
 /**
  * Output final summary of evaluation.
+ *
+ * @internal CLI helper - not part of public API
  */
 function outputFinalSummary(resultsDir: string, metrics: EvalMetrics): void {
   const m = metrics;
