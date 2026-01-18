@@ -149,6 +149,9 @@ evaluation.json
 .cache/
 .plugin-cache/
 
+# Dead code analysis artifacts
+knip-raw-results.json
+
 # Claude related files
 .claude/
 .serena/

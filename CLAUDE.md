@@ -21,6 +21,7 @@ npm run lint:fix       # Auto-fix
 npm run format         # Prettier auto-fix
 npm run format:check   # Prettier check only
 npm run typecheck      # tsc --noEmit
+npm run knip           # Dead code detection
 
 # Test
 npm run test           # All tests (Vitest)
