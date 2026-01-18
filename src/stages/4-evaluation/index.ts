@@ -42,6 +42,13 @@ import {
   type BatchEvaluationRequest,
 } from "./batch-evaluator.js";
 import { calculateConflictSeverity } from "./conflict-tracker.js";
+import {
+  detectAllComponents,
+  detectAllComponentsWithHooks,
+  getUniqueDetections,
+  wasExpectedComponentTriggered,
+  wasExpectedHookTriggered,
+} from "./detection/index.js";
 import { createErrorJudgeResponse } from "./llm-judge.js";
 import {
   calculateEvalMetrics,
@@ -49,13 +56,6 @@ import {
   formatMetrics,
 } from "./metrics.js";
 import { runJudgment } from "./multi-sampler.js";
-import {
-  detectAllComponents,
-  detectAllComponentsWithHooks,
-  getUniqueDetections,
-  wasExpectedComponentTriggered,
-  wasExpectedHookTriggered,
-} from "./programmatic-detector.js";
 
 import type {
   EvalConfig,
@@ -600,7 +600,7 @@ export {
   wasExpectedComponentTriggered,
   wasExpectedHookTriggered,
   getUniqueDetections,
-} from "./programmatic-detector.js";
+} from "./detection/index.js";
 
 export {
   calculateConflictSeverity,

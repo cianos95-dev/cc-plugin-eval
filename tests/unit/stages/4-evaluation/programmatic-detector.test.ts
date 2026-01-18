@@ -25,7 +25,7 @@ import {
   getUniqueDetections,
   wasExpectedComponentTriggered,
   wasExpectedHookTriggered,
-} from "../../../../src/stages/4-evaluation/programmatic-detector.js";
+} from "../../../../src/stages/4-evaluation/detection/index.js";
 
 /**
  * Create a mock ToolCapture for testing.

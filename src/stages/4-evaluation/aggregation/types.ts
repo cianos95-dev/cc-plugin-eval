@@ -12,7 +12,7 @@ import type {
   TestScenario,
 } from "../../../types/index.js";
 import type { calculateConflictSeverity } from "../conflict-tracker.js";
-import type { getUniqueDetections } from "../programmatic-detector.js";
+import type { getUniqueDetections } from "../detection/index.js";
 
 /**
  * Scenario evaluation context.

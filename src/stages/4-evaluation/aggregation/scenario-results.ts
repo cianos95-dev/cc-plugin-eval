@@ -14,8 +14,8 @@ import type {
   TriggeredComponent,
 } from "../../../types/index.js";
 import type { calculateConflictSeverity } from "../conflict-tracker.js";
-import type { getUniqueDetections } from "../programmatic-detector.js";
 import type { ProgrammaticResult, ScenarioEvaluationResult } from "./types.js";
+import type { getUniqueDetections } from "../detection/index.js";
 
 /**
  * Build the evaluation result object.

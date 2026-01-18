@@ -109,6 +109,7 @@ logs/
 core
 core.*
 !src/state/core.ts
+!src/stages/4-evaluation/detection/core.ts
 
 # =============================================================================
 # Caches

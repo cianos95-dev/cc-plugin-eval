@@ -17,7 +17,7 @@ import {
   detectFromTranscript,
   getUniqueDetections,
   wasExpectedComponentTriggered,
-} from "../../../../src/stages/4-evaluation/programmatic-detector.js";
+} from "../../../../src/stages/4-evaluation/detection/index.js";
 import {
   calculateConflictSeverity,
   countConflicts,
