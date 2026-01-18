@@ -19,20 +19,10 @@ import type {
   DiversityConfig,
   ScenarioDistribution,
   BaseScenario,
-  ScenarioVariation,
   TestScenario,
   ComponentType,
   ScenarioType,
 } from "../../types/index.js";
-
-/**
- * Variation types - what changes between variations.
- * - Entity names: "John" → "Sarah" → "Alex"
- * - Domain context: "tech startup" → "restaurant" → "hospital"
- * - Tone/formality: "Hey, can you..." → "Please help me..." → "I need to..."
- * - Specificity: "create a hook" → "add a PreToolUse hook" → "implement validation"
- */
-export type VariationType = "entity" | "domain" | "tone" | "specificity";
 
 /**
  * Minimum allowed diversity score.
@@ -69,21 +59,6 @@ export function calculateScenarioDistribution(
 }
 
 /**
- * Calculate total scenarios from distribution.
- *
- * @param distribution - Scenario distribution
- * @returns Total scenario count
- */
-export function calculateTotalScenarios(
-  distribution: ScenarioDistribution,
-): number {
-  // Base scenarios + (base_count × variations_per_base - base_count)
-  // Simplifies to: base_count × variations_per_base
-  // But we cap at what was requested if variations would exceed
-  return distribution.base_count * distribution.variations_per_base;
-}
-
-/**
  * Create a base scenario from a component.
  *
  * @param componentRef - Component reference (name)
@@ -106,43 +81,6 @@ export function createBaseScenario(
     component_type: componentType,
     core_intent: coreIntent,
     base_prompt: basePrompt,
-  };
-}
-
-/**
- * Apply a variation to a base scenario.
- *
- * @param base - Base scenario
- * @param variationType - Type of variation to apply
- * @param variationIndex - Index of this variation
- * @param modifiedPrompt - The modified prompt after variation
- * @param changeDescription - Description of what was changed
- * @param scenarioType - Type of test scenario
- * @param expectedTrigger - Whether this should trigger the component
- * @returns Scenario variation
- */
-export function applyVariation(
-  base: BaseScenario,
-  variationType: VariationType,
-  variationIndex: number,
-  modifiedPrompt: string,
-  changeDescription: string,
-  scenarioType: ScenarioType,
-  expectedTrigger: boolean,
-): ScenarioVariation {
-  return {
-    id: `${base.id}-var-${String(variationIndex)}`,
-    base_scenario_id: base.id,
-    variation_index: variationIndex,
-    variation_type: variationType,
-    changes_made: changeDescription,
-    component_ref: base.component_ref,
-    component_type: base.component_type,
-    scenario_type: scenarioType,
-    user_prompt: modifiedPrompt,
-    expected_trigger: expectedTrigger,
-    expected_component: base.component_ref,
-    reasoning: `Variation of "${base.core_intent}" with ${variationType} change: ${changeDescription}`,
   };
 }
 

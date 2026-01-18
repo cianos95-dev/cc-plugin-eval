@@ -230,7 +230,7 @@ export function estimateExecutionCost(
  * Batch discount applied by Anthropic Batches API.
  * Batches API provides 50% off standard pricing.
  */
-export const BATCH_DISCOUNT_MULTIPLIER = 0.5;
+const BATCH_DISCOUNT_MULTIPLIER = 0.5;
 
 /**
  * Estimate evaluation cost based on scenario count.

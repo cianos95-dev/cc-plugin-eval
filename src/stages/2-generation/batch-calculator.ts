@@ -59,7 +59,7 @@ export const THINKING_BUDGET: Record<ReasoningEffort, number> = {
 /**
  * Default max output tokens by model family.
  */
-export const MODEL_MAX_TOKENS: Record<string, number> = {
+const MODEL_MAX_TOKENS: Record<string, number> = {
   // Opus 4.5
   "claude-opus-4-5-20251101": 16000,
 
@@ -77,7 +77,7 @@ export const MODEL_MAX_TOKENS: Record<string, number> = {
  * Default safety margin for token calculations.
  * Value is sourced from DEFAULT_TUNING for centralized configuration.
  */
-export const DEFAULT_SAFETY_MARGIN = DEFAULT_TUNING.batching.safety_margin;
+const DEFAULT_SAFETY_MARGIN = DEFAULT_TUNING.batching.safety_margin;
 
 /**
  * Get max output tokens for a model.
@@ -85,7 +85,7 @@ export const DEFAULT_SAFETY_MARGIN = DEFAULT_TUNING.batching.safety_margin;
  * @param model - Model identifier
  * @returns Max output tokens
  */
-export function getModelMaxTokens(model: string): number {
+function getModelMaxTokens(model: string): number {
   return MODEL_MAX_TOKENS[model] ?? 8000;
 }
 
