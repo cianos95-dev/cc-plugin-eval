@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="assets/banner-dashboard.svg" alt="cc-plugin-eval - 4-stage evaluation framework for Claude Code plugins" width="100%">
+</p>
+
 # cc-plugin-eval
 
 [![CI](https://github.com/sjnims/cc-plugin-eval/actions/workflows/ci.yml/badge.svg)](https://github.com/sjnims/cc-plugin-eval/actions/workflows/ci.yml)
