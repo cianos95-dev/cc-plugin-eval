@@ -268,10 +268,14 @@ export function isResultMessage(msg: SDKMessage): msg is SDKResultMessage {
 }
 
 /**
- * Type guard for system message.
+ * Type guard for system init message (the one with plugins).
+ * The SDK has multiple system message types (init, status, hook_response, etc.),
+ * but only 'init' has the plugins array we need.
  */
 export function isSystemMessage(msg: SDKMessage): msg is SDKSystemMessage {
-  return msg.type === "system";
+  return (
+    msg.type === "system" && (msg as { subtype?: string }).subtype === "init"
+  );
 }
 
 /**

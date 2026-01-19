@@ -114,6 +114,8 @@ export function createE2EConfig(options: E2EConfigOptions = {}): EvalConfig {
     max_tokens: 512,
     reasoning_effort: "none",
     semantic_variations: false,
+    api_timeout_ms: 60000, // 60s timeout (schema default)
+    temperature: 0.3, // Schema default
     ...generation,
   };
 
@@ -144,6 +146,8 @@ export function createE2EConfig(options: E2EConfigOptions = {}): EvalConfig {
     num_samples: 1,
     aggregate_method: "average",
     include_citations: false,
+    api_timeout_ms: 120000, // 120s timeout (schema default for complex reasoning)
+    temperature: 0.1, // Schema default for consistent judging
     ...evaluation,
   };
 

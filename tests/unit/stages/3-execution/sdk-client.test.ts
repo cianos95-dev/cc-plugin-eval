@@ -239,12 +239,28 @@ describe("SDK Message Type Guards", () => {
       expect(isSystemMessage(msg)).toBe(true);
     });
 
-    it("returns true for minimal system message", () => {
+    it("returns true for minimal system init message", () => {
       const msg: SDKMessage = {
         type: "system",
+        subtype: "init",
       };
 
       expect(isSystemMessage(msg)).toBe(true);
+    });
+
+    it("returns false for non-init system messages", () => {
+      // System status messages don't have the plugins array
+      const statusMsg: SDKMessage = {
+        type: "system",
+        subtype: "status",
+      };
+      expect(isSystemMessage(statusMsg)).toBe(false);
+
+      // System messages without subtype are also not init messages
+      const minimalMsg: SDKMessage = {
+        type: "system",
+      };
+      expect(isSystemMessage(minimalMsg)).toBe(false);
     });
 
     it("returns true for system message with MCP servers", () => {

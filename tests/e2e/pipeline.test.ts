@@ -135,12 +135,12 @@ describeE2E("E2E: User Workflows", () => {
     expect(scenarioTypes.has("skill")).toBe(true);
 
     // Stage 3: Execution
-    const execution = await runExecution(
-      sharedAnalysis,
-      generation.scenarios,
+    const execution = await runExecution({
+      analysis: sharedAnalysis,
+      scenarios: generation.scenarios,
       config,
-      consoleProgress,
-    );
+      progress: consoleProgress,
+    });
 
     totalE2ECost += execution.total_cost_usd;
     e2eTestCount++;
@@ -158,13 +158,13 @@ describeE2E("E2E: User Workflows", () => {
     }
 
     // Stage 4: Evaluation
-    const evaluation = await runEvaluation(
-      sharedAnalysis.plugin_name,
-      generation.scenarios,
-      execution.results,
+    const evaluation = await runEvaluation({
+      pluginName: sharedAnalysis.plugin_name,
+      scenarios: generation.scenarios,
+      executions: execution.results,
       config,
-      consoleProgress,
-    );
+      progress: consoleProgress,
+    });
 
     // Verify evaluation metrics
     expect(evaluation.metrics).toBeDefined();
@@ -244,24 +244,24 @@ describeE2E("E2E: User Workflows", () => {
     ];
 
     // Execute negative scenarios
-    const execution = await runExecution(
-      sharedAnalysis,
-      negativeScenarios,
+    const execution = await runExecution({
+      analysis: sharedAnalysis,
+      scenarios: negativeScenarios,
       config,
-      consoleProgress,
-    );
+      progress: consoleProgress,
+    });
 
     totalE2ECost += execution.total_cost_usd;
     e2eTestCount++;
 
     // Evaluate
-    const evaluation = await runEvaluation(
-      sharedAnalysis.plugin_name,
-      negativeScenarios,
-      execution.results,
+    const evaluation = await runEvaluation({
+      pluginName: sharedAnalysis.plugin_name,
+      scenarios: negativeScenarios,
+      executions: execution.results,
       config,
-      consoleProgress,
-    );
+      progress: consoleProgress,
+    });
 
     // All negative scenarios should NOT trigger
     for (const result of evaluation.results) {
@@ -306,12 +306,12 @@ describeE2E("E2E: User Workflows", () => {
     const generation = await runGeneration(sharedAnalysis, config);
 
     // Should not throw, even with tiny budget
-    const execution = await runExecution(
-      sharedAnalysis,
-      generation.scenarios,
+    const execution = await runExecution({
+      analysis: sharedAnalysis,
+      scenarios: generation.scenarios,
       config,
-      consoleProgress,
-    );
+      progress: consoleProgress,
+    });
 
     // Verify execution completed (may have partial/no results due to budget)
     expect(execution).toBeDefined();
@@ -403,23 +403,23 @@ describeMcp("E2E: MCP Server Pipeline", () => {
     expect(generation.scenarios.length).toBeGreaterThan(0);
 
     // Stage 3: Execution
-    const execution = await runExecution(
+    const execution = await runExecution({
       analysis,
-      generation.scenarios,
+      scenarios: generation.scenarios,
       config,
-      consoleProgress,
-    );
+      progress: consoleProgress,
+    });
 
     expect(execution.results.length).toBeGreaterThan(0);
 
     // Stage 4: Evaluation
-    const evaluation = await runEvaluation(
-      analysis.plugin_name,
-      generation.scenarios,
-      execution.results,
+    const evaluation = await runEvaluation({
+      pluginName: analysis.plugin_name,
+      scenarios: generation.scenarios,
+      executions: execution.results,
       config,
-      consoleProgress,
-    );
+      progress: consoleProgress,
+    });
 
     expect(evaluation.metrics).toBeDefined();
     expect(evaluation.results.length).toBe(generation.scenarios.length);
