@@ -112,27 +112,33 @@ export interface ScenarioExecutionOptions {
 }
 
 /**
- * Build query input for scenario execution.
- *
- * @param scenario - Test scenario to execute
- * @param plugins - Plugin references to load
- * @param config - Execution configuration
- * @param hooks - SDK hooks config for capturing tool invocations
- * @param abortController - AbortController for timeout handling
- * @param startTime - Execution start timestamp for logging
- * @param enableMcpDiscovery - Whether to enable MCP server discovery
- * @param enableFileCheckpointing - Whether to enable file checkpointing for rewind support
+ * Options for building query input.
  */
-function buildQueryInput(
-  scenario: TestScenario,
-  plugins: PluginReference[],
-  config: ExecutionConfig,
-  hooks: SDKHooksConfig,
-  abortController: AbortController,
-  startTime: number,
-  enableMcpDiscovery: boolean,
-  enableFileCheckpointing = false,
-): QueryInput {
+interface BuildQueryInputOptions {
+  scenario: TestScenario;
+  plugins: PluginReference[];
+  config: ExecutionConfig;
+  hooks: SDKHooksConfig;
+  abortController: AbortController;
+  startTime: number;
+  enableMcpDiscovery: boolean;
+  enableFileCheckpointing?: boolean;
+}
+
+/**
+ * Build query input for scenario execution.
+ */
+function buildQueryInput(options: BuildQueryInputOptions): QueryInput {
+  const {
+    scenario,
+    plugins,
+    config,
+    hooks,
+    abortController,
+    startTime,
+    enableMcpDiscovery,
+    enableFileCheckpointing = false,
+  } = options;
   // Build allowed tools list - ensure trigger tools are always included
   const allowedTools = [
     ...(config.allowed_tools ?? []),
@@ -293,28 +299,35 @@ interface ResultMetrics {
 }
 
 /**
+ * Options for building execution result.
+ */
+interface BuildExecutionResultOptions {
+  scenarioId: string;
+  context: TranscriptBuilderContext;
+  messages: SDKMessage[];
+  errors: TranscriptErrorEvent[];
+  detectedTools: ToolCapture[];
+  hookResponses: HookResponseCapture[];
+  subagentCaptures: SubagentCapture[];
+  metrics: ResultMetrics;
+}
+
+/**
  * Build execution result from collected data.
- *
- * @param scenarioId - Scenario ID
- * @param context - Transcript builder context
- * @param messages - Collected SDK messages
- * @param errors - Collected error events
- * @param detectedTools - Captured tool invocations
- * @param hookResponses - Collected hook responses
- * @param subagentCaptures - Captured subagent invocations
- * @param metrics - Extracted result metrics
- * @returns ExecutionResult object
  */
 function buildExecutionResult(
-  scenarioId: string,
-  context: TranscriptBuilderContext,
-  messages: SDKMessage[],
-  errors: TranscriptErrorEvent[],
-  detectedTools: ToolCapture[],
-  hookResponses: HookResponseCapture[],
-  subagentCaptures: SubagentCapture[],
-  metrics: ResultMetrics,
+  options: BuildExecutionResultOptions,
 ): ExecutionResult {
+  const {
+    scenarioId,
+    context,
+    messages,
+    errors,
+    detectedTools,
+    hookResponses,
+    subagentCaptures,
+    metrics,
+  } = options;
   return {
     scenario_id: scenarioId,
     transcript: buildTranscript(context, messages, errors),
@@ -359,16 +372,16 @@ function finalizeExecution(
     model,
   };
 
-  return buildExecutionResult(
-    scenario.id,
-    transcriptContext,
-    ctx.messages,
-    ctx.errors,
-    ctx.detectedTools,
-    ctx.hookCollector.responses,
-    ctx.subagentCaptures,
-    extractResultMetrics(ctx.messages),
-  );
+  return buildExecutionResult({
+    scenarioId: scenario.id,
+    context: transcriptContext,
+    messages: ctx.messages,
+    errors: ctx.errors,
+    detectedTools: ctx.detectedTools,
+    hookResponses: ctx.hookCollector.responses,
+    subagentCaptures: ctx.subagentCaptures,
+    metrics: extractResultMetrics(ctx.messages),
+  });
 }
 
 /**
@@ -449,15 +462,15 @@ export async function executeScenario(
 
   try {
     // Build query input
-    const queryInput = buildQueryInput(
+    const queryInput = buildQueryInput({
       scenario,
       plugins,
       config,
-      hooksConfig,
-      ctx.controller,
-      ctx.startTime,
-      options.enableMcpDiscovery ?? true,
-    );
+      hooks: hooksConfig,
+      abortController: ctx.controller,
+      startTime: ctx.startTime,
+      enableMcpDiscovery: options.enableMcpDiscovery ?? true,
+    });
 
     // Execute with retry for transient errors
     await withRetry(async () => {
@@ -523,16 +536,16 @@ export async function executeScenarioWithCheckpoint(
 
   try {
     // Build query input with file checkpointing enabled
-    const queryInput = buildQueryInput(
+    const queryInput = buildQueryInput({
       scenario,
       plugins,
       config,
-      hooksConfig,
-      ctx.controller,
-      ctx.startTime,
-      options.enableMcpDiscovery ?? true,
-      true, // enableFileCheckpointing for rewind support
-    );
+      hooks: hooksConfig,
+      abortController: ctx.controller,
+      startTime: ctx.startTime,
+      enableMcpDiscovery: options.enableMcpDiscovery ?? true,
+      enableFileCheckpointing: true,
+    });
 
     // Execute with retry
     await withRetry(async () => {

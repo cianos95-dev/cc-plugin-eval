@@ -739,16 +739,16 @@ export async function executeBatch(
         rateLimiter: options.rateLimiter,
       });
 
-      const result = buildScenarioResult(
+      const result = buildScenarioResult({
         scenario,
-        executionResult.messages,
-        executionResult.detectedTools,
-        executionResult.hookResponses,
-        executionResult.errors,
-        executionResult.subagentCaptures,
+        messages: executionResult.messages,
+        detectedTools: executionResult.detectedTools,
+        hookResponses: executionResult.hookResponses,
+        errors: executionResult.errors,
+        subagentCaptures: executionResult.subagentCaptures,
         pluginName,
-        config.model,
-      );
+        model: config.model,
+      });
       results.push(result);
       onScenarioComplete?.(result, scenarioIndex);
 
@@ -768,16 +768,16 @@ export async function executeBatch(
         });
       }
     } catch (err) {
-      const result = buildScenarioResult(
+      const result = buildScenarioResult({
         scenario,
-        [],
-        [],
-        [],
-        [createErrorEventFromException(err)],
-        [],
+        messages: [],
+        detectedTools: [],
+        hookResponses: [],
+        errors: [createErrorEventFromException(err)],
+        subagentCaptures: [],
         pluginName,
-        config.model,
-      );
+        model: config.model,
+      });
       results.push(result);
       onScenarioComplete?.(result, scenarioIndex);
 
@@ -798,18 +798,35 @@ export async function executeBatch(
 }
 
 /**
+ * Options for building scenario result.
+ */
+interface BuildScenarioResultOptions {
+  scenario: TestScenario;
+  messages: SDKMessage[];
+  detectedTools: ToolCapture[];
+  hookResponses: HookResponseCapture[];
+  errors: TranscriptErrorEvent[];
+  subagentCaptures: SubagentCapture[];
+  pluginName: string;
+  model: string;
+}
+
+/**
  * Build an execution result for a scenario.
  */
 function buildScenarioResult(
-  scenario: TestScenario,
-  messages: SDKMessage[],
-  detectedTools: ToolCapture[],
-  hookResponses: ReturnType<typeof createHookResponseCollector>["responses"],
-  errors: TranscriptErrorEvent[],
-  subagentCaptures: SubagentCapture[],
-  pluginName: string,
-  model: string,
+  options: BuildScenarioResultOptions,
 ): ExecutionResult {
+  const {
+    scenario,
+    messages,
+    detectedTools,
+    hookResponses,
+    errors,
+    subagentCaptures,
+    pluginName,
+    model,
+  } = options;
   // Extract metrics from result message
   const resultMsg = messages.find(isResultMessage);
   const costUsd = resultMsg?.total_cost_usd ?? 0;
