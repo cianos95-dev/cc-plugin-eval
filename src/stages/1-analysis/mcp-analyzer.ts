@@ -7,6 +7,7 @@ import { existsSync } from "node:fs";
 
 import { readJson } from "../../utils/file-io.js";
 import { logger } from "../../utils/logging.js";
+import { extractVariablesFromString } from "../../utils/parsing.js";
 
 import type {
   McpComponent,
@@ -126,16 +127,11 @@ export function extractEnvVars(config: McpServerConfig): string[] {
   // Extract variables referenced with ${VAR} pattern from headers
   if (config.headers) {
     for (const value of Object.values(config.headers)) {
-      // Ensure value is a string before calling .match()
       if (typeof value !== "string") {
         continue;
       }
-      const matches = value.match(/\$\{([^}]+)\}/g);
-      if (matches) {
-        for (const match of matches) {
-          const varName = match.slice(2, -1); // Remove ${ and }
-          vars.add(varName);
-        }
+      for (const varName of extractVariablesFromString(value)) {
+        vars.add(varName);
       }
     }
   }
@@ -143,16 +139,11 @@ export function extractEnvVars(config: McpServerConfig): string[] {
   // Extract variables referenced with ${VAR} pattern from env values
   if (config.env) {
     for (const value of Object.values(config.env)) {
-      // Ensure value is a string before calling .match()
       if (typeof value !== "string") {
         continue;
       }
-      const matches = value.match(/\$\{([^}]+)\}/g);
-      if (matches) {
-        for (const match of matches) {
-          const varName = match.slice(2, -1);
-          vars.add(varName);
-        }
+      for (const varName of extractVariablesFromString(value)) {
+        vars.add(varName);
       }
     }
   }

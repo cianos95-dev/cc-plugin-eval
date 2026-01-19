@@ -36,3 +36,27 @@ export function parseStringOrArray(
 
   return undefined;
 }
+
+/**
+ * Extracts variable names from a string containing `${VAR}` patterns.
+ *
+ * This utility handles environment variable references commonly found in
+ * plugin configuration files, such as MCP server headers or environment values.
+ *
+ * @param value - The string to extract variables from
+ * @returns An array of variable names (without the `${` and `}` delimiters)
+ *
+ * @example
+ * ```ts
+ * extractVariablesFromString("Bearer ${API_KEY}"); // ["API_KEY"]
+ * extractVariablesFromString("${HOST}:${PORT}"); // ["HOST", "PORT"]
+ * extractVariablesFromString("no variables here"); // []
+ * ```
+ */
+export function extractVariablesFromString(value: string): string[] {
+  const matches = value.match(/\$\{([^}]+)\}/g);
+  if (!matches) {
+    return [];
+  }
+  return matches.map((match) => match.slice(2, -1));
+}

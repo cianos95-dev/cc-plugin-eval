@@ -45,10 +45,17 @@ interface GeneratedAgentScenario {
 }
 
 /**
- * Remove a template block from a string using string operations.
- *
- * Finds the opening tag (e.g., "{{#if tools}}") and its matching closing tag
- * ("{{/if}}") and removes everything between them, inclusive.
+ * Result from finding template block boundaries.
+ */
+interface TemplateBlockBoundaries {
+  openIndex: number;
+  closeIndex: number;
+  openTag: string;
+  closeTag: string;
+}
+
+/**
+ * Find the boundaries of a template block in a string.
  *
  * @remarks
  * This function does not support nested blocks. For input like
@@ -56,27 +63,50 @@ interface GeneratedAgentScenario {
  * match the first `{{/if}}`. This is acceptable for the current use case
  * where template blocks in AGENT_USER_PROMPT_TEMPLATE are not nested.
  *
- * @param text - The string to process
+ * @param text - The string to search
  * @param blockName - The block name (e.g., "tools" for "{{#if tools}}")
- * @returns The string with the block removed, or the original string if not found
+ * @returns The boundaries if found, or null if not found
  */
-function removeTemplateBlock(text: string, blockName: string): string {
+function findTemplateBlockBoundaries(
+  text: string,
+  blockName: string,
+): TemplateBlockBoundaries | null {
   const openTag = `{{#if ${blockName}}}`;
   const closeTag = "{{/if}}";
 
   const openIndex = text.indexOf(openTag);
   if (openIndex === -1) {
-    return text;
+    return null;
   }
 
-  // Find the closing tag after the opening tag
   const closeIndex = text.indexOf(closeTag, openIndex + openTag.length);
   if (closeIndex === -1) {
+    return null;
+  }
+
+  return { openIndex, closeIndex, openTag, closeTag };
+}
+
+/**
+ * Remove a template block from a string using string operations.
+ *
+ * Finds the opening tag (e.g., "{{#if tools}}") and its matching closing tag
+ * ("{{/if}}") and removes everything between them, inclusive.
+ *
+ * @param text - The string to process
+ * @param blockName - The block name (e.g., "tools" for "{{#if tools}}")
+ * @returns The string with the block removed, or the original string if not found
+ */
+function removeTemplateBlock(text: string, blockName: string): string {
+  const boundaries = findTemplateBlockBoundaries(text, blockName);
+  if (!boundaries) {
     return text;
   }
 
-  // Remove the entire block including tags
-  return text.slice(0, openIndex) + text.slice(closeIndex + closeTag.length);
+  return (
+    text.slice(0, boundaries.openIndex) +
+    text.slice(boundaries.closeIndex + boundaries.closeTag.length)
+  );
 }
 
 /**
@@ -85,37 +115,24 @@ function removeTemplateBlock(text: string, blockName: string): string {
  * Finds the opening tag (e.g., "{{#if tools}}") and its matching closing tag
  * ("{{/if}}") and removes only the tags, keeping the content between them.
  *
- * @remarks
- * This function does not support nested blocks. For input like
- * `"{{#if a}}outer{{#if b}}inner{{/if}}{{/if}}"`, it will incorrectly
- * match the first `{{/if}}`. This is acceptable for the current use case
- * where template blocks in AGENT_USER_PROMPT_TEMPLATE are not nested.
- *
  * @param text - The string to process
  * @param blockName - The block name (e.g., "tools" for "{{#if tools}}")
  * @returns The string with tags removed but content preserved
  */
 function unwrapTemplateBlock(text: string, blockName: string): string {
-  const openTag = `{{#if ${blockName}}}`;
-  const closeTag = "{{/if}}";
-
-  const openIndex = text.indexOf(openTag);
-  if (openIndex === -1) {
+  const boundaries = findTemplateBlockBoundaries(text, blockName);
+  if (!boundaries) {
     return text;
   }
 
-  // Find the closing tag after the opening tag
-  const closeIndex = text.indexOf(closeTag, openIndex + openTag.length);
-  if (closeIndex === -1) {
-    return text;
-  }
-
-  // Remove only the tags, keep content between them
-  const content = text.slice(openIndex + openTag.length, closeIndex);
+  const content = text.slice(
+    boundaries.openIndex + boundaries.openTag.length,
+    boundaries.closeIndex,
+  );
   return (
-    text.slice(0, openIndex) +
+    text.slice(0, boundaries.openIndex) +
     content +
-    text.slice(closeIndex + closeTag.length)
+    text.slice(boundaries.closeIndex + boundaries.closeTag.length)
   );
 }
 
