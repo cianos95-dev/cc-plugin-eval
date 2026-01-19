@@ -247,7 +247,7 @@ describe("parseAgentScenarioResponse", () => {
 
     expect(scenarios).toEqual([]);
     expect(consoleSpy).toHaveBeenCalledWith(
-      expect.stringContaining("Failed to parse agent scenarios"),
+      expect.stringContaining("Failed to parse LLM response for"),
       expect.any(SyntaxError),
     );
     consoleSpy.mockRestore();

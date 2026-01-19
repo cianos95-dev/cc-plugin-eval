@@ -203,7 +203,7 @@ describe("parseSkillScenarioResponse", () => {
 
     expect(scenarios).toEqual([]);
     expect(logger.error).toHaveBeenCalledWith(
-      expect.stringContaining("Failed to parse skill scenarios"),
+      expect.stringContaining("Failed to parse LLM response for"),
       expect.any(SyntaxError),
     );
   });

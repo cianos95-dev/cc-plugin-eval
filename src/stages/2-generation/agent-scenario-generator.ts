@@ -14,11 +14,15 @@
  * 5. Proactive scenarios (context-based triggering)
  */
 
-import { createRateLimiter, parallel } from "../../utils/concurrency.js";
+import { parallel } from "../../utils/concurrency.js";
 import { callLLMForText } from "../../utils/llm.js";
 import { logger } from "../../utils/logging.js";
 
 import { distributeScenarioTypes } from "./diversity-manager.js";
+import {
+  extractJsonFromLLMResponse,
+  setupRateLimiter,
+} from "./shared/index.js";
 
 import type {
   AgentComponent,
@@ -226,41 +230,33 @@ export function parseAgentScenarioResponse(
   response: string,
   agent: AgentComponent,
 ): TestScenario[] {
-  try {
-    // Try to extract JSON array from response
-    let jsonText = response.trim();
+  const generated = extractJsonFromLLMResponse(response, agent.name) as
+    | GeneratedAgentScenario[]
+    | null;
 
-    // Handle markdown code blocks
-    const jsonMatch = /```(?:json)?\s*([\s\S]*?)```/.exec(jsonText);
-    if (jsonMatch?.[1]) {
-      jsonText = jsonMatch[1].trim();
-    }
-
-    const generated = JSON.parse(jsonText) as GeneratedAgentScenario[];
-
-    return generated.map((g, i) => {
-      const scenario: TestScenario = {
-        id: `${agent.name}-${g.scenario_type}-${String(i)}`,
-        component_ref: agent.name,
-        component_type: "agent",
-        scenario_type: g.scenario_type,
-        user_prompt: g.user_prompt,
-        expected_trigger: g.expected_trigger,
-        expected_component: agent.name,
-        reasoning: g.reasoning,
-      };
-
-      // Add setup messages for proactive scenarios
-      if (g.scenario_type === "proactive" && g.setup_messages) {
-        scenario.setup_messages = g.setup_messages;
-      }
-
-      return scenario;
-    });
-  } catch (error) {
-    logger.error(`Failed to parse agent scenarios for ${agent.name}:`, error);
+  if (!generated) {
     return [];
   }
+
+  return generated.map((g, i) => {
+    const scenario: TestScenario = {
+      id: `${agent.name}-${g.scenario_type}-${String(i)}`,
+      component_ref: agent.name,
+      component_type: "agent",
+      scenario_type: g.scenario_type,
+      user_prompt: g.user_prompt,
+      expected_trigger: g.expected_trigger,
+      expected_component: agent.name,
+      reasoning: g.reasoning,
+    };
+
+    // Add setup messages for proactive scenarios
+    if (g.scenario_type === "proactive" && g.setup_messages) {
+      scenario.setup_messages = g.setup_messages;
+    }
+
+    return scenario;
+  });
 }
 
 /**
@@ -313,13 +309,7 @@ export async function generateAllAgentScenarios(
   maxConcurrent = 10,
 ): Promise<TestScenario[]> {
   // Create rate limiter if configured
-  const rps = config.requests_per_second;
-  const rateLimiter =
-    rps !== null && rps !== undefined ? createRateLimiter(rps) : null;
-
-  if (rateLimiter) {
-    logger.info(`Rate limiting enabled: ${String(rps)} requests/second`);
-  }
+  const rateLimiter = setupRateLimiter(config);
 
   let completedCount = 0;
   const result = await parallel({

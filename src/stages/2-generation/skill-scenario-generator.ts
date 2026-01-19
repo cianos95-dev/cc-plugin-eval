@@ -12,11 +12,15 @@
  * 5. Semantic similarity (synonyms/related phrases)
  */
 
-import { createRateLimiter, parallel } from "../../utils/concurrency.js";
+import { parallel } from "../../utils/concurrency.js";
 import { callLLMForText } from "../../utils/llm.js";
 import { logger } from "../../utils/logging.js";
 
 import { distributeScenarioTypes } from "./diversity-manager.js";
+import {
+  extractJsonFromLLMResponse,
+  setupRateLimiter,
+} from "./shared/index.js";
 
 import type {
   SkillComponent,
@@ -122,45 +126,36 @@ export function parseSkillScenarioResponse(
   response: string,
   skill: SkillComponent,
 ): TestScenario[] {
-  try {
-    // Try to extract JSON array from response
-    let jsonText = response.trim();
+  const generated = extractJsonFromLLMResponse(response, skill.name) as
+    | GeneratedScenario[]
+    | null;
 
-    // Handle markdown code blocks
-    const jsonMatch = /```(?:json)?\s*([\s\S]*?)```/.exec(jsonText);
-    if (jsonMatch?.[1]) {
-      jsonText = jsonMatch[1].trim();
-    }
-
-    const generated = JSON.parse(jsonText) as GeneratedScenario[];
-
-    return generated.map((g, i) => {
-      const scenario: TestScenario = {
-        id: `${skill.name}-${g.scenario_type}-${String(i)}`,
-        component_ref: skill.name,
-        component_type: "skill",
-        scenario_type: g.scenario_type,
-        user_prompt: g.user_prompt,
-        expected_trigger: g.expected_trigger,
-        expected_component: skill.name,
-        reasoning: g.reasoning,
-      };
-
-      // Add semantic fields if present
-      if (g.scenario_type === "semantic" && g.original_trigger_phrase) {
-        scenario.original_trigger_phrase = g.original_trigger_phrase;
-        if (g.semantic_variation_type) {
-          scenario.semantic_variation_type = g.semantic_variation_type;
-        }
-      }
-
-      return scenario;
-    });
-  } catch (error) {
-    // Return empty array on parse failure - caller should handle
-    logger.error(`Failed to parse skill scenarios for ${skill.name}:`, error);
+  if (!generated) {
     return [];
   }
+
+  return generated.map((g, i) => {
+    const scenario: TestScenario = {
+      id: `${skill.name}-${g.scenario_type}-${String(i)}`,
+      component_ref: skill.name,
+      component_type: "skill",
+      scenario_type: g.scenario_type,
+      user_prompt: g.user_prompt,
+      expected_trigger: g.expected_trigger,
+      expected_component: skill.name,
+      reasoning: g.reasoning,
+    };
+
+    // Add semantic fields if present
+    if (g.scenario_type === "semantic" && g.original_trigger_phrase) {
+      scenario.original_trigger_phrase = g.original_trigger_phrase;
+      if (g.semantic_variation_type) {
+        scenario.semantic_variation_type = g.semantic_variation_type;
+      }
+    }
+
+    return scenario;
+  });
 }
 
 /**
@@ -217,13 +212,7 @@ export async function generateAllSkillScenarios(
   maxConcurrent = 10,
 ): Promise<TestScenario[]> {
   // Create rate limiter if configured
-  const rps = config.requests_per_second;
-  const rateLimiter =
-    rps !== null && rps !== undefined ? createRateLimiter(rps) : null;
-
-  if (rateLimiter) {
-    logger.info(`Rate limiting enabled: ${String(rps)} requests/second`);
-  }
+  const rateLimiter = setupRateLimiter(config);
 
   let completedCount = 0;
   const result = await parallel({
