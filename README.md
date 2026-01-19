@@ -65,27 +65,25 @@ npx cc-plugin-eval run -p ./path/to/your/plugin
 
 ## How It Works
 
-```text
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                           cc-plugin-eval Pipeline                           │
-└─────────────────────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart LR
+    subgraph Input
+        P[Plugin Directory]
+    end
 
-  Plugin Directory
-        │
-        ▼
-┌───────────────┐    ┌───────────────┐    ┌───────────────┐    ┌───────────────┐
-│   Stage 1:    │    │   Stage 2:    │    │   Stage 3:    │    │   Stage 4:    │
-│   Analysis    │───▶│  Generation   │───▶│  Execution    │───▶│  Evaluation   │
-│               │    │               │    │               │    │               │
-│ Parse plugin  │    │ Create test   │    │ Run scenarios │    │ Detect which  │
-│ structure,    │    │ scenarios     │    │ via Agent SDK │    │ components    │
-│ extract       │    │ (positive &   │    │ with tool     │    │ triggered,    │
-│ triggers      │    │ negative)     │    │ capture       │    │ calculate     │
-│               │    │               │    │               │    │ metrics       │
-└───────────────┘    └───────────────┘    └───────────────┘    └───────────────┘
-        │                    │                    │                    │
-        ▼                    ▼                    ▼                    ▼
-   analysis.json       scenarios.json       transcripts/        evaluation.json
+    subgraph Pipeline
+        S1[**Stage 1: Analysis**<br/>Parse plugin structure,<br/>extract triggers]
+        S2[**Stage 2: Generation**<br/>Create test scenarios<br/>positive & negative]
+        S3[**Stage 3: Execution**<br/>Run scenarios via<br/>Agent SDK]
+        S4[**Stage 4: Evaluation**<br/>Detect triggers,<br/>calculate metrics]
+    end
+
+    P --> S1 --> S2 --> S3 --> S4
+
+    S1 --> O1[analysis.json]
+    S2 --> O2[scenarios.json]
+    S3 --> O3[transcripts/]
+    S4 --> O4[evaluation.json]
 ```
 
 ### Stage Details
@@ -410,107 +408,6 @@ npm run typecheck # Type check
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for detailed development setup, code style, testing requirements, and pull request guidelines.
 
-### Project Structure
-
-```text
-src/
-├── index.ts              # Entry point: public API exports + CLI init
-├── env.ts                # Environment setup (dotenv loading)
-├── cli/                  # CLI implementation
-│   ├── index.ts          # Program setup and command registration
-│   ├── commands/         # Individual CLI commands (run, analyze, etc.)
-│   ├── formatters.ts     # Output formatters (JUnit, TAP, CLI)
-│   ├── helpers.ts        # State lookup utilities
-│   ├── options.ts        # CLI option parsing
-│   └── styles.ts         # Commander help styling
-├── config/               # Configuration loading & validation
-│   ├── index.ts          # Config exports
-│   ├── loader.ts         # YAML/JSON config loading with Zod
-│   ├── schema.ts         # Zod validation schemas
-│   ├── cli-schema.ts     # CLI-specific schema validation
-│   ├── defaults.ts       # Default configuration values
-│   ├── models.ts         # Model definitions
-│   └── pricing.ts        # Model pricing for cost estimation
-├── stages/
-│   ├── 1-analysis/       # Plugin parsing, trigger extraction
-│   │   ├── index.ts      # runAnalysis() entry point
-│   │   ├── agent-analyzer.ts
-│   │   ├── command-analyzer.ts
-│   │   ├── hook-analyzer.ts
-│   │   ├── mcp-analyzer.ts
-│   │   ├── path-resolver.ts
-│   │   ├── plugin-parser.ts
-│   │   ├── preflight.ts
-│   │   ├── skill-analyzer.ts
-│   │   └── trigger-builder.ts
-│   ├── 2-generation/     # Scenario generation
-│   │   ├── index.ts      # runGeneration() entry point
-│   │   ├── agent-scenario-generator.ts
-│   │   ├── batch-calculator.ts
-│   │   ├── command-scenario-generator.ts
-│   │   ├── cost-estimator.ts
-│   │   ├── diversity-manager.ts
-│   │   ├── hook-scenario-generator.ts
-│   │   ├── mcp-scenario-generator.ts
-│   │   └── skill-scenario-generator.ts
-│   ├── 3-execution/      # Agent SDK integration
-│   │   ├── index.ts      # runExecution() entry point
-│   │   ├── agent-executor.ts
-│   │   ├── hook-capture.ts
-│   │   ├── hooks-factory.ts
-│   │   ├── plugin-loader.ts
-│   │   ├── progress-formatters.ts
-│   │   ├── progress-reporters.ts
-│   │   ├── sdk-client.ts
-│   │   ├── session-batching.ts
-│   │   ├── tool-capture-hooks.ts
-│   │   └── transcript-builder.ts
-│   └── 4-evaluation/     # Detection & metrics
-│       ├── index.ts      # runEvaluation() entry point
-│       ├── batch-evaluator.ts
-│       ├── conflict-tracker.ts
-│       ├── judge-utils.ts
-│       ├── llm-judge.ts
-│       ├── metrics.ts
-│       ├── multi-sampler.ts
-│       ├── aggregation/  # Result aggregation utilities
-│       └── detection/    # Programmatic detection
-│           ├── index.ts  # Detection entry point
-│           ├── orchestrator.ts   # Detection orchestration
-│           ├── agents.ts # Agent detection
-│           ├── commands.ts # Command detection
-│           ├── hooks.ts  # Hook detection
-│           ├── capture-detection.ts
-│           ├── correlation.ts
-│           ├── helpers.ts
-│           └── types.ts
-├── state/                # Resume capability
-│   ├── index.ts          # State exports
-│   ├── operations.ts           # State CRUD operations
-│   ├── queries.ts        # State query utilities
-│   ├── updates.ts        # State update operations
-│   ├── display.ts        # State display formatting
-│   └── types.ts          # State type definitions
-├── types/                # TypeScript interfaces
-└── utils/                # Retry, concurrency, logging
-    ├── index.ts
-    ├── array.ts
-    ├── concurrency.ts
-    ├── file-io.ts
-    ├── llm.ts
-    ├── logging.ts
-    ├── parsing.ts
-    ├── retry.ts
-    └── sanitizer.ts
-
-tests/
-├── unit/                 # Unit tests (mirror src/ structure)
-├── integration/          # Integration tests
-├── e2e/                  # End-to-end tests (real SDK calls)
-├── mocks/                # Mock implementations
-└── fixtures/             # Test data and mock plugins
-```
-
 ## Roadmap
 
 - [x] Phase 1: Skills, agents, commands evaluation
@@ -589,3 +486,13 @@ This project follows the [Contributor Covenant](CODE_OF_CONDUCT.md) code of cond
 ## Author
 
 Steve Nims ([@sjnims](https://github.com/sjnims))
+
+## Acknowledgements
+
+- [Anthropic](https://www.anthropic.com/) for Claude, the [Anthropic SDK](https://github.com/anthropics/anthropic-sdk-typescript), and the [Claude Agent SDK](https://github.com/anthropics/claude-agent-sdk)
+- [Bloom](https://github.com/safety-research/bloom) for architectural inspiration
+- [Boris Cherny](https://github.com/bcherny) for [Claude Code](https://github.com/anthropics/claude-code)
+- [Zod](https://zod.dev/) for runtime type validation
+- [Commander.js](https://github.com/tj/commander.js) for CLI framework
+- [Vitest](https://vitest.dev/) for testing
+- [Monster Energy](https://www.monsterenergy.com/) for fuel

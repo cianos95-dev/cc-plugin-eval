@@ -70,7 +70,7 @@ tests/
 └── fixtures/             # Test data and mock plugins
 ```
 
-See [CLAUDE.md](CLAUDE.md) for detailed architecture documentation.
+See the README for a high-level architecture overview. For AI assistants, CLAUDE.md provides additional context.
 
 ## Development Setup
 

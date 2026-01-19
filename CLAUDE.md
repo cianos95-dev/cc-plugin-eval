@@ -1,84 +1,63 @@
-# CLAUDE.md
-
-This file provides guidance to Claude Code when working with this repository.
+# cc-plugin-eval
 
 ## MCP Tool Requirements (CRITICAL)
 
-This project has Serena configured. **You MUST follow these rules:**
+**Cost tiers**: FREE (Serena, rg) → PAID (Morph ~$0.8-1.2/1M tokens) → AVOID (built-in Grep/Edit)
 
-| Instead of...           | USE THIS                          | Cost     |
-| ----------------------- | --------------------------------- | -------- |
-| Built-in `Grep`, `grep` | `rg "pattern"`                    | **FREE** |
-| Built-in `Edit` tool    | Morph `edit_file`                 | **FREE** |
-| Reading entire files    | Serena `get_symbols_overview`     | **FREE** |
-| Searching for symbols   | Serena `find_symbol`              | **FREE** |
-| Finding usages          | Serena `find_referencing_symbols` | **FREE** |
-| Semantic/fuzzy search   | `warpgrep_codebase_search`        | **$$$**  |
+### Search (prefer in order)
 
-> **FREE tools first. `warpgrep` costs real money - only use when `rg` and Serena cannot answer the question.**
+| Tool                              | Cost | Use When                               |
+| --------------------------------- | ---- | -------------------------------------- |
+| Serena `find_symbol`              | FREE | Know the symbol name                   |
+| Serena `find_referencing_symbols` | FREE | Find all usages of a symbol            |
+| Serena `get_symbols_overview`     | FREE | Understand file structure              |
+| `rg "pattern"`                    | FREE | Regex/text patterns (not symbol-based) |
+| Morph `warpgrep_codebase_search`  | PAID | Semantic/fuzzy queries (last resort)   |
 
-See `~/.claude/docs/tool-selection.md` for detailed guidance.
+### Edit (prefer in order)
+
+| Tool                         | Cost  | Use When                           |
+| ---------------------------- | ----- | ---------------------------------- |
+| Serena `replace_symbol_body` | FREE  | Replacing entire methods/functions |
+| Serena `insert_after_symbol` | FREE  | Adding new code after a symbol     |
+| Morph `edit_file`            | PAID  | Partial edits, non-LSP files       |
+| Built-in `Edit`              | AVOID | Fallback only                      |
+
+> **FREE tools first. Morph costs real money. Built-in Edit only as last resort.**
 
 ## Project Overview
 
-cc-plugin-eval is a 4-stage evaluation framework for testing Claude Code plugin component triggering. It evaluates whether skills, agents, commands, hooks, and MCP servers correctly activate when expected.
+4-stage evaluation framework testing Claude Code plugin component triggering (skills, agents, commands, hooks, MCP servers).
 
-**Requirements**: Node.js >= 20.0.0, Anthropic API key (in `.env` as `ANTHROPIC_API_KEY`)
+**Requirements**: Node.js >= 20.0.0, `ANTHROPIC_API_KEY` in `.env`
 
-## Quick Reference
+## Commands
 
 ```bash
-# Verify everything works
-npm run build && npm run lint && npm run typecheck && npm test
-
-# Essential CLI commands
+npm run build && npm run lint && npm run typecheck && npm test  # Verify
 cc-plugin-eval run -p ./plugin           # Full pipeline
-cc-plugin-eval run -p ./plugin --dry-run # Cost estimation only
-cc-plugin-eval resume -r <run-id>        # Resume interrupted run
+cc-plugin-eval run -p ./plugin --dry-run # Cost estimation
+cc-plugin-eval resume -r <run-id>        # Resume run
 ```
 
 ## Architecture
 
-| Stage             | Purpose                                                   | Entry Point                        |
-| ----------------- | --------------------------------------------------------- | ---------------------------------- |
-| **1. Analysis**   | Parse plugin structure, extract triggers                  | `src/stages/1-analysis/index.ts`   |
-| **2. Generation** | Create test scenarios (LLM + deterministic)               | `src/stages/2-generation/index.ts` |
-| **3. Execution**  | Run scenarios via Claude Agent SDK with tool capture      | `src/stages/3-execution/index.ts`  |
-| **4. Evaluation** | Programmatic detection first, LLM judge fallback, metrics | `src/stages/4-evaluation/index.ts` |
+| Stage         | Purpose                                     | Entry                              |
+| ------------- | ------------------------------------------- | ---------------------------------- |
+| 1. Analysis   | Parse plugin, extract triggers              | `src/stages/1-analysis/index.ts`   |
+| 2. Generation | Create test scenarios (LLM + deterministic) | `src/stages/2-generation/index.ts` |
+| 3. Execution  | Run via Claude Agent SDK with tool capture  | `src/stages/3-execution/index.ts`  |
+| 4. Evaluation | Programmatic detection → LLM judge fallback | `src/stages/4-evaluation/index.ts` |
 
-**SDK usage**: `@anthropic-ai/sdk` for LLM calls (Stages 2, 4), `@anthropic-ai/claude-agent-sdk` for execution (Stage 3).
+**SDKs**: `@anthropic-ai/sdk` (Stages 2, 4), `@anthropic-ai/claude-agent-sdk` (Stage 3)
 
 ## Documentation
 
-### Task-Specific Guides (`docs/`)
-
-| File                         | When to Read                                    |
-| ---------------------------- | ----------------------------------------------- |
-| `public-api.md`              | Using cc-plugin-eval as a library               |
-| `code-navigation.md`         | Navigating this codebase with Serena            |
-| `adding-components.md`       | Adding new plugin component types               |
-| `component-notes.md`         | Hooks/MCP server specifics and limitations      |
-| `ci-cd.md`                   | Understanding GitHub Actions workflows          |
-| `github-workflows.md`        | Issue blocking relationships, GraphQL mutations |
-| `implementation-patterns.md` | Error handling, type guards, concurrency        |
-
-### Serena Memories (`.serena/memories/`)
-
-| Memory                   | When to Read                                   |
-| ------------------------ | ---------------------------------------------- |
-| `suggested_commands`     | Build, lint, test commands                     |
-| `codebase_structure`     | Directory layout and file organization         |
-| `architecture_decisions` | Detection confidence levels, design rationales |
-| `testing_patterns`       | Test framework details, fixtures, mocking      |
-| `code_style`             | Code conventions and patterns                  |
-| `task_completion`        | Verification checklist before completing tasks |
-
-### Global Tool Guidance
-
-Tool selection (Morph vs Serena) documented in `~/.claude/docs/tool-selection.md`.
+- **Task guides**: `docs/*.md` - API usage, adding components, CI/CD, hooks/MCP notes
+- **Serena memories**: `.serena/memories/` - architecture, testing, code style
 
 ## Key Patterns
 
-- **Detection strategy**: Programmatic detection (100% confidence) → transcript patterns (80%) → LLM judge (60%)
-- **Session strategy**: Default is `per_scenario` (one session per test scenario)
-- **State migration**: When adding component types, update `migrateState()` in `src/state/operations.ts`
+- **Detection**: Programmatic (100%) → transcript patterns (80%) → LLM judge (60%)
+- **Sessions**: Default `per_scenario`
+- **State migration**: Update `migrateState()` in `src/state/operations.ts` for new component types
