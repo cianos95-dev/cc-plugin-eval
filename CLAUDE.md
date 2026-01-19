@@ -22,6 +22,9 @@ npm run format         # Prettier auto-fix
 npm run format:check   # Prettier check only
 npm run typecheck      # tsc --noEmit
 npm run knip           # Dead code detection
+npm run jscpd          # Copy-paste detection
+npm run madge          # Circular dependency detection
+npm run clean          # Clean build artifacts
 
 # Test
 npm run test           # All tests (Vitest)
@@ -133,6 +136,27 @@ Functions in `src/cli/` marked with `@internal` JSDoc are CLI-only helpers not i
 | Conflict Tracking | `src/stages/4-evaluation/conflict-tracker.ts` | `calculateConflictSeverity()` |
 | Metrics           | `src/stages/4-evaluation/metrics.ts`          | `calculateEvalMetrics()`      |
 | State             | `src/state/index.ts`                          | `loadState()`, `saveState()`  |
+
+### SDK Integration
+
+Two Anthropic SDKs are used for different purposes:
+
+| SDK                              | Used In     | Purpose                               |
+| -------------------------------- | ----------- | ------------------------------------- |
+| `@anthropic-ai/sdk`              | Stages 2, 4 | LLM calls for generation and judgment |
+| `@anthropic-ai/claude-agent-sdk` | Stage 3     | Plugin loading and scenario execution |
+
+### Detection Confidence Levels
+
+Programmatic detection assigns confidence based on detection source:
+
+| Source             | Confidence | Description                                    |
+| ------------------ | ---------- | ---------------------------------------------- |
+| Tool capture       | 100%       | Direct match from PreToolUse/PostToolUse hooks |
+| Hook response      | 100%       | SDKHookResponseMessage events                  |
+| Subagent hooks     | 100%       | SubagentStart/SubagentStop for agent detection |
+| Transcript pattern | 80%        | Regex match in raw transcript (fallback)       |
+| LLM judge          | 60%        | LLM evaluation (secondary fallback)            |
 
 ## Code Navigation
 
@@ -352,7 +376,7 @@ Use cause chains for error context. See `src/config/loader.ts:ConfigLoadError` f
 
 ### Type Guards
 
-Use type guards for tool detection in `src/stages/4-evaluation/programmatic-detector.ts`. Examples include `isSkillInput()` and `isTaskInput()`.
+Use type guards for tool detection in `src/stages/4-evaluation/detection/types.ts` and `capture-detection.ts`. Examples include `isSkillInput()` and `isTaskInput()`.
 
 ### Parallel Execution with Concurrency Control
 

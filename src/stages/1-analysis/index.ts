@@ -4,6 +4,17 @@
  * Parses plugin structure and understands triggering conditions.
  */
 
+import {
+  MCP_STATUS_NEEDS_AUTH,
+  type AnalysisOutput,
+  type EvalConfig,
+  type PluginLoadResult,
+  type AgentTriggerInfo,
+  type CommandTriggerInfo,
+  type HookTriggerInfo,
+  type McpTriggerInfo,
+  type SkillTriggerInfo,
+} from "../../types/index.js";
 import { logger } from "../../utils/index.js";
 
 import { analyzeAgents } from "./agent-analyzer.js";
@@ -24,17 +35,6 @@ import { parsePluginManifest } from "./plugin-parser.js";
 import { formatPreflightResult, preflightCheck } from "./preflight.js";
 import { analyzeSkills } from "./skill-analyzer.js";
 import { buildTriggerRecords } from "./trigger-builder.js";
-
-import type {
-  AnalysisOutput,
-  EvalConfig,
-  PluginLoadResult,
-  AgentTriggerInfo,
-  CommandTriggerInfo,
-  HookTriggerInfo,
-  McpTriggerInfo,
-  SkillTriggerInfo,
-} from "../../types/index.js";
 
 /**
  * Run Stage 1: Plugin Analysis.
@@ -148,7 +148,7 @@ export async function runAnalysis(config: EvalConfig): Promise<AnalysisOutput> {
     registered_agents: agents.map((a) => a.name),
     mcp_servers: mcpServers.map((m) => ({
       name: m.name,
-      status: m.authRequired ? "needs-auth" : "pending",
+      status: m.authRequired ? MCP_STATUS_NEEDS_AUTH : "pending",
       tools: m.tools.map((t) => t.name),
     })),
     session_id: `analysis-${String(Date.now())}`,

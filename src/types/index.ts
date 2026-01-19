@@ -16,6 +16,9 @@ export type {
   PreflightResult,
 } from "./plugin.js";
 
+// Plugin constants
+export { MCP_STATUS_NEEDS_AUTH } from "./plugin.js";
+
 // Component types
 export type {
   SemanticIntent,

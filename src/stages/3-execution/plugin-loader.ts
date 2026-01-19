@@ -7,6 +7,15 @@
  */
 
 import { DEFAULT_TUNING } from "../../config/defaults.js";
+import {
+  MCP_STATUS_NEEDS_AUTH,
+  type PluginLoadResult,
+  type PluginLoadDiagnostics,
+  type McpServerStatus,
+  type ExecutionConfig,
+  type PluginErrorType,
+  type TimingBreakdown,
+} from "../../types/index.js";
 import { logger } from "../../utils/logging.js";
 
 import {
@@ -18,15 +27,6 @@ import {
   type QueryObject,
   type SettingSource,
 } from "./sdk-client.js";
-
-import type {
-  PluginLoadResult,
-  PluginLoadDiagnostics,
-  McpServerStatus,
-  ExecutionConfig,
-  PluginErrorType,
-  TimingBreakdown,
-} from "../../types/index.js";
 
 /**
  * Recovery hints for common plugin error types.
@@ -277,7 +277,7 @@ const VALID_MCP_STATUSES = new Set<McpServerStatus["status"]>([
   "connected",
   "failed",
   "pending",
-  "needs-auth",
+  MCP_STATUS_NEEDS_AUTH,
 ]);
 
 /**
@@ -332,12 +332,12 @@ async function enrichMcpServerStatus(
 
     // Add warnings for failed servers
     const failures = result.mcp_servers.filter(
-      (s) => s.status === "failed" || s.status === "needs-auth",
+      (s) => s.status === "failed" || s.status === MCP_STATUS_NEEDS_AUTH,
     );
     if (failures.length > 0) {
       result.mcp_warnings = failures.map(
         (s) =>
-          `MCP server "${s.name}" ${s.status === "needs-auth" ? "requires authentication" : "failed to connect"}${s.error ? `: ${s.error}` : ""}`,
+          `MCP server "${s.name}" ${s.status === MCP_STATUS_NEEDS_AUTH ? "requires authentication" : "failed to connect"}${s.error ? `: ${s.error}` : ""}`,
       );
     }
   } catch (err) {

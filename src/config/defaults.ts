@@ -2,6 +2,8 @@
  * Default configuration values.
  */
 
+import { MODEL_HAIKU_4_5, MODEL_SONNET_4_5 } from "./models.js";
+
 import type { EvalConfig, TuningConfig } from "../types/config.js";
 
 /**
@@ -19,7 +21,7 @@ export const DEFAULT_SCOPE = {
  * Default generation configuration.
  */
 export const DEFAULT_GENERATION = {
-  model: "claude-sonnet-4-5-20250929",
+  model: MODEL_SONNET_4_5,
   scenarios_per_component: 5,
   diversity: 0.7,
   max_tokens: 8000,
@@ -33,7 +35,7 @@ export const DEFAULT_GENERATION = {
  * Default execution configuration.
  */
 export const DEFAULT_EXECUTION = {
-  model: "claude-sonnet-4-5-20250929",
+  model: MODEL_SONNET_4_5,
   max_turns: 5,
   timeout_ms: 60000,
   max_budget_usd: 10.0,
@@ -49,7 +51,7 @@ export const DEFAULT_EXECUTION = {
  * Default evaluation configuration.
  */
 export const DEFAULT_EVALUATION = {
-  model: "claude-haiku-4-5-20251001",
+  model: MODEL_HAIKU_4_5,
   max_tokens: 4000,
   detection_mode: "programmatic_first" as const,
   reasoning_effort: "low" as const,

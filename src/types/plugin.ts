@@ -23,6 +23,12 @@ export type PluginErrorType =
   | "unknown";
 
 /**
+ * MCP server status indicating authentication is required.
+ * Co-located with McpServerStatus type for single source of truth.
+ */
+export const MCP_STATUS_NEEDS_AUTH: McpServerStatus["status"] = "needs-auth";
+
+/**
  * Status of an MCP server connection.
  */
 export interface McpServerStatus {

@@ -4,6 +4,8 @@
 
 import { z } from "zod";
 
+import { MODEL_HAIKU_4_5, MODEL_SONNET_4_5 } from "./models.js";
+
 /**
  * Timeouts configuration schema.
  */
@@ -118,7 +120,7 @@ export const SessionStrategySchema = z.enum([
  * Generation configuration schema.
  */
 export const GenerationConfigSchema = z.object({
-  model: z.string().default("claude-sonnet-4-5-20250929"),
+  model: z.string().default(MODEL_SONNET_4_5),
   scenarios_per_component: z.number().int().min(1).max(20).default(5),
   diversity: z.number().min(0).max(1).default(0.7),
   max_tokens: z.number().int().min(1000).max(32000).default(8000),
@@ -136,7 +138,7 @@ export const GenerationConfigSchema = z.object({
  * Execution configuration schema.
  */
 export const ExecutionConfigSchema = z.object({
-  model: z.string().default("claude-sonnet-4-5-20250929"),
+  model: z.string().default(MODEL_SONNET_4_5),
   max_turns: z.number().int().min(1).max(20).default(5),
   timeout_ms: z.number().int().min(5000).max(300000).default(60000),
   max_budget_usd: z.number().min(0.1).max(1000).default(10.0),
@@ -174,7 +176,7 @@ export const AggregateMethodSchema = z.enum(["average", "median", "consensus"]);
  * Evaluation configuration schema.
  */
 export const EvaluationConfigSchema = z.object({
-  model: z.string().default("claude-haiku-4-5-20251001"),
+  model: z.string().default(MODEL_HAIKU_4_5),
   max_tokens: z.number().int().min(1000).max(16000).default(4000),
   detection_mode: DetectionModeSchema.default("programmatic_first"),
   reasoning_effort: ReasoningEffortSchema.default("low"),

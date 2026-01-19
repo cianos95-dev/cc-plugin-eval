@@ -30,6 +30,13 @@ import type { loadConfigWithOverrides } from "../../config/index.js";
 import type { Command } from "commander";
 
 // =============================================================================
+// Constants
+// =============================================================================
+
+/** Success message displayed after completing resume operations. */
+const RESUME_COMPLETE_MESSAGE = "Resume complete!";
+
+// =============================================================================
 // Resume Stage Handlers
 // =============================================================================
 
@@ -76,7 +83,7 @@ async function resumeFromAnalysis(
   // Persist final state
   await saveState(currentState);
 
-  logger.success("Resume complete!");
+  logger.success(RESUME_COMPLETE_MESSAGE);
   return currentState;
 }
 
@@ -127,7 +134,7 @@ async function resumeFromGeneration(
   // Persist final state
   await saveState(currentState);
 
-  logger.success("Resume complete!");
+  logger.success(RESUME_COMPLETE_MESSAGE);
   return currentState;
 }
 
@@ -174,7 +181,7 @@ async function resumeFromExecution(
   // Persist final state
   await saveState(currentState);
 
-  logger.success("Resume complete!");
+  logger.success(RESUME_COMPLETE_MESSAGE);
   return currentState;
 }
 
@@ -217,7 +224,7 @@ async function resumeFromEvaluation(
   // Persist final state
   await saveState(currentState);
 
-  logger.success("Resume complete!");
+  logger.success(RESUME_COMPLETE_MESSAGE);
   return currentState;
 }
 
