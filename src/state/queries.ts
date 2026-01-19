@@ -6,7 +6,7 @@
  */
 
 import type { PipelineStage, PipelineState } from "./types.js";
-import type { TestScenario } from "../types/index.js";
+import type { TestScenario } from "../types/scenario.js";
 
 /**
  * Check if a stage can be resumed from.

@@ -7,12 +7,10 @@
  */
 
 import type { PipelineState } from "./types.js";
-import type {
-  AnalysisOutput,
-  EvaluationResult,
-  ExecutionResult,
-  TestScenario,
-} from "../types/index.js";
+import type { EvaluationResult } from "../types/evaluation.js";
+import type { TestScenario } from "../types/scenario.js";
+import type { AnalysisOutput } from "../types/state.js";
+import type { ExecutionResult } from "../types/transcript.js";
 
 /**
  * Update state after completing analysis stage.

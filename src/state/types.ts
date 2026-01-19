@@ -4,13 +4,11 @@
  * Shared types used across state management modules.
  */
 
-import type {
-  AnalysisOutput,
-  EvalConfig,
-  EvaluationResult,
-  ExecutionResult,
-  TestScenario,
-} from "../types/index.js";
+import type { EvalConfig } from "../types/config.js";
+import type { EvaluationResult } from "../types/evaluation.js";
+import type { TestScenario } from "../types/scenario.js";
+import type { AnalysisOutput } from "../types/state.js";
+import type { ExecutionResult } from "../types/transcript.js";
 
 /**
  * Pipeline stage identifiers.

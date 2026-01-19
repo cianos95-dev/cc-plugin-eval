@@ -2,7 +2,7 @@
  * Default configuration values.
  */
 
-import type { EvalConfig, TuningConfig } from "../types/index.js";
+import type { EvalConfig, TuningConfig } from "../types/config.js";
 
 /**
  * Default scope configuration.
