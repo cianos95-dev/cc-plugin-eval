@@ -44,6 +44,7 @@ import type {
   TranscriptErrorEvent,
   ToolCapture,
   SubagentCapture,
+  HookResponseCapture,
 } from "../../types/index.js";
 
 /**
@@ -181,9 +182,107 @@ function buildQueryInput(
 }
 
 /**
- * Extract metrics from SDK result message.
+ * Execution context created by prepareExecutionContext.
  */
-function extractResultMetrics(messages: SDKMessage[]): {
+interface ExecutionContext {
+  /** Collected SDK messages */
+  messages: SDKMessage[];
+  /** Captured tool invocations */
+  detectedTools: ToolCapture[];
+  /** Captured subagent invocations */
+  subagentCaptures: SubagentCapture[];
+  /** Collected error events */
+  errors: TranscriptErrorEvent[];
+  /** Hook response collector */
+  hookCollector: ReturnType<typeof createHookResponseCollector>;
+  /** Abort controller for timeout */
+  controller: AbortController;
+  /** Timeout ID (for cleanup) */
+  timeout: ReturnType<typeof setTimeout>;
+  /** Execution start timestamp */
+  startTime: number;
+}
+
+/**
+ * Prepare execution context with arrays, hook collector, and timeout handling.
+ *
+ * @param timeoutMs - Timeout in milliseconds
+ * @returns Execution context for scenario execution
+ */
+function prepareExecutionContext(timeoutMs: number): ExecutionContext {
+  const messages: SDKMessage[] = [];
+  const detectedTools: ToolCapture[] = [];
+  const subagentCaptures: SubagentCapture[] = [];
+  const errors: TranscriptErrorEvent[] = [];
+  const hookCollector = createHookResponseCollector();
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  const startTime = Date.now();
+
+  return {
+    messages,
+    detectedTools,
+    subagentCaptures,
+    errors,
+    hookCollector,
+    controller,
+    timeout,
+    startTime,
+  };
+}
+
+/**
+ * Capture hooks infrastructure result.
+ *
+ * Note: The capture maps (captureMap, subagentCaptureMap) are created internally
+ * and passed to createCaptureHooksConfig(). They're used by the hooks for
+ * correlating Pre/Post tool events but are not needed by callers.
+ */
+interface CaptureInfrastructure {
+  /** Plugin references to load */
+  plugins: PluginReference[];
+  /** SDK hooks configuration */
+  hooksConfig: SDKHooksConfig;
+}
+
+/**
+ * Set up plugin list and capture hooks infrastructure.
+ *
+ * @param pluginPath - Path to main plugin
+ * @param additionalPlugins - Additional plugin paths for conflict testing
+ * @param detectedTools - Array to push captured tools to
+ * @param subagentCaptures - Array to push captured subagents to
+ * @returns Capture infrastructure for execution
+ */
+function setupCaptureInfrastructure(
+  pluginPath: string,
+  additionalPlugins: string[],
+  detectedTools: ToolCapture[],
+  subagentCaptures: SubagentCapture[],
+): CaptureInfrastructure {
+  // Build plugin list
+  const plugins: PluginReference[] = [{ type: "local", path: pluginPath }];
+  for (const additionalPath of additionalPlugins) {
+    plugins.push({ type: "local", path: additionalPath });
+  }
+
+  // Create capture hooks using the factory
+  const captureMap = new Map<string, ToolCapture>();
+  const subagentCaptureMap = new Map<string, SubagentCapture>();
+  const hooksConfig = createCaptureHooksConfig({
+    captureMap,
+    onToolCapture: (capture) => detectedTools.push(capture),
+    subagentCaptureMap,
+    onSubagentCapture: (capture) => subagentCaptures.push(capture),
+  });
+
+  return { plugins, hooksConfig };
+}
+
+/**
+ * Result metrics extracted from SDK messages.
+ */
+interface ResultMetrics {
   costUsd: number;
   durationMs: number;
   numTurns: number;
@@ -191,7 +290,91 @@ function extractResultMetrics(messages: SDKMessage[]): {
   modelUsage?: Record<string, ModelUsage>;
   cacheReadTokens: number;
   cacheCreationTokens: number;
-} {
+}
+
+/**
+ * Build execution result from collected data.
+ *
+ * @param scenarioId - Scenario ID
+ * @param context - Transcript builder context
+ * @param messages - Collected SDK messages
+ * @param errors - Collected error events
+ * @param detectedTools - Captured tool invocations
+ * @param hookResponses - Collected hook responses
+ * @param subagentCaptures - Captured subagent invocations
+ * @param metrics - Extracted result metrics
+ * @returns ExecutionResult object
+ */
+function buildExecutionResult(
+  scenarioId: string,
+  context: TranscriptBuilderContext,
+  messages: SDKMessage[],
+  errors: TranscriptErrorEvent[],
+  detectedTools: ToolCapture[],
+  hookResponses: HookResponseCapture[],
+  subagentCaptures: SubagentCapture[],
+  metrics: ResultMetrics,
+): ExecutionResult {
+  return {
+    scenario_id: scenarioId,
+    transcript: buildTranscript(context, messages, errors),
+    detected_tools: detectedTools,
+    hook_responses: hookResponses,
+    ...(subagentCaptures.length > 0
+      ? { subagent_captures: subagentCaptures }
+      : {}),
+    cost_usd: metrics.costUsd,
+    api_duration_ms: metrics.durationMs,
+    num_turns: metrics.numTurns,
+    permission_denials: metrics.permissionDenials,
+    errors,
+    ...(metrics.modelUsage !== undefined
+      ? { model_usage: metrics.modelUsage }
+      : {}),
+    cache_read_tokens: metrics.cacheReadTokens,
+    cache_creation_tokens: metrics.cacheCreationTokens,
+  };
+}
+
+/**
+ * Finalize execution and build result.
+ *
+ * Handles error conversion and constructs the final ExecutionResult.
+ *
+ * @param ctx - Execution context
+ * @param scenario - Test scenario
+ * @param pluginName - Plugin name for transcript
+ * @param model - Model used for execution
+ * @returns ExecutionResult object
+ */
+function finalizeExecution(
+  ctx: ExecutionContext,
+  scenario: TestScenario,
+  pluginName: string,
+  model: string,
+): ExecutionResult {
+  const transcriptContext: TranscriptBuilderContext = {
+    scenario,
+    pluginName,
+    model,
+  };
+
+  return buildExecutionResult(
+    scenario.id,
+    transcriptContext,
+    ctx.messages,
+    ctx.errors,
+    ctx.detectedTools,
+    ctx.hookCollector.responses,
+    ctx.subagentCaptures,
+    extractResultMetrics(ctx.messages),
+  );
+}
+
+/**
+ * Extract metrics from SDK result message.
+ */
+function extractResultMetrics(messages: SDKMessage[]): ResultMetrics {
   const resultMsg = messages.find(isResultMessage);
 
   // Calculate aggregate cache tokens from modelUsage
@@ -253,44 +436,26 @@ export async function executeScenario(
     queryFn,
   } = options;
 
-  const messages: SDKMessage[] = [];
-  const detectedTools: ToolCapture[] = [];
-  const subagentCaptures: SubagentCapture[] = [];
-  const errors: TranscriptErrorEvent[] = [];
+  // Prepare execution context
+  const ctx = prepareExecutionContext(config.timeout_ms);
 
-  // Create hook response collector for capturing SDK hook messages
-  const hookCollector = createHookResponseCollector();
-
-  // Abort controller for timeout handling
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), config.timeout_ms);
-  const startTime = Date.now();
+  // Set up capture infrastructure
+  const { plugins, hooksConfig } = setupCaptureInfrastructure(
+    pluginPath,
+    additionalPlugins,
+    ctx.detectedTools,
+    ctx.subagentCaptures,
+  );
 
   try {
-    // Build plugin list
-    const plugins: PluginReference[] = [{ type: "local", path: pluginPath }];
-    for (const additionalPath of additionalPlugins) {
-      plugins.push({ type: "local", path: additionalPath });
-    }
-
-    // Create capture hooks using the factory
-    const captureMap = new Map<string, ToolCapture>();
-    const subagentCaptureMap = new Map<string, SubagentCapture>();
-    const hooksConfig = createCaptureHooksConfig({
-      captureMap,
-      onToolCapture: (capture) => detectedTools.push(capture),
-      subagentCaptureMap,
-      onSubagentCapture: (capture) => subagentCaptures.push(capture),
-    });
-
     // Build query input
     const queryInput = buildQueryInput(
       scenario,
       plugins,
       config,
       hooksConfig,
-      controller,
-      startTime,
+      ctx.controller,
+      ctx.startTime,
       options.enableMcpDiscovery ?? true,
     );
 
@@ -300,61 +465,27 @@ export async function executeScenario(
       const q = queryFn ? queryFn(queryInput) : executeQuery(queryInput);
 
       for await (const message of q) {
-        messages.push(message);
+        ctx.messages.push(message);
 
         // Process message for hook responses
-        hookCollector.processMessage(message);
+        ctx.hookCollector.processMessage(message);
 
         // Capture errors for transcript
         // Note: SDK may send error messages not in its TypeScript union
         const errorText = getErrorFromMessage(message);
         if (errorText !== undefined) {
-          errors.push({
-            type: "error",
-            error_type: "api_error",
-            message: errorText,
-            timestamp: Date.now(),
-            recoverable: false,
-          });
+          ctx.errors.push(createApiError(errorText));
         }
       }
     });
   } catch (err) {
     const isTimeout = err instanceof Error && err.name === "AbortError";
-    errors.push(createErrorEvent(err, isTimeout));
+    ctx.errors.push(createErrorEvent(err, isTimeout));
   } finally {
-    clearTimeout(timeout);
+    clearTimeout(ctx.timeout);
   }
 
-  // Extract metrics from result message
-  const metrics = extractResultMetrics(messages);
-
-  // Build transcript context
-  const context: TranscriptBuilderContext = {
-    scenario,
-    pluginName,
-    model: config.model,
-  };
-
-  return {
-    scenario_id: scenario.id,
-    transcript: buildTranscript(context, messages, errors),
-    detected_tools: detectedTools,
-    hook_responses: hookCollector.responses,
-    ...(subagentCaptures.length > 0
-      ? { subagent_captures: subagentCaptures }
-      : {}),
-    cost_usd: metrics.costUsd,
-    api_duration_ms: metrics.durationMs,
-    num_turns: metrics.numTurns,
-    permission_denials: metrics.permissionDenials,
-    errors,
-    ...(metrics.modelUsage !== undefined
-      ? { model_usage: metrics.modelUsage }
-      : {}),
-    cache_read_tokens: metrics.cacheReadTokens,
-    cache_creation_tokens: metrics.cacheCreationTokens,
-  };
+  return finalizeExecution(ctx, scenario, pluginName, config.model);
 }
 
 /**
@@ -378,45 +509,27 @@ export async function executeScenarioWithCheckpoint(
     queryFn,
   } = options;
 
-  const messages: SDKMessage[] = [];
-  const detectedTools: ToolCapture[] = [];
-  const subagentCaptures: SubagentCapture[] = [];
-  const errors: TranscriptErrorEvent[] = [];
+  // Prepare execution context
+  const ctx = prepareExecutionContext(config.timeout_ms);
   let userMessageId: string | undefined;
 
-  // Create hook response collector for capturing SDK hook messages
-  const hookCollector = createHookResponseCollector();
-
-  // Abort controller for timeout handling
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), config.timeout_ms);
-  const startTime = Date.now();
+  // Set up capture infrastructure
+  const { plugins, hooksConfig } = setupCaptureInfrastructure(
+    pluginPath,
+    additionalPlugins,
+    ctx.detectedTools,
+    ctx.subagentCaptures,
+  );
 
   try {
-    // Build plugin list
-    const plugins: PluginReference[] = [{ type: "local", path: pluginPath }];
-    for (const additionalPath of additionalPlugins) {
-      plugins.push({ type: "local", path: additionalPath });
-    }
-
-    // Create capture hooks using the factory
-    const captureMap = new Map<string, ToolCapture>();
-    const subagentCaptureMap = new Map<string, SubagentCapture>();
-    const hooksConfig = createCaptureHooksConfig({
-      captureMap,
-      onToolCapture: (capture) => detectedTools.push(capture),
-      subagentCaptureMap,
-      onSubagentCapture: (capture) => subagentCaptures.push(capture),
-    });
-
-    // Build query input with file checkpointing enabled (uses shared buildQueryInput)
+    // Build query input with file checkpointing enabled
     const queryInput = buildQueryInput(
       scenario,
       plugins,
       config,
       hooksConfig,
-      controller,
-      startTime,
+      ctx.controller,
+      ctx.startTime,
       options.enableMcpDiscovery ?? true,
       true, // enableFileCheckpointing for rewind support
     );
@@ -426,8 +539,8 @@ export async function executeScenarioWithCheckpoint(
       const q = queryFn ? queryFn(queryInput) : executeQuery(queryInput);
 
       for await (const message of q) {
-        messages.push(message);
-        hookCollector.processMessage(message);
+        ctx.messages.push(message);
+        ctx.hookCollector.processMessage(message);
 
         // Capture user message ID for potential rewind
         if (isUserMessage(message)) {
@@ -437,7 +550,7 @@ export async function executeScenarioWithCheckpoint(
         // Capture errors from SDK messages
         const errorText = getErrorFromMessage(message);
         if (errorText !== undefined) {
-          errors.push(createApiError(errorText));
+          ctx.errors.push(createApiError(errorText));
         }
       }
 
@@ -446,40 +559,12 @@ export async function executeScenarioWithCheckpoint(
     });
   } catch (err) {
     const isTimeout = err instanceof Error && err.name === "AbortError";
-    errors.push(createErrorEvent(err, isTimeout));
+    ctx.errors.push(createErrorEvent(err, isTimeout));
   } finally {
-    clearTimeout(timeout);
+    clearTimeout(ctx.timeout);
   }
 
-  // Extract metrics
-  const metrics = extractResultMetrics(messages);
-
-  // Build transcript
-  const context: TranscriptBuilderContext = {
-    scenario,
-    pluginName,
-    model: config.model,
-  };
-
-  return {
-    scenario_id: scenario.id,
-    transcript: buildTranscript(context, messages, errors),
-    detected_tools: detectedTools,
-    hook_responses: hookCollector.responses,
-    ...(subagentCaptures.length > 0
-      ? { subagent_captures: subagentCaptures }
-      : {}),
-    cost_usd: metrics.costUsd,
-    api_duration_ms: metrics.durationMs,
-    num_turns: metrics.numTurns,
-    permission_denials: metrics.permissionDenials,
-    errors,
-    ...(metrics.modelUsage !== undefined
-      ? { model_usage: metrics.modelUsage }
-      : {}),
-    cache_read_tokens: metrics.cacheReadTokens,
-    cache_creation_tokens: metrics.cacheCreationTokens,
-  };
+  return finalizeExecution(ctx, scenario, pluginName, config.model);
 }
 
 /**

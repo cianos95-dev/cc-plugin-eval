@@ -25,7 +25,11 @@ import {
   getResultsDir,
   generateRunId,
 } from "../../utils/index.js";
-import { extractConfigPath, handleCLIError } from "../helpers.js";
+import {
+  extractConfigPath,
+  handleCLIError,
+  writeExecutionMetadata,
+} from "../helpers.js";
 
 import type { Command } from "commander";
 
@@ -81,15 +85,7 @@ export function registerExecuteCommand(program: Command): void {
         state = updateStateAfterExecution(state, execution.results);
         await saveState(state);
 
-        writeJson(`${resultsDir}/execution-metadata.json`, {
-          timestamp: new Date().toISOString(),
-          plugin_name: execution.plugin_name,
-          total_cost_usd: execution.total_cost_usd,
-          total_duration_ms: execution.total_duration_ms,
-          success_count: execution.success_count,
-          error_count: execution.error_count,
-          total_tools_captured: execution.total_tools_captured,
-        });
+        writeExecutionMetadata(resultsDir, execution);
 
         logger.success(
           `Execution complete: ${String(execution.success_count)}/${String(execution.results.length)} passed`,

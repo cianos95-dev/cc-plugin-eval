@@ -5,8 +5,10 @@ import { existsSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 
 import { loadState } from "../state/index.js";
-import { readJson } from "../utils/index.js";
+import { readJson, writeJson } from "../utils/index.js";
 import { logger } from "../utils/logging.js";
+
+import type { ExecutionOutput } from "../stages/3-execution/index.js";
 
 /**
  * Find plugin name by searching results directories for a run ID.
@@ -116,4 +118,25 @@ export function extractConfigPath(
   return typeof options["config"] === "string"
     ? options["config"]
     : defaultPath;
+}
+
+/**
+ * Write execution metadata to results directory.
+ *
+ * @param resultsDir - Directory to write metadata to
+ * @param execution - Execution output containing metrics
+ */
+export function writeExecutionMetadata(
+  resultsDir: string,
+  execution: ExecutionOutput,
+): void {
+  writeJson(`${resultsDir}/execution-metadata.json`, {
+    timestamp: new Date().toISOString(),
+    plugin_name: execution.plugin_name,
+    total_cost_usd: execution.total_cost_usd,
+    total_duration_ms: execution.total_duration_ms,
+    success_count: execution.success_count,
+    error_count: execution.error_count,
+    total_tools_captured: execution.total_tools_captured,
+  });
 }

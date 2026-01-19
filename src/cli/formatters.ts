@@ -4,6 +4,49 @@
 import type { EvalMetrics } from "../types/index.js";
 
 /**
+ * Validated evaluation result fields.
+ */
+interface ValidatedResult {
+  /** Scenario ID */
+  scenarioId: string;
+  /** Whether the component was triggered */
+  triggered: boolean;
+  /** Expected trigger state */
+  expected: boolean | undefined;
+  /** Whether the result passed (triggered matches expected) */
+  passed: boolean;
+  /** Optional summary text */
+  summary: string;
+}
+
+/**
+ * Extract and validate evaluation result fields.
+ *
+ * Performs runtime validation to ensure values are correct types
+ * from untyped Record<string, unknown> objects.
+ *
+ * @param result - Untyped evaluation result
+ * @returns Validated result with typed fields
+ */
+function validateEvalResult(result: Record<string, unknown>): ValidatedResult {
+  const scenarioId =
+    typeof result["scenario_id"] === "string"
+      ? result["scenario_id"]
+      : "unknown";
+  const triggered =
+    typeof result["triggered"] === "boolean" ? result["triggered"] : false;
+  const expected =
+    typeof result["expected_trigger"] === "boolean"
+      ? result["expected_trigger"]
+      : undefined;
+  const passed = expected === undefined || triggered === expected;
+  const summary =
+    typeof result["summary"] === "string" ? result["summary"] : "";
+
+  return { scenarioId, triggered, expected, passed, summary };
+}
+
+/**
  * Output CLI summary of evaluation results.
  */
 export function outputCLISummary(evaluation: {
@@ -57,23 +100,11 @@ export function outputJUnitXML(
   xml += `  <testsuite name="${pluginName}" tests="${String(results.length)}" failures="${String(failures.length)}">\n`;
 
   for (const result of results) {
-    // Runtime validation: ensure values are correct types before use
-    const scenarioId =
-      typeof result["scenario_id"] === "string"
-        ? result["scenario_id"]
-        : "unknown";
-    const triggered =
-      typeof result["triggered"] === "boolean" ? result["triggered"] : false;
-    const expected =
-      typeof result["expected_trigger"] === "boolean"
-        ? result["expected_trigger"]
-        : undefined;
-    const passed = expected === undefined || triggered === expected;
+    const { scenarioId, triggered, expected, passed, summary } =
+      validateEvalResult(result);
 
     xml += `    <testcase name="${scenarioId}" classname="${pluginName}">\n`;
     if (!passed) {
-      const summary =
-        typeof result["summary"] === "string" ? result["summary"] : "";
       xml += `      <failure message="Expected ${String(expected)}, got ${String(triggered)}">${summary}</failure>\n`;
     }
     xml += `    </testcase>\n`;
@@ -94,18 +125,8 @@ export function outputTAP(results: Record<string, unknown>[]): void {
 
   let i = 1;
   for (const result of results) {
-    // Runtime validation: ensure values are correct types before use
-    const scenarioId =
-      typeof result["scenario_id"] === "string"
-        ? result["scenario_id"]
-        : "unknown";
-    const triggered =
-      typeof result["triggered"] === "boolean" ? result["triggered"] : false;
-    const expected =
-      typeof result["expected_trigger"] === "boolean"
-        ? result["expected_trigger"]
-        : undefined;
-    const passed = expected === undefined || triggered === expected;
+    const { scenarioId, triggered, expected, passed } =
+      validateEvalResult(result);
 
     if (passed) {
       console.log(`ok ${String(i)} - ${scenarioId}`);
