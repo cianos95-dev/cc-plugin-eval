@@ -81,6 +81,15 @@ export interface ScenarioExecutionOptions {
 
 /**
  * Build query input for scenario execution.
+ *
+ * @param scenario - Test scenario to execute
+ * @param plugins - Plugin references to load
+ * @param config - Execution configuration
+ * @param hooks - SDK hooks config for capturing tool invocations
+ * @param abortController - AbortController for timeout handling
+ * @param startTime - Execution start timestamp for logging
+ * @param enableMcpDiscovery - Whether to enable MCP server discovery
+ * @param enableFileCheckpointing - Whether to enable file checkpointing for rewind support
  */
 function buildQueryInput(
   scenario: TestScenario,
@@ -90,6 +99,7 @@ function buildQueryInput(
   abortController: AbortController,
   startTime: number,
   enableMcpDiscovery: boolean,
+  enableFileCheckpointing = false,
 ): QueryInput {
   // Build allowed tools list - ensure trigger tools are always included
   const allowedTools = [
@@ -123,6 +133,8 @@ function buildQueryInput(
         ? "bypassPermissions"
         : "default",
       allowDangerouslySkipPermissions: config.permission_bypass,
+      // Enable file checkpointing for rewind support (used by executeScenarioWithCheckpoint)
+      ...(enableFileCheckpointing ? { enableFileCheckpointing: true } : {}),
       ...(config.max_thinking_tokens !== undefined
         ? { maxThinkingTokens: config.max_thinking_tokens }
         : {}),
@@ -333,7 +345,6 @@ export async function executeScenarioWithCheckpoint(
     config,
     additionalPlugins = [],
     queryFn,
-    enableMcpDiscovery = true,
   } = options;
 
   const messages: SDKMessage[] = [];
@@ -348,9 +359,7 @@ export async function executeScenarioWithCheckpoint(
   // Abort controller for timeout handling
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), config.timeout_ms);
-
-  // Determine settingSources based on MCP discovery option
-  const settingSources: SettingSource[] = enableMcpDiscovery ? ["project"] : [];
+  const startTime = Date.now();
 
   try {
     // Build plugin list
@@ -369,37 +378,17 @@ export async function executeScenarioWithCheckpoint(
       onSubagentCapture: (capture) => subagentCaptures.push(capture),
     });
 
-    // Build query input with file checkpointing enabled
-    const queryInput: QueryInput = {
-      prompt: scenario.user_prompt,
-      options: {
-        plugins,
-        settingSources,
-        allowedTools: [
-          ...(config.allowed_tools ?? []),
-          "Skill",
-          "SlashCommand",
-          "Task",
-          "Read",
-          "Glob",
-          "Grep",
-        ],
-        disallowedTools: config.disallowed_tools,
-        model: config.model,
-        // Use Claude Code system prompt for accurate plugin evaluation
-        systemPrompt: { type: "preset", preset: "claude_code" },
-        maxTurns: config.max_turns,
-        persistSession: false,
-        maxBudgetUsd: config.max_budget_usd,
-        abortController: controller,
-        permissionMode: config.permission_bypass
-          ? "bypassPermissions"
-          : "default",
-        allowDangerouslySkipPermissions: config.permission_bypass,
-        enableFileCheckpointing: true, // Enable for rewind
-        hooks: hooksConfig,
-      },
-    };
+    // Build query input with file checkpointing enabled (uses shared buildQueryInput)
+    const queryInput = buildQueryInput(
+      scenario,
+      plugins,
+      config,
+      hooksConfig,
+      controller,
+      startTime,
+      options.enableMcpDiscovery ?? true,
+      true, // enableFileCheckpointing for rewind support
+    );
 
     // Execute with retry
     await withRetry(async () => {

@@ -77,6 +77,7 @@ vi.mock("../../../../src/utils/logging.js", () => ({
 
 vi.mock("../../../../src/utils/sanitizer.js", () => ({
   createSanitizer: vi.fn(),
+  createSanitizerFromOutputConfig: vi.fn(),
   sanitizeTranscriptEvent: vi.fn((event) => event),
   validateRegexPattern: vi.fn(() => ({ valid: true })),
 }));

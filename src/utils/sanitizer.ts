@@ -9,6 +9,7 @@
 
 import { ConfigLoadError } from "../config/loader.js";
 
+import type { SanitizationConfig as OutputSanitizationConfig } from "../types/config.js";
 import type {
   AssistantEvent,
   ToolResultEvent,
@@ -685,4 +686,69 @@ export function sanitizeTranscriptEvent<T extends TranscriptEvent>(
 
   // For unknown event types, return a shallow copy unchanged
   return { ...event };
+}
+
+/**
+ * Create a sanitizer from output sanitization config.
+ *
+ * This is a factory function that handles the common pattern of building
+ * a sanitizer from the output.sanitization config section. It validates
+ * custom patterns, applies fuzz testing, and returns a configured sanitizer.
+ *
+ * @param sanitizationConfig - The sanitization config from output.sanitization
+ * @returns A sanitizer function, or undefined if no config provided
+ *
+ * @example
+ * ```typescript
+ * const sanitizer = createSanitizerFromOutputConfig(config.output.sanitization);
+ * if (sanitizer) {
+ *   const clean = sanitizer("sk-ant-api03-xxx");
+ *   // "[REDACTED_ANTHROPIC_KEY]"
+ * }
+ * ```
+ */
+export function createSanitizerFromOutputConfig(
+  sanitizationConfig: OutputSanitizationConfig | undefined,
+): SanitizerFunction | undefined {
+  if (!sanitizationConfig) {
+    return undefined;
+  }
+
+  const skipSafetyCheck =
+    sanitizationConfig.pattern_safety_acknowledged ?? false;
+  // Extract config values (these have defaults in the Zod schema)
+  const fuzzTimeoutMs = sanitizationConfig.pattern_fuzz_timeout_ms;
+  const maxInputLength = sanitizationConfig.max_input_length;
+
+  const customPatterns = sanitizationConfig.custom_patterns?.map(
+    (p, index) => ({
+      name: `custom_${String(index)}`,
+      pattern: validateRegexPattern(
+        p.pattern,
+        `custom_patterns[${String(index)}]`,
+        // Only include fuzzTimeoutMs if defined (exactOptionalPropertyTypes)
+        fuzzTimeoutMs !== undefined
+          ? { skipSafetyCheck, fuzzTimeoutMs }
+          : { skipSafetyCheck },
+      ),
+      replacement: p.replacement,
+    }),
+  );
+
+  // Build sanitizer options, only including maxInputLength if defined
+  const sanitizerOptions =
+    maxInputLength !== undefined
+      ? { enabled: true as const, maxInputLength }
+      : { enabled: true as const };
+
+  // Only pass patterns if they exist to satisfy exactOptionalPropertyTypes
+  if (customPatterns && customPatterns.length > 0) {
+    return createSanitizer({
+      ...sanitizerOptions,
+      patterns: customPatterns,
+      mergeWithDefaults: true,
+    });
+  }
+
+  return createSanitizer(sanitizerOptions);
 }

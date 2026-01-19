@@ -7,7 +7,7 @@
 
 import {
   createSanitizer,
-  validateRegexPattern,
+  createSanitizerFromOutputConfig,
   type SanitizerFunction,
 } from "../../utils/sanitizer.js";
 
@@ -290,7 +290,7 @@ export function createStreamingReporter(
  * Create a sanitizer function from output config.
  *
  * @param outputConfig - Output configuration with sanitization settings
- * @returns Configured sanitizer function
+ * @returns Configured sanitizer function (identity function if sanitization disabled)
  */
 function createSanitizerFromConfig(
   outputConfig?: OutputConfig,
@@ -299,44 +299,11 @@ function createSanitizerFromConfig(
     return (content: string) => content;
   }
 
-  const sanitizationConfig = outputConfig.sanitization;
-  const skipSafetyCheck =
-    sanitizationConfig?.pattern_safety_acknowledged ?? false;
-  // Extract config values (these have defaults in the Zod schema)
-  const fuzzTimeoutMs = sanitizationConfig?.pattern_fuzz_timeout_ms;
-  const maxInputLength = sanitizationConfig?.max_input_length;
+  // Use shared factory for sanitizer creation
+  const sanitizer = createSanitizerFromOutputConfig(outputConfig.sanitization);
 
-  const customPatterns = sanitizationConfig?.custom_patterns?.map(
-    (p, index) => ({
-      name: `custom_${String(index)}`,
-      pattern: validateRegexPattern(
-        p.pattern,
-        `custom_patterns[${String(index)}]`,
-        // Only include fuzzTimeoutMs if defined (exactOptionalPropertyTypes)
-        fuzzTimeoutMs !== undefined
-          ? { skipSafetyCheck, fuzzTimeoutMs }
-          : { skipSafetyCheck },
-      ),
-      replacement: p.replacement,
-    }),
-  );
-
-  // Build sanitizer options, only including maxInputLength if defined
-  const sanitizerOptions =
-    maxInputLength !== undefined
-      ? { enabled: true as const, maxInputLength }
-      : { enabled: true as const };
-
-  // Only pass patterns if they exist to satisfy exactOptionalPropertyTypes
-  if (customPatterns && customPatterns.length > 0) {
-    return createSanitizer({
-      ...sanitizerOptions,
-      patterns: customPatterns,
-      mergeWithDefaults: true,
-    });
-  }
-
-  return createSanitizer(sanitizerOptions);
+  // Return the configured sanitizer, or a default sanitizer if no config provided
+  return sanitizer ?? createSanitizer({ enabled: true });
 }
 
 /**

@@ -26,9 +26,8 @@ import {
 } from "../../utils/file-io.js";
 import { logger } from "../../utils/logging.js";
 import {
-  createSanitizer,
+  createSanitizerFromOutputConfig,
   sanitizeTranscriptEvent,
-  validateRegexPattern,
 } from "../../utils/sanitizer.js";
 
 import {
@@ -539,47 +538,9 @@ async function saveTranscripts(
 
   // Create sanitizer if transcript sanitization is enabled
   const shouldSanitize = config.output.sanitize_transcripts;
-  let sanitizer: ReturnType<typeof createSanitizer> | undefined;
-
-  if (shouldSanitize) {
-    const sanitizationConfig = config.output.sanitization;
-    const skipSafetyCheck =
-      sanitizationConfig?.pattern_safety_acknowledged ?? false;
-    // Extract config values (these have defaults in the Zod schema)
-    const fuzzTimeoutMs = sanitizationConfig?.pattern_fuzz_timeout_ms;
-    const maxInputLength = sanitizationConfig?.max_input_length;
-
-    const customPatterns = sanitizationConfig?.custom_patterns?.map(
-      (p, index) => ({
-        name: `custom_${String(index)}`,
-        pattern: validateRegexPattern(
-          p.pattern,
-          `custom_patterns[${String(index)}]`,
-          // Only include fuzzTimeoutMs if defined (exactOptionalPropertyTypes)
-          fuzzTimeoutMs !== undefined
-            ? { skipSafetyCheck, fuzzTimeoutMs }
-            : { skipSafetyCheck },
-        ),
-        replacement: p.replacement,
-      }),
-    );
-
-    // Build sanitizer options, only including maxInputLength if defined
-    const sanitizerOptions =
-      maxInputLength !== undefined
-        ? { enabled: true as const, maxInputLength }
-        : { enabled: true as const };
-
-    // Only pass patterns if they exist to satisfy exactOptionalPropertyTypes
-    sanitizer =
-      customPatterns && customPatterns.length > 0
-        ? createSanitizer({
-            ...sanitizerOptions,
-            patterns: customPatterns,
-            mergeWithDefaults: true,
-          })
-        : createSanitizer(sanitizerOptions);
-  }
+  const sanitizer = shouldSanitize
+    ? createSanitizerFromOutputConfig(config.output.sanitization)
+    : undefined;
 
   // Write all transcripts in parallel for better performance
   await Promise.all(
