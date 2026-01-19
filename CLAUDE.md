@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+This file provides guidance to Claude Code when working with this repository.
 
 ## Project Overview
 
@@ -8,471 +8,60 @@ cc-plugin-eval is a 4-stage evaluation framework for testing Claude Code plugin 
 
 **Requirements**: Node.js >= 20.0.0, Anthropic API key (in `.env` as `ANTHROPIC_API_KEY`)
 
-## Commands
+## Quick Reference
 
 ```bash
-# Build & Dev
-npm run build          # Compile TypeScript to dist/
-npm run dev            # Watch mode
+# Verify everything works
+npm run build && npm run lint && npm run typecheck && npm test
 
-# Lint & Type Check
-npm run lint           # ESLint
-npm run lint:fix       # Auto-fix
-npm run format         # Prettier auto-fix
-npm run format:check   # Prettier check only
-npm run typecheck      # tsc --noEmit
-npm run knip           # Dead code detection
-npm run jscpd          # Copy-paste detection
-npm run madge          # Circular dependency detection
-npm run clean          # Clean build artifacts
-
-# Test
-npm run test           # All tests (Vitest)
-npm run test:watch     # Watch mode
-npm run test:coverage  # With coverage
-npm run test:ui        # Visual test UI (opens browser)
-
-# Single test file
-npx vitest run tests/unit/stages/1-analysis/skill-analyzer.test.ts
-
-# Tests matching pattern
-npx vitest run -t "SkillAnalyzer"
-
-# E2E tests (requires API key, costs money)
-RUN_E2E_TESTS=true npm test -- tests/e2e/
-RUN_E2E_TESTS=true E2E_MAX_COST_USD=2.00 npm test -- tests/e2e/
-```
-
-**Test behavior**: Parallel execution, randomized order, 30s timeout. CI retries failed tests twice.
-
-### Additional Linters
-
-```bash
-npm run format:check
-markdownlint "*.md"
-uvx yamllint -c .yamllint.yml config.yaml .yamllint.yml
-actionlint .github/workflows/*.yml
-```
-
-## CLI Usage
-
-```bash
+# Essential CLI commands
 cc-plugin-eval run -p ./plugin           # Full pipeline
-cc-plugin-eval analyze -p ./plugin       # Stage 1 only
-cc-plugin-eval generate -p ./plugin      # Stages 1-2
-cc-plugin-eval execute -p ./plugin       # Stages 1-3
 cc-plugin-eval run -p ./plugin --dry-run # Cost estimation only
 cc-plugin-eval resume -r <run-id>        # Resume interrupted run
-cc-plugin-eval run -p ./plugin --fast    # Re-run failed scenarios only
 ```
-
-## Public API
-
-This package exports a programmatic API via the `exports` field in `package.json`:
-
-### Entry Points
-
-| Subpath                | Description                                 |
-| ---------------------- | ------------------------------------------- |
-| `cc-plugin-eval`       | Main entry: stage runners + config loader   |
-| `cc-plugin-eval/types` | Type definitions (types-only, zero runtime) |
-
-### Exported Functions
-
-These are exported from the main entry (`cc-plugin-eval`):
-
-| Export                    | Description                                              |
-| ------------------------- | -------------------------------------------------------- |
-| `runAnalysis`             | Stage 1: Parse plugin structure and extract triggers     |
-| `runGeneration`           | Stage 2: Generate test scenarios for components          |
-| `runExecution`            | Stage 3: Execute scenarios and capture tool interactions |
-| `runEvaluation`           | Stage 4: Evaluate results and calculate metrics          |
-| `loadConfigWithOverrides` | Load configuration with CLI-style overrides              |
-| `consoleProgress`         | Default progress reporter for execution/evaluation       |
-| `CLIOptions` (type)       | Type for CLI override options                            |
-
-### Usage Example
-
-```typescript
-import {
-  runAnalysis,
-  runGeneration,
-  loadConfigWithOverrides,
-} from "cc-plugin-eval";
-import type { EvalConfig, TestScenario } from "cc-plugin-eval/types";
-
-const config = loadConfigWithOverrides("config.yaml", {
-  plugin: "./my-plugin",
-});
-const analysis = await runAnalysis(config);
-const { scenarios } = await runGeneration(analysis, config);
-```
-
-### Internal vs Public
-
-Functions in `src/cli/` marked with `@internal` JSDoc are CLI-only helpers not intended for external use. These include resume handlers, option extractors, and output formatters.
 
 ## Architecture
 
-### 4-Stage Pipeline
-
-| Stage             | Purpose                                                                             | Output            |
-| ----------------- | ----------------------------------------------------------------------------------- | ----------------- |
-| **1. Analysis**   | Parse plugin structure, extract triggers                                            | `analysis.json`   |
-| **2. Generation** | Create test scenarios (LLM for skills/agents, deterministic for commands/hooks/MCP) | `scenarios.json`  |
-| **3. Execution**  | Run scenarios via Claude Agent SDK with tool capture                                | `transcripts/`    |
-| **4. Evaluation** | Programmatic detection first, LLM judge fallback, metrics calculation               | `evaluation.json` |
-
-### Key Entry Points
-
-| Component         | File                                          | Main Export                   |
-| ----------------- | --------------------------------------------- | ----------------------------- |
-| CLI               | `src/cli/index.ts`                            | Commander `program`           |
-| Stage 1           | `src/stages/1-analysis/index.ts`              | `runAnalysis()`               |
-| Stage 2           | `src/stages/2-generation/index.ts`            | `runGeneration()`             |
-| Stage 3           | `src/stages/3-execution/index.ts`             | `runExecution()`              |
-| Stage 4           | `src/stages/4-evaluation/index.ts`            | `runEvaluation()`             |
-| Detection         | `src/stages/4-evaluation/detection/index.ts`  | `detectAllComponents()`       |
-| Conflict Tracking | `src/stages/4-evaluation/conflict-tracker.ts` | `calculateConflictSeverity()` |
-| Metrics           | `src/stages/4-evaluation/metrics.ts`          | `calculateEvalMetrics()`      |
-| State             | `src/state/index.ts`                          | `loadState()`, `saveState()`  |
-
-### SDK Integration
-
-Two Anthropic SDKs are used for different purposes:
-
-| SDK                              | Used In     | Purpose                               |
-| -------------------------------- | ----------- | ------------------------------------- |
-| `@anthropic-ai/sdk`              | Stages 2, 4 | LLM calls for generation and judgment |
-| `@anthropic-ai/claude-agent-sdk` | Stage 3     | Plugin loading and scenario execution |
-
-### Detection Confidence Levels
-
-Programmatic detection assigns confidence based on detection source:
-
-| Source             | Confidence | Description                                    |
-| ------------------ | ---------- | ---------------------------------------------- |
-| Tool capture       | 100%       | Direct match from PreToolUse/PostToolUse hooks |
-| Hook response      | 100%       | SDKHookResponseMessage events                  |
-| Subagent hooks     | 100%       | SubagentStart/SubagentStop for agent detection |
-| Transcript pattern | 80%        | Regex match in raw transcript (fallback)       |
-| LLM judge          | 60%        | LLM evaluation (secondary fallback)            |
-
-## Code Navigation
-
-This project has MCP tools configured for efficient code exploration and editing.
-
-### Tool Selection: Morph vs Serena
-
-Use this decision tree to pick the right tool:
-
-| Task                          | Tool                                | Why                                          |
-| ----------------------------- | ----------------------------------- | -------------------------------------------- |
-| **Edit any file**             | `edit_file` (Morph)                 | 10,500 tok/s, 98% accuracy, partial snippets |
-| **Find symbol by exact name** | `find_symbol` (Serena)              | LSP-powered precision, no false positives    |
-| **Find all callers/usages**   | `find_referencing_symbols` (Serena) | Semantic analysis of symbol relationships    |
-| **Explore unfamiliar code**   | `warpgrep_codebase_search` (Morph)  | Autonomous sub-agent, parallel search        |
-| **Understand file structure** | `get_symbols_overview` (Serena)     | Quick overview without reading full file     |
-| **Rename across codebase**    | `rename_symbol` (Serena)            | Safe refactoring with LSP                    |
-| **Exact text pattern**        | `rg` or `Grep`                      | Fast literal/regex matching                  |
-| **Edit a complete method**    | `replace_symbol_body` (Serena)      | When replacing entire function body          |
-
-**When to use Morph tools:**
-
-- `edit_file`: ALL file edits (faster than search-and-replace, handles partial context)
-- `warpgrep_codebase_search`: Exploring code you don't know ("how does X work?", "where is Y handled?")
-
-**When to use Serena tools:**
-
-- `find_symbol`: You know the symbol name and want its location/body
-- `find_referencing_symbols`: Understanding call sites before refactoring
-- `replace_symbol_body`: Replacing a complete function/method (cleaner than edit_file for whole symbols)
-- `get_symbols_overview`: Understanding a file's structure without reading it
-
-### edit_file Best Practices
-
-```typescript
-// ALWAYS include the instruction parameter - it disambiguates edits
-edit_file({
-  path: "/abs/path/to/file.ts",
-  instruction: "Add timeout to fetch call", // Required for clarity
-  code_edit: `
-export async function fetchData(url: string) {
-  // ... existing code ...
-  const response = await fetch(url, {
-    headers,
-    timeout: 5000  // added timeout
-  });
-  // ... existing code ...
-}
-`,
-});
-```
-
-**Key patterns:**
-
-- Use `// ... existing code ...` with hints: `// ... keep validation logic ...`
-- Batch all edits to the same file in one call
-- Preserve exact indentation from the original file
-- For deletions: show 1-2 context lines and omit the deleted code
-- Use `dryRun: true` to preview changes without applying
-
-### warpgrep vs Serena: Quick Reference
-
-| Scenario                                | Use This                   |
-| --------------------------------------- | -------------------------- |
-| "Where is the auth flow?"               | `warpgrep_codebase_search` |
-| "Find the `runEvaluation` function"     | `find_symbol`              |
-| "What calls `detectFromCaptures`?"      | `find_referencing_symbols` |
-| "How does conflict detection work?"     | `warpgrep_codebase_search` |
-| "Show me all exports in types/index.ts" | `get_symbols_overview`     |
-
-### Navigation Patterns
-
-**Understanding a stage**: Use `get_symbols_overview` on the stage's `index.ts`, then `find_referencing_symbols` on the main export to see how it integrates with the pipeline.
-
-**Refactoring types**: Use `find_referencing_symbols` on a type from `src/types/` to find all usages before making changes.
-
-**Tracing detection logic**: Detection is in `src/stages/4-evaluation/detection/`. The flow is `detectAllComponents` (in `orchestrator.ts`) → `detectFromCaptures` (in `capture-detection.ts`) → type-specific detectors (`agents.ts`, `commands.ts`, `hooks.ts`). Agent detection uses SubagentStart/SubagentStop hooks. Use `find_symbol` to navigate this chain.
-
-**Adding a new component type**: Follow the type through all four stages using `find_referencing_symbols` on similar component types (e.g., trace how `hooks` is handled to understand where to add `mcp_servers`).
-
-### Serena MCP Best Practices
-
-**Symbol-First Philosophy**: Never read entire source files when you can use symbolic tools. Use `get_symbols_overview` to understand file structure, then `find_symbol` with `include_body=true` only for the specific symbols you need.
-
-**Name Path Patterns**: Serena uses hierarchical name paths like `ClassName/methodName`. Examples:
-
-- `runEvaluation` - Matches any symbol named `runEvaluation`
-- `ProgrammaticDetector/detectFromCaptures` - Matches method in class
-- `/ClassName/method` - Absolute path (exact match required)
-- Use `substring_matching=true` for partial matches: `detect` finds `detectFromCaptures`, `detectAllComponents`
-
-**Key Parameters**:
-
-| Parameter                       | Use Case                                               |
-| ------------------------------- | ------------------------------------------------------ |
-| `depth=1`                       | Get class methods: `find_symbol("ClassName", depth=1)` |
-| `include_body=true`             | Get actual code (use sparingly)                        |
-| `relative_path`                 | Restrict search scope for speed                        |
-| `restrict_search_to_code_files` | In `search_for_pattern`, limits to TypeScript files    |
-
-**Non-Code File Search**: Use `search_for_pattern` (not `find_symbol`) for YAML, JSON, markdown:
-
-```text
-search_for_pattern("pattern", paths_include_glob="*.json")
-```
-
-**Serena Memories**: This project has pre-built memories in `.serena/memories/`. Read relevant ones before major changes:
-
-| Memory                   | When to Read                                          |
-| ------------------------ | ----------------------------------------------------- |
-| `architecture_decisions` | Before changing detection logic or pipeline structure |
-| `testing_patterns`       | Before writing tests                                  |
-| `code_style`             | Before writing new code                               |
-
-**Thinking Tools**: Use Serena's thinking tools at key points:
-
-- `think_about_collected_information` - After searching, before acting
-- `think_about_task_adherence` - Before making edits
-- `think_about_whether_you_are_done` - Before completing a task
-
-## Directory Structure
-
-```text
-src/
-├── index.ts              # Entry point: public API exports + CLI init
-├── env.ts                # Environment setup (dotenv loading)
-├── cli/                  # CLI implementation
-│   ├── index.ts          # Program setup and command registration
-│   ├── commands/         # Individual CLI commands
-│   │   ├── run.ts        # Full pipeline command
-│   │   ├── analyze.ts    # Stage 1 only
-│   │   ├── generate.ts   # Stages 1-2
-│   │   ├── execute.ts    # Stages 1-3
-│   │   ├── resume.ts     # Resume with handlers
-│   │   ├── report.ts     # Report generation
-│   │   └── list.ts       # List runs
-│   ├── formatters.ts     # Output formatters (JUnit, TAP, CLI)
-│   ├── helpers.ts        # State lookup utilities
-│   ├── options.ts        # CLI option parsing
-│   └── styles.ts         # Commander help styling
-├── config/               # Configuration loading with Zod validation
-│   ├── index.ts          # Config exports
-│   ├── defaults.ts       # Default configuration values
-│   ├── loader.ts         # YAML/JSON config loading
-│   ├── pricing.ts        # Model pricing for cost estimation
-│   ├── models.ts         # Model definitions
-│   ├── schema.ts         # Zod validation schemas
-│   └── cli-schema.ts     # CLI-specific schema validation
-├── stages/
-│   ├── 1-analysis/       # Plugin parsing, trigger extraction
-│   ├── 2-generation/     # Scenario generation (LLM + deterministic)
-│   ├── 3-execution/      # Agent SDK integration, tool capture
-│   └── 4-evaluation/     # Programmatic detection, LLM judge, metrics
-│       └── detection/    # Decomposed detection logic
-├── state/                # Resume capability, checkpointing
-│   ├── index.ts          # State exports
-│   ├── operations.ts           # State CRUD operations
-│   ├── queries.ts        # State query utilities
-│   ├── updates.ts        # State update operations
-│   ├── display.ts        # State display formatting
-│   └── types.ts          # State type definitions
-├── types/                # TypeScript interfaces
-└── utils/                # Retry, concurrency, logging utilities
-
-tests/
-├── unit/                 # Unit tests (mirror src/ structure)
-├── integration/          # Integration tests for full stages
-├── e2e/                  # End-to-end tests (real SDK calls)
-├── mocks/                # Mock implementations for testing
-└── fixtures/             # Test data and mock plugins
-```
-
-## Adding a New Component Type
-
-When adding support for a new plugin component type (e.g., a new kind of trigger):
-
-1. Define types in `src/types/`
-2. Create analyzer in `src/stages/1-analysis/`
-3. Create scenario generator in `src/stages/2-generation/`
-4. Add detector in `src/stages/4-evaluation/detection/` (create new file, add to \`orchestrator.ts\`)
-5. Update `AnalysisOutput` in `src/types/state.ts`
-6. Add to pipeline in `src/stages/{1,2,4}-*/index.ts`
-7. Add state migration in \`src/state/operations.ts\` (provide defaults for legacy state)
-8. Add tests
-
-### State Migration
-
-When adding new component types, update `migrateState()` in \`src/state/operations.ts\` to provide defaults (e.g., `hooks: legacyComponents.hooks ?? []`) so existing state files remain compatible.
-
-### Resume Handlers
-
-The CLI uses a handler map in `src/cli/commands/resume.ts` for stage-based resume. State files are stored at `results/<plugin-name>/<run-id>/state.json`.
-
-## Component-Specific Notes
-
-### Hooks
-
-Enable: `scope.hooks: true`
-
-Hooks use the `EventType::Matcher` format (e.g., "PreToolUse::Write|Edit"). Detection happens via `SDKHookResponseMessage` events with 100% confidence. Scenarios are generated deterministically via tool-to-prompt mapping.
-
-**Limitation**: Session lifecycle hooks (SessionStart, SessionEnd) fire once per session.
-
-### MCP Servers
-
-Enable: `scope.mcp_servers: true`
-
-Tools are detected via the pattern `mcp__<server>__<tool>`. Scenarios are generated deterministically (zero LLM cost). The SDK auto-connects to servers defined in `.mcp.json`.
-
-**Limitation**: Tool schemas are not validated.
-
-## Implementation Patterns
-
-### Custom Error Classes
-
-Use cause chains for error context. See `src/config/loader.ts:ConfigLoadError` for the pattern.
-
-### Type Guards
-
-Use type guards for tool detection in `src/stages/4-evaluation/detection/types.ts` and `capture-detection.ts`. Examples include `isSkillInput()` and `isTaskInput()`.
-
-### Parallel Execution with Concurrency Control
-
-Use `src/utils/concurrency.ts` for controlled parallel execution with progress callbacks. The utility handles error aggregation and respects concurrency limits.
-
-### Retry Logic
-
-Use `src/utils/retry.ts` for API calls. It implements exponential backoff with configurable max attempts and handles transient failures gracefully.
-
-### Configuration Validation
-
-All configuration uses Zod schemas in `src/config/`. The loader validates at runtime and provides clear error messages for invalid configuration.
-
-## Testing Patterns
-
-### Unit Tests
-
-Unit tests live in `tests/unit/` and mirror the `src/` structure. They use Vitest with `vi.mock()` for dependencies.
-
-### Integration Tests
-
-Integration tests in `tests/integration/` test full stage execution with real fixtures but mocked LLM calls.
-
-### E2E Tests
-
-E2E tests in `tests/e2e/` make real API calls and cost money. They are skipped by default and enabled via `RUN_E2E_TESTS=true`. Budget limits are enforced via `E2E_MAX_COST_USD`.
-
-### Fixtures
-
-Test fixtures live in `tests/fixtures/`. Sample transcripts are in `tests/fixtures/sample-transcripts/`. Mock plugins are in `tests/fixtures/valid-plugin/`.
-
-## CI/CD
-
-The project uses GitHub Actions for CI. Key workflows:
-
-| Workflow                    | Purpose                                             |
-| --------------------------- | --------------------------------------------------- |
-| `ci.yml`                    | Build, lint, typecheck, test on PR and push         |
-| `ci-failure-analysis.yml`   | AI analysis of CI failures                          |
-| `claude-pr-review.yml`      | AI-powered code review on PRs                       |
-| `claude-issue-analysis.yml` | AI-powered issue analysis                           |
-| `claude.yml`                | Claude Code interactive workflow                    |
-| `semantic-labeler.yml`      | Auto-label issues and PRs based on content          |
-| `markdownlint.yml`          | Markdown linting                                    |
-| `yaml-lint.yml`             | YAML linting                                        |
-| `validate-workflows.yml`    | Validate GitHub Actions workflows with `actionlint` |
-| `links.yml`                 | Check for broken links in documentation             |
-| `sync-labels.yml`           | Sync repository labels from `labels.yml`            |
-| `stale.yml`                 | Mark and close stale issues/PRs                     |
-| `greet.yml`                 | Welcome new contributors                            |
-
-CI runs tests in parallel with randomized order. Failed tests are retried twice before marking as failed.
-
-## GitHub Issue Management
-
-### Issue Blocking Relationships
-
-Use GraphQL mutations to set up issue dependencies (blocked by / blocks relationships).
-
-**Get issue node IDs:**
-
-```bash
-gh issue list --state open --json number,id | jq -r '.[] | "\(.number)\t\(.id)"'
-```
-
-**Add a blocking relationship** (issueId is blocked by blockingIssueId):
-
-```bash
-gh api graphql -f query='
-mutation {
-  addBlockedBy(input: {
-    issueId: "I_kwDO...",
-    blockingIssueId: "I_kwDO..."
-  }) {
-    issue { number title }
-    blockingIssue { number title }
-  }
-}'
-```
-
-**Remove a blocking relationship:**
-
-```bash
-gh api graphql -f query='
-mutation {
-  removeBlockedBy(input: {
-    issueId: "I_kwDO...",
-    blockingIssueId: "I_kwDO..."
-  }) {
-    issue { number title }
-    blockingIssue { number title }
-  }
-}'
-```
-
-**Example:** To make #205 block #207 (meaning #207 is blocked by #205):
-
-- `issueId` = #207's node ID (the blocked issue)
-- `blockingIssueId` = #205's node ID (the blocking issue)
+| Stage             | Purpose                                                   | Entry Point                        |
+| ----------------- | --------------------------------------------------------- | ---------------------------------- |
+| **1. Analysis**   | Parse plugin structure, extract triggers                  | `src/stages/1-analysis/index.ts`   |
+| **2. Generation** | Create test scenarios (LLM + deterministic)               | `src/stages/2-generation/index.ts` |
+| **3. Execution**  | Run scenarios via Claude Agent SDK with tool capture      | `src/stages/3-execution/index.ts`  |
+| **4. Evaluation** | Programmatic detection first, LLM judge fallback, metrics | `src/stages/4-evaluation/index.ts` |
+
+**SDK usage**: `@anthropic-ai/sdk` for LLM calls (Stages 2, 4), `@anthropic-ai/claude-agent-sdk` for execution (Stage 3).
+
+## Documentation
+
+### Task-Specific Guides (`docs/`)
+
+| File                         | When to Read                                    |
+| ---------------------------- | ----------------------------------------------- |
+| `public-api.md`              | Using cc-plugin-eval as a library               |
+| `code-navigation.md`         | Navigating this codebase with Serena            |
+| `adding-components.md`       | Adding new plugin component types               |
+| `component-notes.md`         | Hooks/MCP server specifics and limitations      |
+| `ci-cd.md`                   | Understanding GitHub Actions workflows          |
+| `github-workflows.md`        | Issue blocking relationships, GraphQL mutations |
+| `implementation-patterns.md` | Error handling, type guards, concurrency        |
+
+### Serena Memories (`.serena/memories/`)
+
+| Memory                   | When to Read                                   |
+| ------------------------ | ---------------------------------------------- |
+| `suggested_commands`     | Build, lint, test commands                     |
+| `codebase_structure`     | Directory layout and file organization         |
+| `architecture_decisions` | Detection confidence levels, design rationales |
+| `testing_patterns`       | Test framework details, fixtures, mocking      |
+| `code_style`             | Code conventions and patterns                  |
+| `task_completion`        | Verification checklist before completing tasks |
+
+### Global Tool Guidance
+
+Tool selection (Morph vs Serena) documented in `~/.claude/docs/tool-selection.md`.
+
+## Key Patterns
+
+- **Detection strategy**: Programmatic detection (100% confidence) → transcript patterns (80%) → LLM judge (60%)
+- **Session strategy**: Default is `per_scenario` (one session per test scenario)
+- **State migration**: When adding component types, update `migrateState()` in `src/state/operations.ts`
