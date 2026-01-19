@@ -233,13 +233,8 @@ export function extractCommandName(input: unknown): string | null {
   return null;
 }
 
-/**
- * Analyze tool captures to identify triggered components.
- *
- * @param captures - Tool captures from execution
- * @returns Analysis of triggered components
- */
-export function analyzeCaptures(captures: ToolCapture[]): {
+/** Result type for capture analysis */
+interface CaptureAnalysisResult {
   skills: { name: string; capture: ToolCapture }[];
   agents: {
     subagentType: string;
@@ -252,43 +247,83 @@ export function analyzeCaptures(captures: ToolCapture[]): {
     toolName: string;
     capture: ToolCapture;
   }[];
-} {
-  const result = {
-    skills: [] as { name: string; capture: ToolCapture }[],
-    agents: [] as {
-      subagentType: string;
-      description?: string | undefined;
-      capture: ToolCapture;
-    }[],
-    commands: [] as { name: string; capture: ToolCapture }[],
-    mcpTools: [] as {
-      serverName: string;
-      toolName: string;
-      capture: ToolCapture;
-    }[],
+}
+
+/** Process a skill capture */
+function processSkillCapture(
+  capture: ToolCapture,
+  result: CaptureAnalysisResult,
+): void {
+  const name = extractSkillName(capture.input);
+  if (name) {
+    result.skills.push({ name, capture });
+  }
+}
+
+/** Process an agent/task capture */
+function processAgentCapture(
+  capture: ToolCapture,
+  result: CaptureAnalysisResult,
+): void {
+  const info = extractTaskInfo(capture.input);
+  if (info) {
+    result.agents.push({ ...info, capture });
+  }
+}
+
+/** Process a command capture */
+function processCommandCapture(
+  capture: ToolCapture,
+  result: CaptureAnalysisResult,
+): void {
+  const name = extractCommandName(capture.input);
+  if (name) {
+    result.commands.push({ name, capture });
+  }
+}
+
+/** Process an MCP tool capture */
+function processMcpCapture(
+  capture: ToolCapture,
+  result: CaptureAnalysisResult,
+): void {
+  const parsed = parseMcpToolName(capture.name);
+  if (parsed) {
+    result.mcpTools.push({ ...parsed, capture });
+  }
+}
+
+/**
+ * Analyze tool captures to identify triggered components.
+ *
+ * @param captures - Tool captures from execution
+ * @returns Analysis of triggered components
+ */
+export function analyzeCaptures(
+  captures: ToolCapture[],
+): CaptureAnalysisResult {
+  const result: CaptureAnalysisResult = {
+    skills: [],
+    agents: [],
+    commands: [],
+    mcpTools: [],
   };
 
   for (const capture of captures) {
-    if (capture.name === "Skill") {
-      const name = extractSkillName(capture.input);
-      if (name) {
-        result.skills.push({ name, capture });
-      }
-    } else if (capture.name === "Task") {
-      const info = extractTaskInfo(capture.input);
-      if (info) {
-        result.agents.push({ ...info, capture });
-      }
-    } else if (capture.name === "SlashCommand") {
-      const name = extractCommandName(capture.input);
-      if (name) {
-        result.commands.push({ name, capture });
-      }
-    } else if (isMcpTool(capture.name)) {
-      const parsed = parseMcpToolName(capture.name);
-      if (parsed) {
-        result.mcpTools.push({ ...parsed, capture });
-      }
+    switch (capture.name) {
+      case "Skill":
+        processSkillCapture(capture, result);
+        break;
+      case "Task":
+        processAgentCapture(capture, result);
+        break;
+      case "SlashCommand":
+        processCommandCapture(capture, result);
+        break;
+      default:
+        if (isMcpTool(capture.name)) {
+          processMcpCapture(capture, result);
+        }
     }
   }
 

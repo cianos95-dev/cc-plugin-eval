@@ -397,6 +397,36 @@ interface ErrorWithRequestId {
   headers?: HeadersObject;
 }
 
+/** Check if a string value is non-empty */
+function isNonEmptyString(value: unknown): value is string {
+  return typeof value === "string" && value.length > 0;
+}
+
+/** Extract request ID from headers object */
+function extractRequestIdFromHeaders(
+  headers: ErrorWithRequestId["headers"],
+): string | null {
+  if (!headers) {
+    return null;
+  }
+
+  // Handle Headers-like object (Anthropic SDK uses this)
+  if (typeof headers.get === "function") {
+    const requestId = headers.get("request-id");
+    if (isNonEmptyString(requestId)) {
+      return requestId;
+    }
+  } else {
+    // Handle plain object headers
+    const plainHeaders = headers as Record<string, string>;
+    if (isNonEmptyString(plainHeaders["request-id"])) {
+      return plainHeaders["request-id"];
+    }
+  }
+
+  return null;
+}
+
 /**
  * Extract request ID from an Anthropic SDK error.
  *
@@ -409,40 +439,19 @@ interface ErrorWithRequestId {
  * @returns The request ID string, or null if not found
  */
 export function extractRequestId(error: unknown): string | null {
-  if (error === null || error === undefined) {
-    return null;
-  }
-
-  if (typeof error !== "object") {
+  if (error === null || error === undefined || typeof error !== "object") {
     return null;
   }
 
   const errorObj = error as ErrorWithRequestId;
 
   // Check for direct requestID property (Anthropic SDK APIError)
-  if (typeof errorObj.requestID === "string" && errorObj.requestID.length > 0) {
+  if (isNonEmptyString(errorObj.requestID)) {
     return errorObj.requestID;
   }
 
   // Check for request-id in headers
-  if (errorObj.headers) {
-    // Handle Headers-like object (Anthropic SDK uses this)
-    if (typeof errorObj.headers.get === "function") {
-      const requestId = errorObj.headers.get("request-id");
-      if (typeof requestId === "string" && requestId.length > 0) {
-        return requestId;
-      }
-    } else {
-      // Handle plain object headers
-      const plainHeaders = errorObj.headers as Record<string, string>;
-      const requestId = plainHeaders["request-id"];
-      if (typeof requestId === "string" && requestId.length > 0) {
-        return requestId;
-      }
-    }
-  }
-
-  return null;
+  return extractRequestIdFromHeaders(errorObj.headers);
 }
 
 /**

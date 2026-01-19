@@ -94,6 +94,88 @@ export interface PluginLoaderOptions {
   enableMcpDiscovery?: boolean | undefined;
 }
 
+/** Build query input for plugin verification */
+function buildPluginQueryInput(
+  pluginPath: string,
+  config: ExecutionConfig,
+  settingSources: SettingSource[],
+  controller: AbortController,
+  startTime: number,
+): QueryInput {
+  return {
+    prompt: "Plugin initialization check - respond with OK",
+    options: {
+      plugins: [{ type: "local", path: pluginPath }],
+      settingSources,
+      model: config.model,
+      maxTurns: 1,
+      persistSession: false,
+      permissionMode: config.permission_bypass
+        ? "bypassPermissions"
+        : "default",
+      allowDangerouslySkipPermissions: config.permission_bypass,
+      abortController: controller,
+      stderr: (data: string): void => {
+        const elapsed = Date.now() - startTime;
+        logger.debug(
+          `[Plugin Load ${String(elapsed)}ms] SDK stderr: ${data.trim()}`,
+        );
+      },
+    },
+  };
+}
+
+/** Process messages from query stream looking for init message */
+async function processQueryMessages(
+  q: QueryObject,
+  pluginPath: string,
+  timings: PluginLoadTimings,
+): Promise<PluginLoadResult> {
+  for await (const message of q) {
+    timings.firstMessage ??= Date.now();
+
+    if (isSystemMessage(message)) {
+      timings.initMessage = Date.now();
+      const initResult = processInitMessage(message, pluginPath, timings);
+      await enrichMcpServerStatus(initResult, q);
+      return initResult;
+    }
+
+    const errorText = getErrorFromMessage(message);
+    if (errorText !== undefined) {
+      return createFailedResult(
+        pluginPath,
+        `Plugin initialization error: ${errorText}`,
+        "unknown",
+        timings,
+      );
+    }
+  }
+
+  return createFailedResult(
+    pluginPath,
+    "No system init message received - plugin may have failed silently",
+    "unknown",
+    timings,
+  );
+}
+
+/** Handle errors during plugin load */
+function handlePluginLoadError(
+  err: unknown,
+  pluginPath: string,
+  timeoutMs: number,
+  timings: PluginLoadTimings,
+): PluginLoadResult {
+  const isTimeout = err instanceof Error && err.name === "AbortError";
+  const errorType: PluginErrorType = isTimeout ? "timeout" : "unknown";
+  const errorMessage = isTimeout
+    ? `Plugin load timed out after ${String(timeoutMs / 1000)} seconds`
+    : `Plugin load failed: ${err instanceof Error ? err.message : String(err)}`;
+
+  return createFailedResult(pluginPath, errorMessage, errorType, timings);
+}
+
 /**
  * Verify a plugin loads correctly.
  *
@@ -129,94 +211,30 @@ export async function verifyPluginLoad(
   } = options;
   const startTime = Date.now();
 
-  // Initialize timing state
   const timings: PluginLoadTimings = {
     queryStart: startTime,
     firstMessage: null,
     initMessage: null,
   };
 
-  // Create abort controller for timeout
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
 
-  // Determine settingSources based on MCP discovery option
-  // When enableMcpDiscovery is false, we use an empty array to prevent
-  // the SDK from scanning for .mcp.json files, which avoids the 60-second
-  // MCP channel closure timeout when no MCP servers are needed.
   const settingSources: SettingSource[] = enableMcpDiscovery ? ["project"] : [];
 
   try {
-    // Build query input
-    const queryInput: QueryInput = {
-      prompt: "Plugin initialization check - respond with OK",
-      options: {
-        plugins: [{ type: "local", path: pluginPath }],
-        settingSources,
-        model: config.model,
-        maxTurns: 1,
-        persistSession: false,
-        permissionMode: config.permission_bypass
-          ? "bypassPermissions"
-          : "default",
-        allowDangerouslySkipPermissions: config.permission_bypass,
-        abortController: controller,
-        stderr: (data: string): void => {
-          const elapsed = Date.now() - startTime;
-          logger.debug(
-            `[Plugin Load ${String(elapsed)}ms] SDK stderr: ${data.trim()}`,
-          );
-        },
-      },
-    };
-
-    // Use provided query function or real SDK
+    const queryInput = buildPluginQueryInput(
+      pluginPath,
+      config,
+      settingSources,
+      controller,
+      startTime,
+    );
     const q = queryFn ? queryFn(queryInput) : executeQuery(queryInput);
 
-    // Iterate through messages looking for init
-    for await (const message of q) {
-      // Track first message timing
-      timings.firstMessage ??= Date.now();
-
-      // Check for init message (SDKSystemMessage always has subtype='init')
-      if (isSystemMessage(message)) {
-        timings.initMessage = Date.now();
-        const initResult = processInitMessage(message, pluginPath, timings);
-
-        // Enrich MCP server status with real-time data
-        await enrichMcpServerStatus(initResult, q);
-
-        return initResult;
-      }
-
-      // Check for error messages during init
-      // Note: SDK may send error messages not in its TypeScript union
-      const errorText = getErrorFromMessage(message);
-      if (errorText !== undefined) {
-        return createFailedResult(
-          pluginPath,
-          `Plugin initialization error: ${errorText}`,
-          "unknown",
-          timings,
-        );
-      }
-    }
-
-    // No init message received
-    return createFailedResult(
-      pluginPath,
-      "No system init message received - plugin may have failed silently",
-      "unknown",
-      timings,
-    );
+    return await processQueryMessages(q, pluginPath, timings);
   } catch (err) {
-    const isTimeout = err instanceof Error && err.name === "AbortError";
-    const errorType: PluginErrorType = isTimeout ? "timeout" : "unknown";
-    const errorMessage = isTimeout
-      ? `Plugin load timed out after ${String(timeoutMs / 1000)} seconds`
-      : `Plugin load failed: ${err instanceof Error ? err.message : String(err)}`;
-
-    return createFailedResult(pluginPath, errorMessage, errorType, timings);
+    return handlePluginLoadError(err, pluginPath, timeoutMs, timings);
   } finally {
     clearTimeout(timeout);
   }
@@ -488,60 +506,102 @@ export function getFailedMcpServers(
 }
 
 /**
+ * Format MCP servers for display.
+ */
+function formatMcpServers(servers: McpServerStatus[]): string[] {
+  if (servers.length === 0) {
+    return [];
+  }
+
+  const lines = [`  MCP Servers: ${String(servers.length)}`];
+  for (const server of servers) {
+    const statusIcon = server.status === "connected" ? "✓" : "✗";
+    lines.push(
+      `    ${statusIcon} ${server.name}: ${server.status} (${String(server.tools.length)} tools)`,
+    );
+  }
+  return lines;
+}
+
+/**
+ * Format MCP warnings for display.
+ */
+function formatMcpWarnings(warnings: string[] | undefined): string[] {
+  if (!warnings || warnings.length === 0) {
+    return [];
+  }
+
+  return [`  MCP Warnings:`, ...warnings.map((w) => `    ⚠ ${w}`)];
+}
+
+/**
+ * Format diagnostics timing information for display.
+ */
+function formatDiagnostics(
+  diagnostics: PluginLoadDiagnostics | undefined,
+): string[] {
+  if (!diagnostics) {
+    return [];
+  }
+
+  const lines = [`  Load time: ${String(diagnostics.load_duration_ms)}ms`];
+
+  if (diagnostics.timing_breakdown) {
+    const tb = diagnostics.timing_breakdown;
+    lines.push(
+      `  Timing breakdown:`,
+      `    First message: ${String(tb.time_to_first_message_ms)}ms`,
+      `    Init message: ${String(tb.time_to_init_message_ms)}ms`,
+      `    Total query: ${String(tb.total_query_time_ms)}ms`,
+    );
+  }
+
+  return lines;
+}
+
+/**
+ * Format successful plugin load result.
+ */
+function formatSuccessResult(result: PluginLoadResult): string[] {
+  return [
+    `Plugin loaded: ${result.plugin_name ?? "unknown"}`,
+    `  Path: ${result.plugin_path}`,
+    `  Session: ${result.session_id}`,
+    `  Tools: ${String(result.registered_tools.length)}`,
+    `  Commands: ${String(result.registered_commands.length)}`,
+    ...formatMcpServers(result.mcp_servers),
+    ...formatMcpWarnings(result.mcp_warnings),
+    ...formatDiagnostics(result.diagnostics),
+  ];
+}
+
+/**
+ * Format failed plugin load result.
+ */
+function formatFailureResult(result: PluginLoadResult): string[] {
+  const lines = [
+    `Plugin failed to load: ${result.plugin_path}`,
+    `  Error: ${result.error ?? "Unknown"}`,
+    `  Type: ${result.error_type ?? "unknown"}`,
+  ];
+
+  if (result.recovery_hint) {
+    lines.push(`  Hint: ${result.recovery_hint}`);
+  }
+
+  return lines;
+}
+
+/**
  * Format plugin load result for logging.
  *
  * @param result - Plugin load result
  * @returns Formatted string
  */
 export function formatPluginLoadResult(result: PluginLoadResult): string {
-  const lines: string[] = [];
-
-  if (result.loaded) {
-    lines.push(`Plugin loaded: ${result.plugin_name ?? "unknown"}`);
-    lines.push(`  Path: ${result.plugin_path}`);
-    lines.push(`  Session: ${result.session_id}`);
-    lines.push(`  Tools: ${String(result.registered_tools.length)}`);
-    lines.push(`  Commands: ${String(result.registered_commands.length)}`);
-
-    if (result.mcp_servers.length > 0) {
-      lines.push(`  MCP Servers: ${String(result.mcp_servers.length)}`);
-      for (const server of result.mcp_servers) {
-        const statusIcon = server.status === "connected" ? "✓" : "✗";
-        lines.push(
-          `    ${statusIcon} ${server.name}: ${server.status} (${String(server.tools.length)} tools)`,
-        );
-      }
-    }
-
-    if (result.mcp_warnings && result.mcp_warnings.length > 0) {
-      lines.push(`  MCP Warnings:`);
-      for (const warning of result.mcp_warnings) {
-        lines.push(`    ⚠ ${warning}`);
-      }
-    }
-
-    if (result.diagnostics) {
-      lines.push(
-        `  Load time: ${String(result.diagnostics.load_duration_ms)}ms`,
-      );
-      if (result.diagnostics.timing_breakdown) {
-        const tb = result.diagnostics.timing_breakdown;
-        lines.push(`  Timing breakdown:`);
-        lines.push(
-          `    First message: ${String(tb.time_to_first_message_ms)}ms`,
-        );
-        lines.push(`    Init message: ${String(tb.time_to_init_message_ms)}ms`);
-        lines.push(`    Total query: ${String(tb.total_query_time_ms)}ms`);
-      }
-    }
-  } else {
-    lines.push(`Plugin failed to load: ${result.plugin_path}`);
-    lines.push(`  Error: ${result.error ?? "Unknown"}`);
-    lines.push(`  Type: ${result.error_type ?? "unknown"}`);
-    if (result.recovery_hint) {
-      lines.push(`  Hint: ${result.recovery_hint}`);
-    }
-  }
+  const lines = result.loaded
+    ? formatSuccessResult(result)
+    : formatFailureResult(result);
 
   return lines.join("\n");
 }

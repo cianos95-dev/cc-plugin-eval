@@ -293,6 +293,38 @@ export function calculateRepetitionStats(
   };
 }
 
+/** Sum total input tokens across all model usage entries */
+function sumInputTokensFromUsage(executions: ExecutionResult[]): number {
+  let total = 0;
+  for (const exec of executions) {
+    if (!exec.model_usage) {
+      continue;
+    }
+    for (const usage of Object.values(exec.model_usage)) {
+      total += usage.inputTokens ?? 0;
+    }
+  }
+  return total;
+}
+
+/** Calculate total cache savings across all executions */
+function sumCacheSavings(executions: ExecutionResult[]): number {
+  let total = 0;
+  for (const exec of executions) {
+    if (!exec.model_usage) {
+      continue;
+    }
+    for (const [modelId, usage] of Object.entries(exec.model_usage)) {
+      const cacheCreation = usage.cacheCreationInputTokens ?? 0;
+      const cacheRead = usage.cacheReadInputTokens ?? 0;
+      if (cacheCreation > 0 || cacheRead > 0) {
+        total += calculateCacheSavings(cacheCreation, cacheRead, modelId);
+      }
+    }
+  }
+  return total;
+}
+
 /**
  * Calculate cache usage statistics from executions.
  *
@@ -302,7 +334,6 @@ export function calculateRepetitionStats(
 function calculateCacheStats(
   executions: ExecutionResult[],
 ): CacheStats | undefined {
-  // Sum cache tokens across all executions
   const totalCacheReadTokens = executions.reduce(
     (sum, e) => sum + (e.cache_read_tokens ?? 0),
     0,
@@ -312,49 +343,20 @@ function calculateCacheStats(
     0,
   );
 
-  // Calculate total input tokens from modelUsage
-  let totalInputTokens = 0;
-  for (const exec of executions) {
-    if (exec.model_usage) {
-      for (const usage of Object.values(exec.model_usage)) {
-        totalInputTokens += usage.inputTokens ?? 0;
-      }
-    }
-  }
-
   // Only return stats if we have cache data
   if (totalCacheReadTokens === 0 && totalCacheCreationTokens === 0) {
     return undefined;
   }
 
-  // Calculate cache hit rate (cache reads / total input tokens)
+  const totalInputTokens = sumInputTokensFromUsage(executions);
   const cacheHitRate =
     totalInputTokens > 0 ? totalCacheReadTokens / totalInputTokens : 0;
-
-  // Calculate savings by aggregating per-model cache tokens
-  // We need to calculate savings per model since pricing varies
-  let totalSavings = 0;
-  for (const exec of executions) {
-    if (exec.model_usage) {
-      for (const [modelId, usage] of Object.entries(exec.model_usage)) {
-        const cacheCreation = usage.cacheCreationInputTokens ?? 0;
-        const cacheRead = usage.cacheReadInputTokens ?? 0;
-        if (cacheCreation > 0 || cacheRead > 0) {
-          totalSavings += calculateCacheSavings(
-            cacheCreation,
-            cacheRead,
-            modelId,
-          );
-        }
-      }
-    }
-  }
 
   return {
     total_cache_read_tokens: totalCacheReadTokens,
     total_cache_creation_tokens: totalCacheCreationTokens,
     cache_hit_rate: cacheHitRate,
-    savings_usd: totalSavings,
+    savings_usd: sumCacheSavings(executions),
   };
 }
 
@@ -377,6 +379,64 @@ function calculateCacheStats(
  * console.log(`Accuracy: ${(metrics.accuracy * 100).toFixed(1)}%`);
  * ```
  */
+/** Calculate conflict-related metrics */
+function calculateConflictMetrics(evalResults: EvaluationResult[]): {
+  conflict_count: number;
+  major_conflicts: number;
+  minor_conflicts: number;
+} {
+  return {
+    conflict_count: evalResults.filter((r) => r.has_conflict).length,
+    major_conflicts: evalResults.filter((r) => r.conflict_severity === "major")
+      .length,
+    minor_conflicts: evalResults.filter((r) => r.conflict_severity === "minor")
+      .length,
+  };
+}
+
+/** Calculate cost and duration metrics from executions */
+function calculateCostMetrics(executions: ExecutionResult[]): {
+  total_cost_usd: number;
+  avg_cost_per_scenario: number;
+  total_api_duration_ms: number;
+} {
+  const totalCost = executions.reduce((sum, e) => sum + e.cost_usd, 0);
+  const totalDuration = executions.reduce(
+    (sum, e) => sum + e.api_duration_ms,
+    0,
+  );
+  return {
+    total_cost_usd: totalCost,
+    avg_cost_per_scenario:
+      executions.length > 0 ? totalCost / executions.length : 0,
+    total_api_duration_ms: totalDuration,
+  };
+}
+
+/** Add optional stats to metrics if defined */
+function addOptionalStats(
+  result: EvalMetrics,
+  stats: {
+    multiSampleStats: MultiSampleStats | undefined;
+    semanticStats: SemanticStats | undefined;
+    repetitionStats: RepetitionStats | undefined;
+    cacheStats: CacheStats | undefined;
+  },
+): void {
+  if (stats.multiSampleStats !== undefined) {
+    result.multi_sample_stats = stats.multiSampleStats;
+  }
+  if (stats.semanticStats !== undefined) {
+    result.semantic_stats = stats.semanticStats;
+  }
+  if (stats.repetitionStats !== undefined) {
+    result.repetition_stats = stats.repetitionStats;
+  }
+  if (stats.cacheStats !== undefined) {
+    result.cache_stats = stats.cacheStats;
+  }
+}
+
 export function calculateEvalMetrics(
   results: ResultWithContext[],
   executions: ExecutionResult[],
@@ -395,87 +455,41 @@ export function calculateEvalMetrics(
 ): EvalMetrics {
   const evalResults = results.map((c) => c.result);
 
-  // Basic metrics
-  const triggerRate = calculateTriggerRate(evalResults);
-  const accuracy = calculateAccuracy(results);
-  const avgQuality = calculateAvgQuality(evalResults);
-
-  // Component breakdown
-  const byComponent = calculateComponentMetrics(results);
-
-  // Conflict metrics
-  const conflicts = evalResults.filter((r) => r.has_conflict);
-  const majorConflicts = evalResults.filter(
-    (r) => r.conflict_severity === "major",
-  ).length;
-  const minorConflicts = evalResults.filter(
-    (r) => r.conflict_severity === "minor",
-  ).length;
-
-  // Cost and duration from executions
-  const totalCost = executions.reduce((sum, e) => sum + e.cost_usd, 0);
-  const totalDuration = executions.reduce(
-    (sum, e) => sum + e.api_duration_ms,
-    0,
-  );
-  const avgCostPerScenario =
-    executions.length > 0 ? totalCost / executions.length : 0;
-
-  // Error tracking
+  // Calculate all metric components
+  const conflictMetrics = calculateConflictMetrics(evalResults);
+  const costMetrics = calculateCostMetrics(executions);
   const allErrors: TranscriptErrorEvent[] = executions.flatMap((e) => e.errors);
-  const errorsByType = countErrorsByType(executions);
 
-  // Optional stats
-  const multiSampleStats = options.sampleData
-    ? calculateMultiSampleStats(options.sampleData)
-    : undefined;
-
-  const semanticStats = calculateSemanticStats(results);
-
-  const repetitionStats =
-    options.numReps && options.flakyScenarios
-      ? calculateRepetitionStats(
-          options.numReps,
-          options.flakyScenarios,
-          new Set(results.map((r) => r.scenario.id)).size,
-        )
-      : undefined;
-
-  const cacheStats = calculateCacheStats(executions);
-
+  // Build core result
   const result: EvalMetrics = {
     total_scenarios: evalResults.length,
     triggered_count: evalResults.filter((r) => r.triggered).length,
-    trigger_rate: triggerRate,
-    accuracy,
-    avg_quality: avgQuality,
-    by_component: byComponent,
-
-    conflict_count: conflicts.length,
-    major_conflicts: majorConflicts,
-    minor_conflicts: minorConflicts,
-
-    total_cost_usd: totalCost,
-    avg_cost_per_scenario: avgCostPerScenario,
-    total_api_duration_ms: totalDuration,
-
+    trigger_rate: calculateTriggerRate(evalResults),
+    accuracy: calculateAccuracy(results),
+    avg_quality: calculateAvgQuality(evalResults),
+    by_component: calculateComponentMetrics(results),
+    ...conflictMetrics,
+    ...costMetrics,
     error_count: allErrors.length,
-    errors_by_type: errorsByType,
+    errors_by_type: countErrorsByType(executions),
   };
 
-  // Only add optional stats if defined
-  if (multiSampleStats !== undefined) {
-    result.multi_sample_stats = multiSampleStats;
-  }
-  if (semanticStats !== undefined) {
-    result.semantic_stats = semanticStats;
-  }
-  if (repetitionStats !== undefined) {
-    result.repetition_stats = repetitionStats;
-  }
-  if (cacheStats !== undefined) {
-    result.cache_stats = cacheStats;
-  }
+  // Add optional stats
+  addOptionalStats(result, {
+    multiSampleStats: options.sampleData
+      ? calculateMultiSampleStats(options.sampleData)
+      : undefined,
+    semanticStats: calculateSemanticStats(results),
+    repetitionStats:
+      options.numReps && options.flakyScenarios
+        ? calculateRepetitionStats(
+            options.numReps,
+            options.flakyScenarios,
+            new Set(results.map((r) => r.scenario.id)).size,
+          )
+        : undefined,
+    cacheStats: calculateCacheStats(executions),
+  });
 
   return result;
 }

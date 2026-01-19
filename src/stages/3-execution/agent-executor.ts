@@ -51,6 +51,37 @@ import type {
  */
 export type QueryFunction = (input: QueryInput) => QueryObject;
 
+/** Create an API error event from error text */
+function createApiError(errorText: string): TranscriptErrorEvent {
+  return {
+    type: "error",
+    error_type: "api_error",
+    message: errorText,
+    timestamp: Date.now(),
+    recoverable: false,
+  };
+}
+
+/** Attempt to rewind file changes if the query object supports it */
+async function rewindFileChangesIfPossible(
+  q: QueryObject,
+  userMessageId: string | undefined,
+  scenarioId: string,
+): Promise<void> {
+  if (!userMessageId || typeof q.rewindFiles !== "function") {
+    return;
+  }
+
+  try {
+    await q.rewindFiles(userMessageId);
+    logger.debug(`Reverted file changes for scenario: ${scenarioId}`);
+  } catch (rewindErr) {
+    logger.warn(
+      `Failed to rewind files for ${scenarioId}: ${rewindErr instanceof Error ? rewindErr.message : String(rewindErr)}`,
+    );
+  }
+}
+
 /**
  * Scenario execution options.
  */
@@ -396,44 +427,22 @@ export async function executeScenarioWithCheckpoint(
 
       for await (const message of q) {
         messages.push(message);
-
-        // Process message for hook responses
         hookCollector.processMessage(message);
 
         // Capture user message ID for potential rewind
         if (isUserMessage(message)) {
-          const msgId = getMessageId(message);
-          if (msgId) {
-            userMessageId = msgId;
-          }
+          userMessageId = getMessageId(message) ?? userMessageId;
         }
 
-        // Capture errors
-        // Note: SDK may send error messages not in its TypeScript union
+        // Capture errors from SDK messages
         const errorText = getErrorFromMessage(message);
         if (errorText !== undefined) {
-          errors.push({
-            type: "error",
-            error_type: "api_error",
-            message: errorText,
-            timestamp: Date.now(),
-            recoverable: false,
-          });
+          errors.push(createApiError(errorText));
         }
       }
 
-      // Rewind file changes after execution if we have the Query object
-      // The SDK's query() returns an object with rewindFiles method
-      if (userMessageId && typeof q.rewindFiles === "function") {
-        try {
-          await q.rewindFiles(userMessageId);
-          logger.debug(`Reverted file changes for scenario: ${scenario.id}`);
-        } catch (rewindErr) {
-          logger.warn(
-            `Failed to rewind files for ${scenario.id}: ${rewindErr instanceof Error ? rewindErr.message : String(rewindErr)}`,
-          );
-        }
-      }
+      // Rewind file changes after execution
+      await rewindFileChangesIfPossible(q, userMessageId, scenario.id);
     });
   } catch (err) {
     const isTimeout = err instanceof Error && err.name === "AbortError";

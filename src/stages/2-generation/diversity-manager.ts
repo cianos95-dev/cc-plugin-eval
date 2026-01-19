@@ -131,47 +131,66 @@ export function baseToTestScenario(
  * @param includeSemantic - Whether to include semantic scenarios
  * @returns Distribution map
  */
+/** Build scenario type list based on inclusion flags */
+function buildScenarioTypeList(
+  includeSemantic: boolean,
+  includeNegative: boolean,
+): ScenarioType[] {
+  const types: ScenarioType[] = ["direct", "paraphrased", "edge_case"];
+  if (includeSemantic) {
+    types.splice(1, 0, "semantic"); // Insert after direct
+  }
+  if (includeNegative) {
+    types.push("negative");
+  }
+  return types;
+}
+
+/** Distribute remaining count across types */
+function distributeRemainingCount(
+  types: ScenarioType[],
+  remaining: number,
+): Map<ScenarioType, number> {
+  const distribution = new Map<ScenarioType, number>();
+
+  if (remaining <= 0 || types.length === 0) {
+    return distribution;
+  }
+
+  const perType = Math.floor(remaining / types.length);
+  let leftover = remaining - perType * types.length;
+
+  for (const type of types) {
+    const typeCount = perType + (leftover > 0 ? 1 : 0);
+    if (typeCount > 0) {
+      distribution.set(type, typeCount);
+    }
+    if (leftover > 0) {
+      leftover--;
+    }
+  }
+
+  return distribution;
+}
+
 export function distributeScenarioTypes(
   count: number,
   includeNegative = true,
   includeSemantic = false,
 ): Map<ScenarioType, number> {
-  const distribution = new Map<ScenarioType, number>();
-
   if (count <= 0) {
-    return distribution;
+    return new Map<ScenarioType, number>();
   }
 
-  // Build type list based on flags
-  const types: ScenarioType[] = ["direct", "paraphrased", "edge_case"];
-  if (includeSemantic) {
-    types.splice(1, 0, "semantic");
-  } // Insert after direct
-  if (includeNegative) {
-    types.push("negative");
-  }
+  const types = buildScenarioTypeList(includeSemantic, includeNegative);
 
   // Weighted distribution: direct gets 30%, others split remaining
   const directCount = Math.max(1, Math.ceil(count * 0.3));
-  distribution.set("direct", directCount);
-
   const remaining = count - directCount;
   const otherTypes = types.filter((t) => t !== "direct");
 
-  if (remaining > 0 && otherTypes.length > 0) {
-    const perType = Math.floor(remaining / otherTypes.length);
-    let leftover = remaining - perType * otherTypes.length;
-
-    for (const type of otherTypes) {
-      const typeCount = perType + (leftover > 0 ? 1 : 0);
-      if (typeCount > 0) {
-        distribution.set(type, typeCount);
-      }
-      if (leftover > 0) {
-        leftover--;
-      }
-    }
-  }
+  const distribution = distributeRemainingCount(otherTypes, remaining);
+  distribution.set("direct", directCount);
 
   return distribution;
 }

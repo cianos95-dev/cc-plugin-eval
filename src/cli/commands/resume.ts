@@ -247,6 +247,53 @@ const resumeHandlers: Record<PipelineStage, ResumeHandler> = {
 };
 
 /**
+ * Resolve and validate run ID from options.
+ * Returns the run ID or exits with error.
+ */
+function resolveRunId(
+  runId: string | undefined,
+  pluginName: string | undefined,
+): string {
+  if (runId) {
+    return runId;
+  }
+
+  if (pluginName) {
+    const foundId = findLatestRun(pluginName);
+    if (foundId) {
+      logger.info(`Found latest run: ${foundId}`);
+      return foundId;
+    }
+    logger.error(`No runs found for plugin: ${pluginName}`);
+    process.exit(1);
+  }
+
+  logger.error("Please provide --run-id or --plugin to find a run");
+  process.exit(1);
+}
+
+/**
+ * Display available data for resume troubleshooting.
+ */
+function displayAvailableData(
+  state: NonNullable<ReturnType<typeof loadState>>,
+): void {
+  logger.info("Available data:");
+  if (state.analysis) {
+    logger.info("  - Analysis complete");
+  }
+  if (state.scenarios) {
+    logger.info("  - Scenarios generated");
+  }
+  if (state.executions) {
+    logger.info("  - Executions complete");
+  }
+  if (state.evaluations) {
+    logger.info("  - Evaluations complete");
+  }
+}
+
+/**
  * Register the resume command on the program.
  */
 export function registerResumeCommand(program: Command): void {
@@ -261,31 +308,15 @@ export function registerResumeCommand(program: Command): void {
     )
     .action(async (options: Record<string, unknown>) => {
       try {
-        // Extract and validate CLI options
         const extracted = extractResumeOptions(options);
         const { pluginName, fromStage, error } = extracted;
-        let { runId } = extracted;
 
         if (error) {
           logger.error(error);
           process.exit(1);
         }
 
-        if (!runId && pluginName) {
-          runId = findLatestRun(pluginName) ?? undefined;
-          if (!runId) {
-            logger.error(`No runs found for plugin: ${pluginName}`);
-            process.exit(1);
-          }
-          logger.info(`Found latest run: ${runId}`);
-        }
-
-        if (!runId) {
-          logger.error("Please provide --run-id or --plugin to find a run");
-          process.exit(1);
-        }
-
-        // Load the state using helper function
+        const runId = resolveRunId(extracted.runId, pluginName);
         const state = findAndLoadState(pluginName, runId);
 
         if (!state) {
@@ -296,24 +327,11 @@ export function registerResumeCommand(program: Command): void {
         logger.info("Current state:");
         console.log(formatState(state));
 
-        // Determine resume point
         const resumeStage = fromStage ?? state.stage;
 
         if (!canResumeFrom(state, resumeStage)) {
           logger.error(`Cannot resume from stage: ${resumeStage}`);
-          logger.info("Available data:");
-          if (state.analysis) {
-            logger.info("  - Analysis complete");
-          }
-          if (state.scenarios) {
-            logger.info("  - Scenarios generated");
-          }
-          if (state.executions) {
-            logger.info("  - Executions complete");
-          }
-          if (state.evaluations) {
-            logger.info("  - Evaluations complete");
-          }
+          displayAvailableData(state);
           process.exit(1);
         }
 
@@ -323,8 +341,6 @@ export function registerResumeCommand(program: Command): void {
         }
 
         const resultsDir = getResultsDir(state.plugin_name, state.run_id);
-
-        // Resume from the appropriate stage using handler map
         const handler = resumeHandlers[resumeStage];
         await handler(state, config, resultsDir);
       } catch (err) {

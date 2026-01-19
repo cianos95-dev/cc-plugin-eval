@@ -630,6 +630,40 @@ async function rewindFileChanges(
   }
 }
 
+/** Build plugin reference list for batch execution */
+function buildPluginList(
+  pluginPath: string,
+  additionalPlugins: string[],
+): PluginReference[] {
+  const plugins: PluginReference[] = [{ type: "local", path: pluginPath }];
+  for (const additionalPath of additionalPlugins) {
+    plugins.push({ type: "local", path: additionalPath });
+  }
+  return plugins;
+}
+
+/** Default allowed tools for scenario execution */
+const DEFAULT_ALLOWED_TOOLS = [
+  "Skill",
+  "SlashCommand",
+  "Task",
+  "Read",
+  "Glob",
+  "Grep",
+];
+
+/** Create error event from exception */
+function createErrorEventFromException(err: unknown): TranscriptErrorEvent {
+  const isTimeout = err instanceof Error && err.name === "AbortError";
+  return {
+    type: "error",
+    error_type: isTimeout ? "timeout" : "api_error",
+    message: err instanceof Error ? err.message : String(err),
+    timestamp: Date.now(),
+    recoverable: false,
+  };
+}
+
 /**
  * Execute a batch of scenarios with session reuse.
  *
@@ -662,28 +696,13 @@ export async function executeBatch(
   const results: ExecutionResult[] = [];
   const startTime = Date.now();
 
-  // Build plugin list
-  const plugins: PluginReference[] = [{ type: "local", path: pluginPath }];
-  for (const additionalPath of additionalPlugins) {
-    plugins.push({ type: "local", path: additionalPath });
-  }
-
-  // Build allowed tools
+  const plugins = buildPluginList(pluginPath, additionalPlugins);
   const allowedTools = [
     ...(config.allowed_tools ?? []),
-    "Skill",
-    "SlashCommand",
-    "Task",
-    "Read",
-    "Glob",
-    "Grep",
+    ...DEFAULT_ALLOWED_TOOLS,
   ];
 
   // Create shared capture maps and stateless hooks ONCE per batch.
-  // This optimization reduces memory allocations by ~60% for hook callbacks:
-  // - Capture maps are cleared between scenarios (same map instances reused)
-  // - Stateless hooks (PostToolUse, PostToolUseFailure, SubagentStop) are reused
-  // - Stateful hooks (PreToolUse, SubagentStart) are created fresh per scenario
   const sharedCaptureMaps = {
     captureMap: new Map<string, ToolCapture>(),
     subagentCaptureMap: new Map<string, SubagentCapture>(),
@@ -693,21 +712,15 @@ export async function executeBatch(
     subagentCaptureMap: sharedCaptureMaps.subagentCaptureMap,
   });
 
-  // Process each scenario in the batch
   for (const scenario of scenarios) {
     const scenarioIndex = results.length;
-
-    // Clear capture maps for this scenario to ensure isolation.
-    // The stateless hooks continue to reference these same map instances.
     sharedCaptureMaps.captureMap.clear();
     sharedCaptureMaps.subagentCaptureMap.clear();
 
-    // Create abort controller for this scenario
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), config.timeout_ms);
 
     try {
-      // Execute scenario with retry support
       const executionResult = await executeScenarioWithRetry({
         scenario,
         scenarioIndex,
@@ -726,7 +739,6 @@ export async function executeBatch(
         rateLimiter: options.rateLimiter,
       });
 
-      // Build result for this scenario
       const result = buildScenarioResult(
         scenario,
         executionResult.messages,
@@ -744,7 +756,6 @@ export async function executeBatch(
         `Batch: completed scenario ${String(scenarioIndex + 1)}/${String(scenarios.length)}`,
       );
 
-      // Send /clear to reset conversation for next scenario (unless this is the last one)
       if (scenarioIndex < scenarios.length - 1) {
         await sendClearCommand({
           plugins,
@@ -757,22 +768,12 @@ export async function executeBatch(
         });
       }
     } catch (err) {
-      const isTimeout = err instanceof Error && err.name === "AbortError";
-      const errorEvent: TranscriptErrorEvent = {
-        type: "error",
-        error_type: isTimeout ? "timeout" : "api_error",
-        message: err instanceof Error ? err.message : String(err),
-        timestamp: Date.now(),
-        recoverable: false,
-      };
-
-      // Build result with error (empty messages/tools since execution failed)
       const result = buildScenarioResult(
         scenario,
         [],
         [],
         [],
-        [errorEvent],
+        [createErrorEventFromException(err)],
         [],
         pluginName,
         config.model,

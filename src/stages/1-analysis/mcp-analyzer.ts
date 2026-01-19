@@ -97,6 +97,27 @@ export function inferAuthRequired(config: McpServerConfig): boolean {
 }
 
 /**
+ * Extract variable references from object values.
+ *
+ * Finds all ${VAR} patterns in string values of the object.
+ */
+function extractVariablesFromObject(
+  obj: Record<string, unknown> | undefined,
+): string[] {
+  if (!obj) {
+    return [];
+  }
+
+  const vars: string[] = [];
+  for (const value of Object.values(obj)) {
+    if (typeof value === "string") {
+      vars.push(...extractVariablesFromString(value));
+    }
+  }
+  return vars;
+}
+
+/**
  * Extract environment variable names from configuration.
  *
  * Extracts both explicit env keys and variables referenced in values
@@ -117,35 +138,19 @@ export function inferAuthRequired(config: McpServerConfig): boolean {
 export function extractEnvVars(config: McpServerConfig): string[] {
   const vars = new Set<string>();
 
-  // Extract from env object keys
+  // Extract explicit env keys
   if (config.env) {
     for (const key of Object.keys(config.env)) {
       vars.add(key);
     }
   }
 
-  // Extract variables referenced with ${VAR} pattern from headers
-  if (config.headers) {
-    for (const value of Object.values(config.headers)) {
-      if (typeof value !== "string") {
-        continue;
-      }
-      for (const varName of extractVariablesFromString(value)) {
-        vars.add(varName);
-      }
-    }
+  // Extract ${VAR} references from headers and env values
+  for (const varName of extractVariablesFromObject(config.headers)) {
+    vars.add(varName);
   }
-
-  // Extract variables referenced with ${VAR} pattern from env values
-  if (config.env) {
-    for (const value of Object.values(config.env)) {
-      if (typeof value !== "string") {
-        continue;
-      }
-      for (const varName of extractVariablesFromString(value)) {
-        vars.add(varName);
-      }
-    }
+  for (const varName of extractVariablesFromObject(config.env)) {
+    vars.add(varName);
   }
 
   return Array.from(vars);
