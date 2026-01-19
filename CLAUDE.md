@@ -2,6 +2,23 @@
 
 This file provides guidance to Claude Code when working with this repository.
 
+## MCP Tool Requirements (CRITICAL)
+
+This project has Serena configured. **You MUST follow these rules:**
+
+| Instead of...              | USE THIS                             | Cost     |
+| -------------------------- | ------------------------------------ | -------- |
+| Built-in `Grep`, `grep`    | `rg "pattern"`                       | **FREE** |
+| Built-in `Edit` tool       | Morph `edit_file`                    | **FREE** |
+| Reading entire files       | Serena `get_symbols_overview`        | **FREE** |
+| Searching for symbols      | Serena `find_symbol`                 | **FREE** |
+| Finding usages             | Serena `find_referencing_symbols`    | **FREE** |
+| Semantic/fuzzy search      | `warpgrep_codebase_search`           | **$$$**  |
+
+> **FREE tools first. `warpgrep` costs real money - only use when `rg` and Serena cannot answer the question.**
+
+See `~/.claude/docs/tool-selection.md` for detailed guidance.
+
 ## Project Overview
 
 cc-plugin-eval is a 4-stage evaluation framework for testing Claude Code plugin component triggering. It evaluates whether skills, agents, commands, hooks, and MCP servers correctly activate when expected.
