@@ -496,3 +496,4 @@ Steve Nims ([@sjnims](https://github.com/sjnims))
 - [Commander.js](https://github.com/tj/commander.js) for CLI framework
 - [Vitest](https://vitest.dev/) for testing
 - [Monster Energy](https://www.monsterenergy.com/) for fuel
+- [deadmau5](https://deadmau5.com/) for the beats
