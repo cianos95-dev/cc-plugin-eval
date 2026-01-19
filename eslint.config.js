@@ -7,6 +7,7 @@ import eslint from "@eslint/js";
 import tseslint from "typescript-eslint";
 import vitest from "@vitest/eslint-plugin";
 import importPlugin from "eslint-plugin-import";
+import sonarjs from "eslint-plugin-sonarjs";
 
 export default tseslint.config(
   // ===========================================================================
@@ -54,6 +55,7 @@ export default tseslint.config(
     files: ["src/**/*.ts"],
     plugins: {
       import: importPlugin,
+      sonarjs,
     },
     rules: {
       // -----------------------------------------------------------------------
@@ -165,6 +167,16 @@ export default tseslint.config(
         "warn",
         { max: 150, skipBlankLines: true, skipComments: true },
       ],
+
+      // -----------------------------------------------------------------------
+      // SonarJS Code Smell Detection
+      // -----------------------------------------------------------------------
+      // Threshold of 3 chosen to avoid noisy warnings on common patterns
+      // (e.g., "error", "test", short property names) while still catching
+      // genuine string duplication that should be extracted to constants.
+      "sonarjs/no-duplicate-string": ["warn", { threshold: 3 }],
+      "sonarjs/no-identical-functions": "warn",
+      "sonarjs/cognitive-complexity": ["warn", 15],
     },
   },
 

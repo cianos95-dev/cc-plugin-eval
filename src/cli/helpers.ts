@@ -1,18 +1,16 @@
 /**
  * CLI helper functions for state and result management.
- *
- * @internal CLI helpers - not part of public API
  */
 import { existsSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 
 import { loadState } from "../state/index.js";
 import { readJson } from "../utils/index.js";
+import { logger } from "../utils/logging.js";
 
 /**
  * Find plugin name by searching results directories for a run ID.
  *
- * @internal CLI helper - not part of public API
  * @param runId - Run ID to search for
  * @returns Plugin name if found, null otherwise
  */
@@ -35,7 +33,6 @@ export function findPluginByRunId(runId: string): string | null {
 /**
  * Find and load pipeline state.
  *
- * @internal CLI helper - not part of public API
  * @param pluginName - Optional plugin name hint
  * @param runId - Run ID to load
  * @returns Loaded state or null if not found
@@ -63,8 +60,6 @@ export function findAndLoadState(
 
 /**
  * Evaluation file structure for report command.
- *
- * @internal CLI type - not part of public API
  */
 export interface EvaluationFile {
   plugin_name: string;
@@ -75,8 +70,6 @@ export interface EvaluationFile {
 /**
  * Load and validate evaluation file.
  * Returns null if validation fails.
- *
- * @internal CLI helper - not part of public API
  */
 export function loadEvaluationFile(
   evaluationPath: string,
@@ -94,4 +87,33 @@ export function loadEvaluationFile(
   }
 
   return rawEvaluation as EvaluationFile;
+}
+
+/**
+ * Handle CLI errors consistently across all commands.
+ *
+ * Logs the error message and exits with code 1.
+ * This function never returns (process.exit terminates execution).
+ *
+ * @param err - Error to handle (can be Error instance or any other value)
+ */
+export function handleCLIError(err: unknown): never {
+  logger.error(err instanceof Error ? err.message : String(err));
+  process.exit(1);
+}
+
+/**
+ * Extract config file path from CLI options.
+ *
+ * @param options - Raw options from Commander.js
+ * @param defaultPath - Default config path if not specified (defaults to undefined)
+ * @returns Config file path or undefined/default
+ */
+export function extractConfigPath(
+  options: Record<string, unknown>,
+  defaultPath?: string,
+): string | undefined {
+  return typeof options["config"] === "string"
+    ? options["config"]
+    : defaultPath;
 }

@@ -23,7 +23,7 @@ import {
   type PipelineStage,
 } from "../../state/index.js";
 import { logger, writeJson, getResultsDir } from "../../utils/index.js";
-import { findAndLoadState } from "../helpers.js";
+import { findAndLoadState, handleCLIError } from "../helpers.js";
 import { extractResumeOptions } from "../options.js";
 
 import type { loadConfigWithOverrides } from "../../config/index.js";
@@ -328,8 +328,7 @@ export function registerResumeCommand(program: Command): void {
         const handler = resumeHandlers[resumeStage];
         await handler(state, config, resultsDir);
       } catch (err) {
-        logger.error(err instanceof Error ? err.message : String(err));
-        process.exit(1);
+        handleCLIError(err);
       }
     });
 }

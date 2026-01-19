@@ -4,10 +4,11 @@
 
 import {
   loadConfigWithOverrides,
-  type CLIOptions,
+  extractCLIOptions,
 } from "../../config/index.js";
 import { runAnalysis } from "../../stages/1-analysis/index.js";
 import { logger, writeJson, getResultsDir } from "../../utils/index.js";
+import { extractConfigPath, handleCLIError } from "../helpers.js";
 
 import type { Command } from "commander";
 
@@ -22,13 +23,8 @@ export function registerAnalyzeCommand(program: Command): void {
     .option("-c, --config <path>", "Path to config file")
     .action(async (options: Record<string, unknown>) => {
       try {
-        const cliOptions: Partial<CLIOptions> = {};
-        if (typeof options["plugin"] === "string") {
-          cliOptions.plugin = options["plugin"];
-        }
-
-        const configPath =
-          typeof options["config"] === "string" ? options["config"] : undefined;
+        const cliOptions = extractCLIOptions(options);
+        const configPath = extractConfigPath(options);
         const config = loadConfigWithOverrides(configPath, cliOptions);
 
         const analysis = await runAnalysis(config);
@@ -37,8 +33,7 @@ export function registerAnalyzeCommand(program: Command): void {
         writeJson(`${resultsDir}/analysis.json`, analysis);
         logger.success(`Analysis saved to ${resultsDir}/analysis.json`);
       } catch (err) {
-        logger.error(err instanceof Error ? err.message : String(err));
-        process.exit(1);
+        handleCLIError(err);
       }
     });
 }

@@ -34,6 +34,7 @@ import {
   generateRunId,
 } from "../../utils/index.js";
 import { outputFinalSummary } from "../formatters.js";
+import { extractConfigPath, handleCLIError } from "../helpers.js";
 
 import type { Command } from "commander";
 
@@ -78,10 +79,7 @@ export function registerRunCommand(program: Command): void {
     .action(async (options: Record<string, unknown>) => {
       try {
         const cliOptions = extractCLIOptions(options);
-        const configPath =
-          typeof options["config"] === "string"
-            ? options["config"]
-            : "config.yaml";
+        const configPath = extractConfigPath(options, "config.yaml");
         const config = loadConfigWithOverrides(configPath, cliOptions);
 
         if (config.verbose) {
@@ -189,8 +187,7 @@ export function registerRunCommand(program: Command): void {
 
         logger.success("Evaluation complete!");
       } catch (err) {
-        logger.error(err instanceof Error ? err.message : String(err));
-        process.exit(1);
+        handleCLIError(err);
       }
     });
 }

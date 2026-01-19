@@ -1,14 +1,10 @@
 /**
  * CLI option parsing and validation.
- *
- * @internal CLI helpers - not part of public API
  */
 import type { PipelineStage } from "../state/index.js";
 
 /**
  * Valid pipeline stages for resume command.
- *
- * @internal CLI constant - not part of public API
  */
 export const VALID_STAGES = [
   "analysis",
@@ -29,8 +25,6 @@ export interface ResumeOptions {
 
 /**
  * Extract and validate resume command options.
- *
- * @internal CLI helper - not part of public API
  */
 export function extractResumeOptions(
   options: Record<string, unknown>,
@@ -77,8 +71,6 @@ export interface ReportOptions {
 
 /**
  * Extract and validate report command options.
- *
- * @internal CLI helper - not part of public API
  */
 export function extractReportOptions(
   options: Record<string, unknown>,

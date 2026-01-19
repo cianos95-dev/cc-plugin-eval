@@ -6,7 +6,11 @@ import YAML from "yaml";
 import { findLatestRun } from "../../state/index.js";
 import { logger, getResultsDir } from "../../utils/index.js";
 import { outputCLISummary, outputJUnitXML, outputTAP } from "../formatters.js";
-import { findPluginByRunId, loadEvaluationFile } from "../helpers.js";
+import {
+  findPluginByRunId,
+  loadEvaluationFile,
+  handleCLIError,
+} from "../helpers.js";
 import { extractReportOptions } from "../options.js";
 
 import type { Command } from "commander";
@@ -80,8 +84,7 @@ export function registerReportCommand(program: Command): void {
           }
         }
       } catch (err) {
-        logger.error(err instanceof Error ? err.message : String(err));
-        process.exit(1);
+        handleCLIError(err);
       }
     });
 }

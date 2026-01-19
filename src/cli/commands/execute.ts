@@ -4,7 +4,7 @@
 
 import {
   loadConfigWithOverrides,
-  type CLIOptions,
+  extractCLIOptions,
 } from "../../config/index.js";
 import { runAnalysis } from "../../stages/1-analysis/index.js";
 import { runGeneration } from "../../stages/2-generation/index.js";
@@ -25,6 +25,7 @@ import {
   getResultsDir,
   generateRunId,
 } from "../../utils/index.js";
+import { extractConfigPath, handleCLIError } from "../helpers.js";
 
 import type { Command } from "commander";
 
@@ -40,16 +41,8 @@ export function registerExecuteCommand(program: Command): void {
     .option("--verbose", "Detailed progress output")
     .action(async (options: Record<string, unknown>) => {
       try {
-        const cliOptions: Partial<CLIOptions> = {};
-        if (typeof options["plugin"] === "string") {
-          cliOptions.plugin = options["plugin"];
-        }
-        if (typeof options["verbose"] === "boolean") {
-          cliOptions.verbose = options["verbose"];
-        }
-
-        const configPath =
-          typeof options["config"] === "string" ? options["config"] : undefined;
+        const cliOptions = extractCLIOptions(options);
+        const configPath = extractConfigPath(options);
         const config = loadConfigWithOverrides(configPath, cliOptions);
 
         if (config.verbose) {
@@ -103,8 +96,7 @@ export function registerExecuteCommand(program: Command): void {
         );
         logger.success(`Results saved to ${resultsDir}`);
       } catch (err) {
-        logger.error(err instanceof Error ? err.message : String(err));
-        process.exit(1);
+        handleCLIError(err);
       }
     });
 }

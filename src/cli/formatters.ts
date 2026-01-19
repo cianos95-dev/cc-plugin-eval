@@ -1,14 +1,10 @@
 /**
  * CLI output formatters for evaluation results.
- *
- * @internal CLI helpers - not part of public API
  */
 import type { EvalMetrics } from "../types/index.js";
 
 /**
  * Output CLI summary of evaluation results.
- *
- * @internal CLI helper - not part of public API
  */
 export function outputCLISummary(evaluation: {
   plugin_name: string;
@@ -47,8 +43,6 @@ export function outputCLISummary(evaluation: {
 
 /**
  * Output JUnit XML format.
- *
- * @internal CLI helper - not part of public API
  */
 export function outputJUnitXML(
   pluginName: string,
@@ -93,8 +87,6 @@ export function outputJUnitXML(
 
 /**
  * Output TAP format.
- *
- * @internal CLI helper - not part of public API
  */
 export function outputTAP(results: Record<string, unknown>[]): void {
   console.log(`TAP version 14`);
@@ -130,8 +122,6 @@ export function outputTAP(results: Record<string, unknown>[]): void {
 
 /**
  * Output final summary of evaluation.
- *
- * @internal CLI helper - not part of public API
  */
 export function outputFinalSummary(
   resultsDir: string,

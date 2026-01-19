@@ -4,7 +4,7 @@
 
 import {
   loadConfigWithOverrides,
-  type CLIOptions,
+  extractCLIOptions,
 } from "../../config/index.js";
 import { runAnalysis } from "../../stages/1-analysis/index.js";
 import {
@@ -17,6 +17,7 @@ import {
   getResultsDir,
   generateRunId,
 } from "../../utils/index.js";
+import { extractConfigPath, handleCLIError } from "../helpers.js";
 
 import type { Command } from "commander";
 
@@ -33,24 +34,11 @@ export function registerGenerateCommand(program: Command): void {
     .option("--semantic", "Enable semantic variation testing")
     .action(async (options: Record<string, unknown>) => {
       try {
-        const cliOptions: Partial<CLIOptions> = {
-          dryRun: true, // Generation only, no execution
-        };
-        if (typeof options["plugin"] === "string") {
-          cliOptions.plugin = options["plugin"];
-        }
-        if (typeof options["verbose"] === "boolean") {
-          cliOptions.verbose = options["verbose"];
-        }
-        if (typeof options["semantic"] === "boolean") {
-          cliOptions.semantic = options["semantic"];
-        }
-
-        const configPath =
-          typeof options["config"] === "string" ? options["config"] : undefined;
+        const cliOptions = extractCLIOptions(options);
+        const configPath = extractConfigPath(options);
         const config = loadConfigWithOverrides(configPath, cliOptions);
 
-        // Override dry_run to false for generate command since we want to generate scenarios
+        // Ensure dry_run is false for generate command since we always generate scenarios
         config.dry_run = false;
 
         if (config.verbose) {
@@ -77,8 +65,7 @@ export function registerGenerateCommand(program: Command): void {
         );
         logger.success(`Scenarios saved to ${resultsDir}/scenarios.json`);
       } catch (err) {
-        logger.error(err instanceof Error ? err.message : String(err));
-        process.exit(1);
+        handleCLIError(err);
       }
     });
 }
