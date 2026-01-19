@@ -128,6 +128,9 @@ api\.github\.com/.*
 # npm registry
 registry\.npmjs\.org/.*
 
+# Monster Energy (blocks automated link checkers with 403)
+www\.monsterenergy\.com
+
 # =============================================================================
 # Release Process URLs
 # =============================================================================

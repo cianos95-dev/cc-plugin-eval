@@ -7,31 +7,77 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-01-19
+
 ### Added
 
-- SubagentStart/SubagentStop hooks for improved agent detection accuracy (#192)
-- Prompt caching token economics in cost estimation (#185)
-- Temperature configuration for deterministic scenario generation (#183)
-- Explicit timeout configuration for Anthropic SDK API calls (#179)
-- Anthropic SDK request ID preservation in errors (#178)
-- Claude issue analysis workflow (#177)
+- **Session Batching**: Default execution strategy now batches scenarios by component,
+  reducing subprocess overhead by ~80%. Configure `execution.session_strategy: "isolated"`
+  to restore previous behavior (#82, #110)
+- **Anthropic Batches API**: Stage 4 evaluation uses batch API for parallel LLM judge
+  calls with automatic fallback to synchronous mode (#83)
+- **Parallel LLM Generation**: Stage 2 scenario generation now parallelizes LLM calls
+  for faster throughput (#81)
+- **Prompt Caching**: Anthropic prompt caching for repeated system prompts reduces
+  token costs (#136, #185)
+- **Per-Model Cost Tracking**: Detailed cost breakdown by model with thinking token
+  limits (#160)
+- **SDK Resilience**: Retry-after-ms support, AbortController, configurable timeouts,
+  typed error handling, and request ID preservation (#138, #140, #178, #179)
+- **SubagentStart/SubagentStop Hooks**: Improved agent detection accuracy via new
+  hook events (#192, #199)
+- **PostToolUse Hook Capture**: Accurate tool success detection via PostToolUse
+  events (#158, #189)
+- **Zod Runtime Validation**: LLM judge responses validated with Zod schemas (#137)
+- **Timing Instrumentation**: Detailed breakdown of SDK operation timing (#145)
+- **Async File Operations**: Large state files handled asynchronously (#267)
+- **Path Boundary Validation**: Preflight checks prevent directory traversal (#213)
+- **Claude Code System Prompt**: Accurate plugin evaluation context (#212)
+- **MCP Server Validation**: Server status verified after initialization (#159)
+- **Defense-in-Depth ReDoS Protection**: Additional regex safeguards (#255)
+- **Temperature Configuration**: Deterministic scenario generation option (#183)
 
 ### Changed
 
-- **BREAKING**: Default execution strategy changed from isolated to batched mode
-  for ~80% faster startup. Scenarios testing the same component now share a session
-  with `/clear` between them. To restore previous behavior, set
-  `execution.session_strategy: "isolated"` or `execution.session_isolation: true`
-  in your config. (#86)
-- Extracted shared tool capture hook logic into reusable utility (#191)
+- Upgraded Claude Agent SDK from 0.1.76 to 0.2.9 (#109)
 - Updated model pricing and default model selections (#181)
+- Extracted shared tool capture hook logic into reusable utility (#191)
+- Migrated SDK stderr callbacks to centralized logger (#147)
+- Consolidated duplicate utility functions across stages (#257-265)
+- Reduced cognitive complexity in 13 functions (#298)
+- Extracted shared CLI error handling and option validation (#294)
+- Broke circular import dependencies in types/state/config (#291)
+- Decomposed large modules: programmatic-detector, evaluation/index, state-manager,
+  CLI entry point (#268, #272-274)
 
 ### Fixed
 
-- PostToolUse/PostToolUseFailure hooks added to batch execution mode (#189)
+- Plugin load error and SDK timeout warnings in E2E tests (#312)
+- ReDoS vulnerabilities in regex patterns (#252)
+- Rate limiter race condition under parallel execution (#157)
+- Empty object type assertions replaced with invariant checks (#305)
+- Runtime validation for unsafe type assertions (#217)
+- Error handling consistency across pipeline stages (#218)
+- AbortController interface alignment with SDK (#198)
 - System prompt inclusion in batch evaluation requests (#182)
-- System prompts included in token counting for cost estimation (#180)
-- Label events no longer cancel issue analysis workflow
+- System prompts included in token counting (#180)
+- enableMcpDiscovery option for MCP channel timeout (#148)
+- File checkpointing in batched session mode (#134)
+- Double retry logic with Anthropic SDK eliminated (#80)
+
+### Performance
+
+- E2E test suite 93% faster (20min → 87s) via session batching and parallelism (#164, #175)
+- Regex caching and rate limiting granularity optimizations (#222)
+- Hook callback allocation optimized in batched execution mode (#221)
+- Parallel independent SDK operations (#139)
+
+### Security
+
+- ReDoS vulnerabilities patched in custom sanitization patterns (#252)
+- Defense-in-depth ReDoS protection layer added (#255)
+- Path boundary validation prevents directory traversal attacks (#213)
+- Inline security documentation for audit findings (#256)
 
 ## [0.2.0] - 2026-01-10
 
@@ -82,6 +128,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Variance propagation from runJudgment to metrics (#30)
 - Centralized logger and pricing utilities (#43)
 
-[Unreleased]: https://github.com/sjnims/cc-plugin-eval/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/sjnims/cc-plugin-eval/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/sjnims/cc-plugin-eval/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/sjnims/cc-plugin-eval/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/sjnims/cc-plugin-eval/releases/tag/v0.1.0
