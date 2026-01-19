@@ -518,12 +518,20 @@ export async function runEvaluation(
   const results = evalResults.map((r) => r.result);
 
   // Build results with context for metrics
+  // Invariant: Every result must have a matching context since results are derived
+  // from contexts via programmatic detection. Missing context indicates a bug.
   const resultsWithContext = results.map((result) => {
     const context = contexts.find((c) => c.scenario.id === result.scenario_id);
+    if (!context) {
+      throw new Error(
+        `Invariant violation: No context found for result scenario_id="${result.scenario_id}". ` +
+          `This indicates a bug in evaluation flow - results should only exist for scenarios with context.`,
+      );
+    }
     return {
       result,
-      scenario: context?.scenario ?? ({} as TestScenario),
-      execution: context?.execution ?? ({} as ExecutionResult),
+      scenario: context.scenario,
+      execution: context.execution,
     };
   });
 
