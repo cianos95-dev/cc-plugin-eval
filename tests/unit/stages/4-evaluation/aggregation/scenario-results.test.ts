@@ -122,14 +122,14 @@ describe("buildEvaluationResult", () => {
     const conflictAnalysis = createConflictAnalysis();
     const judgment = createMultiSampleResult({ aggregated_score: 9 });
 
-    const result = buildEvaluationResult(
+    const result = buildEvaluationResult({
       scenario,
-      true,
-      detections,
+      triggered: true,
+      uniqueDetections: detections,
       conflictAnalysis,
       judgment,
-      "both",
-    );
+      detectionSource: "both",
+    });
 
     expect(result.scenario_id).toBe("test-scenario-1");
     expect(result.triggered).toBe(true);
@@ -152,14 +152,14 @@ describe("buildEvaluationResult", () => {
     const scenario = createScenario({ expected_trigger: false });
     const conflictAnalysis = createConflictAnalysis();
 
-    const result = buildEvaluationResult(
+    const result = buildEvaluationResult({
       scenario,
-      false,
-      [], // no detections
+      triggered: false,
+      uniqueDetections: [], // no detections
       conflictAnalysis,
-      null, // no judgment
-      "programmatic",
-    );
+      judgment: null, // no judgment
+      detectionSource: "programmatic",
+    });
 
     expect(result.triggered).toBe(false);
     expect(result.confidence).toBe(0);
@@ -174,14 +174,14 @@ describe("buildEvaluationResult", () => {
     const detections = [createDetection()];
     const conflictAnalysis = createConflictAnalysis();
 
-    const result = buildEvaluationResult(
+    const result = buildEvaluationResult({
       scenario,
-      true,
-      detections,
+      triggered: true,
+      uniqueDetections: detections,
       conflictAnalysis,
-      null,
-      "programmatic",
-    );
+      judgment: null,
+      detectionSource: "programmatic",
+    });
 
     expect(result.quality_score).toBe(7);
     expect(result.summary).toBe("Correctly triggered component");
@@ -191,14 +191,14 @@ describe("buildEvaluationResult", () => {
     const scenario = createScenario({ expected_trigger: true });
     const conflictAnalysis = createConflictAnalysis();
 
-    const result = buildEvaluationResult(
+    const result = buildEvaluationResult({
       scenario,
-      false, // didn't trigger but was expected
-      [],
+      triggered: false, // didn't trigger but was expected
+      uniqueDetections: [],
       conflictAnalysis,
-      null,
-      "programmatic",
-    );
+      judgment: null,
+      detectionSource: "programmatic",
+    });
 
     expect(result.summary).toBe("Incorrectly did not trigger component");
   });
@@ -213,14 +213,14 @@ describe("buildEvaluationResult", () => {
       }),
     });
 
-    const result = buildEvaluationResult(
+    const result = buildEvaluationResult({
       scenario,
-      true,
-      detections,
+      triggered: true,
+      uniqueDetections: detections,
       conflictAnalysis,
       judgment,
-      "both",
-    );
+      detectionSource: "both",
+    });
 
     expect(result.summary).toBe("Custom LLM summary");
   });
@@ -233,14 +233,14 @@ describe("buildEvaluationResult", () => {
       all_issues: ["Minor issue 1", "Minor issue 2"],
     });
 
-    const result = buildEvaluationResult(
+    const result = buildEvaluationResult({
       scenario,
-      true,
-      detections,
+      triggered: true,
+      uniqueDetections: detections,
       conflictAnalysis,
       judgment,
-      "both",
-    );
+      detectionSource: "both",
+    });
 
     expect(result.issues).toEqual(["Minor issue 1", "Minor issue 2"]);
   });
@@ -260,14 +260,14 @@ describe("buildEvaluationResult", () => {
       ],
     });
 
-    const result = buildEvaluationResult(
+    const result = buildEvaluationResult({
       scenario,
-      true,
-      detections,
+      triggered: true,
+      uniqueDetections: detections,
       conflictAnalysis,
-      null,
-      "programmatic",
-    );
+      judgment: null,
+      detectionSource: "programmatic",
+    });
 
     expect(result.has_conflict).toBe(true);
     expect(result.conflict_severity).toBe("major");

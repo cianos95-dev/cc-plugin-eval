@@ -25,6 +25,22 @@ import type {
 import type Anthropic from "@anthropic-ai/sdk";
 
 /**
+ * Options for LLM judge evaluation functions.
+ */
+export interface EvaluateJudgeOptions {
+  /** Anthropic client */
+  client: Anthropic;
+  /** Test scenario being evaluated */
+  scenario: TestScenario;
+  /** Execution transcript */
+  transcript: Transcript;
+  /** Programmatic detection results */
+  programmaticResult: ProgrammaticDetection[];
+  /** Evaluation configuration */
+  config: EvaluationConfig;
+}
+
+/**
  * Judge response schema for structured output.
  *
  * Using structured output ensures guaranteed JSON parsing.
@@ -268,12 +284,10 @@ export function buildJudgePrompt(
  * ```
  */
 export async function evaluateWithLLMJudge(
-  client: Anthropic,
-  scenario: TestScenario,
-  transcript: Transcript,
-  programmaticResult: ProgrammaticDetection[],
-  config: EvaluationConfig,
+  options: EvaluateJudgeOptions,
 ): Promise<JudgeResponse> {
+  const { client, scenario, transcript, programmaticResult, config } = options;
+
   const userPrompt = buildJudgePrompt(
     scenario,
     transcript,
@@ -336,30 +350,14 @@ export async function evaluateWithLLMJudge(
  * @returns Judge response
  */
 export async function evaluateWithFallback(
-  client: Anthropic,
-  scenario: TestScenario,
-  transcript: Transcript,
-  programmaticResult: ProgrammaticDetection[],
-  config: EvaluationConfig,
+  options: EvaluateJudgeOptions,
 ): Promise<JudgeResponse> {
   try {
     // Try structured output first
-    return await evaluateWithLLMJudge(
-      client,
-      scenario,
-      transcript,
-      programmaticResult,
-      config,
-    );
+    return await evaluateWithLLMJudge(options);
   } catch {
     // Fallback to regular JSON parsing
-    return evaluateWithJsonFallback(
-      client,
-      scenario,
-      transcript,
-      programmaticResult,
-      config,
-    );
+    return evaluateWithJsonFallback(options);
   }
 }
 
@@ -395,12 +393,10 @@ No markdown, no explanation - just the JSON.`;
  * @returns Judge response
  */
 async function evaluateWithJsonFallback(
-  client: Anthropic,
-  scenario: TestScenario,
-  transcript: Transcript,
-  programmaticResult: ProgrammaticDetection[],
-  config: EvaluationConfig,
+  options: EvaluateJudgeOptions,
 ): Promise<JudgeResponse> {
+  const { client, scenario, transcript, programmaticResult, config } = options;
+
   const userPrompt = buildJudgePrompt(
     scenario,
     transcript,

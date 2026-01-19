@@ -536,7 +536,12 @@ describe("Stage 4: Evaluation Integration", () => {
 
     it("handles empty execution results gracefully", async () => {
       const config = createTestConfig();
-      const output = await runEvaluation("test-plugin", [], [], config);
+      const output = await runEvaluation({
+        pluginName: "test-plugin",
+        scenarios: [],
+        executions: [],
+        config,
+      });
 
       expect(output.plugin_name).toBe("test-plugin");
       expect(output.results).toHaveLength(0);
@@ -580,12 +585,12 @@ describe("Stage 4: Evaluation Integration", () => {
       // Use programmatic detection only (skip LLM for true negatives)
       config.evaluation.detection_mode = "programmatic_first";
 
-      const output = await runEvaluation(
-        "test-plugin",
+      const output = await runEvaluation({
+        pluginName: "test-plugin",
         scenarios,
         executions,
         config,
-      );
+      });
 
       expect(output.plugin_name).toBe("test-plugin");
       expect(output.results).toHaveLength(2);
@@ -640,12 +645,12 @@ describe("Stage 4: Evaluation Integration", () => {
       ];
 
       const config = createTestConfig();
-      const output = await runEvaluation(
-        "test-plugin",
+      const output = await runEvaluation({
+        pluginName: "test-plugin",
         scenarios,
         executions,
         config,
-      );
+      });
 
       const result = output.results[0];
       expect(result?.triggered).toBe(true);
@@ -686,13 +691,13 @@ describe("Stage 4: Evaluation Integration", () => {
         onError: vi.fn(),
       };
 
-      await runEvaluation(
-        "test-plugin",
+      await runEvaluation({
+        pluginName: "test-plugin",
         scenarios,
         executions,
         config,
         progress,
-      );
+      });
 
       expect(progress.onStageStart).toHaveBeenCalledWith("evaluation", 1);
       expect(progress.onStageComplete).toHaveBeenCalledWith(
@@ -721,12 +726,12 @@ describe("Stage 4: Evaluation Integration", () => {
       ];
 
       const config = createTestConfig();
-      const output = await runEvaluation(
-        "test-plugin",
+      const output = await runEvaluation({
+        pluginName: "test-plugin",
         scenarios,
         executions,
         config,
-      );
+      });
 
       // Should produce no results since scenario not found
       expect(output.results).toHaveLength(0);

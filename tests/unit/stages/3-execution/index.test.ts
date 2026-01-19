@@ -273,7 +273,7 @@ describe("runExecution", () => {
       const scenarios = [createScenario()];
       const config = createConfig();
 
-      await runExecution(analysis, scenarios, config);
+      await runExecution({ analysis, scenarios, config });
 
       expect(verifyPluginLoad).toHaveBeenCalledWith({
         pluginPath: config.plugin.path,
@@ -298,7 +298,7 @@ describe("runExecution", () => {
       ];
       const config = createConfig();
 
-      const result = await runExecution(analysis, scenarios, config);
+      const result = await runExecution({ analysis, scenarios, config });
 
       expect(result.results).toHaveLength(0);
       expect(result.error_count).toBe(2); // All scenarios failed
@@ -331,7 +331,7 @@ describe("runExecution", () => {
         scope: { ...createConfig().scope, mcp_servers: true },
       });
 
-      await runExecution(analysis, scenarios, config);
+      await runExecution({ analysis, scenarios, config });
 
       // The parallel mock receives the filtered scenarios
       expect(parallel).toHaveBeenCalled();
@@ -353,7 +353,7 @@ describe("runExecution", () => {
       const analysis = createAnalysis();
       const config = createConfig();
 
-      await runExecution(analysis, scenarios, config);
+      await runExecution({ analysis, scenarios, config });
 
       expect(resolveExecutionStrategy).toHaveBeenCalledWith(
         config.execution,
@@ -379,7 +379,7 @@ describe("runExecution", () => {
         scenarios,
       });
 
-      await runExecution(analysis, scenarios, config);
+      await runExecution({ analysis, scenarios, config });
 
       expect(resolveExecutionStrategy).toHaveBeenCalledWith(
         config.execution,
@@ -408,7 +408,7 @@ describe("runExecution", () => {
       });
 
       try {
-        await runExecution(analysis, scenarios, config);
+        await runExecution({ analysis, scenarios, config });
       } catch {
         // Expected to fail due to incomplete mocking of batched execution
       }
@@ -432,7 +432,7 @@ describe("runExecution", () => {
         .mockResolvedValueOnce(createExecutionResult({ scenario_id: "s2" }))
         .mockResolvedValueOnce(createExecutionResult({ scenario_id: "s3" }));
 
-      await runExecution(analysis, scenarios, config);
+      await runExecution({ analysis, scenarios, config });
 
       expect(parallel).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -455,7 +455,12 @@ describe("runExecution", () => {
         onError: vi.fn(),
       };
 
-      await runExecution(analysis, scenarios, config, mockProgress);
+      await runExecution({
+        analysis,
+        scenarios,
+        config,
+        progress: mockProgress,
+      });
 
       expect(mockProgress.onStageStart).toHaveBeenCalledWith("execution", 1);
       expect(mockProgress.onStageComplete).toHaveBeenCalledWith(
@@ -481,7 +486,7 @@ describe("runExecution", () => {
           createExecutionResult({ scenario_id: "s2", cost_usd: 0.02 }),
         );
 
-      const result = await runExecution(analysis, scenarios, config);
+      const result = await runExecution({ analysis, scenarios, config });
 
       expect(result.results).toHaveLength(2);
       expect(result.total_cost_usd).toBeCloseTo(0.03);
@@ -516,7 +521,7 @@ describe("runExecution", () => {
           }),
         );
 
-      const result = await runExecution(analysis, scenarios, config);
+      const result = await runExecution({ analysis, scenarios, config });
 
       expect(result.success_count).toBe(1);
       expect(result.error_count).toBe(1);
@@ -527,7 +532,7 @@ describe("runExecution", () => {
       const scenarios = [createScenario()];
       const config = createConfig();
 
-      await runExecution(analysis, scenarios, config);
+      await runExecution({ analysis, scenarios, config });
 
       // Verify parallel is called with continueOnError: true
       expect(parallel).toHaveBeenCalledWith(
@@ -544,7 +549,7 @@ describe("runExecution", () => {
       const scenarios = [createScenario()];
       const config = createConfig();
 
-      await runExecution(analysis, scenarios, config);
+      await runExecution({ analysis, scenarios, config });
 
       expect(logger.warn).toHaveBeenCalledWith(
         expect.stringContaining("exceed budget"),
@@ -558,7 +563,7 @@ describe("runExecution", () => {
       const scenarios = [createScenario()];
       const config = createConfig();
 
-      await runExecution(analysis, scenarios, config);
+      await runExecution({ analysis, scenarios, config });
 
       expect(writeJsonAsync).toHaveBeenCalled();
     });
@@ -576,7 +581,7 @@ describe("runExecution", () => {
         },
       });
 
-      await runExecution(analysis, scenarios, config);
+      await runExecution({ analysis, scenarios, config });
 
       // Verify execution completes with sanitization enabled
       expect(writeJsonAsync).toHaveBeenCalled();
@@ -623,7 +628,7 @@ describe("runExecution", () => {
           }),
         );
 
-      const result = await runExecution(analysis, scenarios, config);
+      const result = await runExecution({ analysis, scenarios, config });
 
       expect(result.total_tools_captured).toBe(3);
     });
@@ -633,7 +638,7 @@ describe("runExecution", () => {
       const scenarios = [createScenario()];
       const config = createConfig();
 
-      const result = await runExecution(analysis, scenarios, config);
+      const result = await runExecution({ analysis, scenarios, config });
 
       expect(result.total_duration_ms).toBeGreaterThanOrEqual(0);
       expect(result.total_duration_ms).toBeLessThan(5000); // Should be fast in tests
@@ -651,7 +656,7 @@ describe("runExecution", () => {
         },
       });
 
-      await runExecution(analysis, scenarios, config);
+      await runExecution({ analysis, scenarios, config });
 
       // Rate limiting is applied inside executeAllScenariosIsolated
       // We verify the config is passed correctly
@@ -669,7 +674,7 @@ describe("runExecution", () => {
       const scenarios = [createScenario()];
       const config = createConfig({ rewind_file_changes: true });
 
-      await runExecution(analysis, scenarios, config);
+      await runExecution({ analysis, scenarios, config });
 
       // The parallel mock will call the fn, which internally uses executeScenarioWithCheckpoint
       // We verify by checking the mock was called (via parallel's fn)
@@ -685,7 +690,7 @@ describe("runExecution", () => {
         scope: { ...createConfig().scope, mcp_servers: true },
       });
 
-      await runExecution(analysis, scenarios, config);
+      await runExecution({ analysis, scenarios, config });
 
       expect(verifyPluginLoad).toHaveBeenCalledWith(
         expect.objectContaining({

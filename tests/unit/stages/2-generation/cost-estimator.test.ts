@@ -558,11 +558,11 @@ describe("countPromptTokens", () => {
   it("should count tokens for a prompt", async () => {
     mockClient.messages.countTokens.mockResolvedValue({ input_tokens: 150 });
 
-    const count = await countPromptTokens(
-      mockClient as unknown as Anthropic,
-      "haiku",
-      "Test prompt content",
-    );
+    const count = await countPromptTokens({
+      client: mockClient as unknown as Anthropic,
+      model: "haiku",
+      prompt: "Test prompt content",
+    });
 
     expect(mockClient.messages.countTokens).toHaveBeenCalledTimes(1);
     expect(mockClient.messages.countTokens).toHaveBeenCalledWith(
@@ -578,11 +578,11 @@ describe("countPromptTokens", () => {
   it("should resolve model shorthand before counting", async () => {
     mockClient.messages.countTokens.mockResolvedValue({ input_tokens: 100 });
 
-    await countPromptTokens(
-      mockClient as unknown as Anthropic,
-      "sonnet",
-      "Test",
-    );
+    await countPromptTokens({
+      client: mockClient as unknown as Anthropic,
+      model: "sonnet",
+      prompt: "Test",
+    });
 
     expect(mockClient.messages.countTokens).toHaveBeenCalledWith(
       {
@@ -597,11 +597,11 @@ describe("countPromptTokens", () => {
     const longPrompt = "word ".repeat(1000);
     mockClient.messages.countTokens.mockResolvedValue({ input_tokens: 5000 });
 
-    const count = await countPromptTokens(
-      mockClient as unknown as Anthropic,
-      "haiku",
-      longPrompt,
-    );
+    const count = await countPromptTokens({
+      client: mockClient as unknown as Anthropic,
+      model: "haiku",
+      prompt: longPrompt,
+    });
 
     expect(count).toBe(5000);
   });
@@ -609,13 +609,12 @@ describe("countPromptTokens", () => {
   it("should include system prompt in token count when provided as string", async () => {
     mockClient.messages.countTokens.mockResolvedValue({ input_tokens: 650 });
 
-    const count = await countPromptTokens(
-      mockClient as unknown as Anthropic,
-      "haiku",
-      "Test prompt",
-      undefined, // timeout
-      "You are a helpful assistant.",
-    );
+    const count = await countPromptTokens({
+      client: mockClient as unknown as Anthropic,
+      model: "haiku",
+      prompt: "Test prompt",
+      system: "You are a helpful assistant.",
+    });
 
     expect(mockClient.messages.countTokens).toHaveBeenCalledWith(
       {
@@ -640,13 +639,12 @@ describe("countPromptTokens", () => {
       },
     ];
 
-    const count = await countPromptTokens(
-      mockClient as unknown as Anthropic,
-      "haiku",
-      "Test prompt",
-      undefined, // timeout
-      systemPromptArray,
-    );
+    const count = await countPromptTokens({
+      client: mockClient as unknown as Anthropic,
+      model: "haiku",
+      prompt: "Test prompt",
+      system: systemPromptArray,
+    });
 
     expect(mockClient.messages.countTokens).toHaveBeenCalledWith(
       {
@@ -662,11 +660,11 @@ describe("countPromptTokens", () => {
   it("should not include system in request when not provided", async () => {
     mockClient.messages.countTokens.mockResolvedValue({ input_tokens: 100 });
 
-    await countPromptTokens(
-      mockClient as unknown as Anthropic,
-      "haiku",
-      "Test prompt",
-    );
+    await countPromptTokens({
+      client: mockClient as unknown as Anthropic,
+      model: "haiku",
+      prompt: "Test prompt",
+    });
 
     expect(mockClient.messages.countTokens).toHaveBeenCalledWith(
       {
@@ -699,11 +697,11 @@ describe("estimateGenerationCost (async)", () => {
       .mockResolvedValueOnce({ input_tokens: 150 })
       .mockResolvedValueOnce({ input_tokens: 200 });
 
-    const estimate = await estimateGenerationCost(
-      mockClient as unknown as Anthropic,
-      ["prompt1", "prompt2", "prompt3"],
-      "haiku",
-    );
+    const estimate = await estimateGenerationCost({
+      client: mockClient as unknown as Anthropic,
+      prompts: ["prompt1", "prompt2", "prompt3"],
+      model: "haiku",
+    });
 
     expect(mockClient.messages.countTokens).toHaveBeenCalledTimes(3);
     expect(estimate.stage).toBe("generation");
@@ -713,11 +711,11 @@ describe("estimateGenerationCost (async)", () => {
   });
 
   it("should return zero cost for empty prompts", async () => {
-    const estimate = await estimateGenerationCost(
-      mockClient as unknown as Anthropic,
-      [],
-      "haiku",
-    );
+    const estimate = await estimateGenerationCost({
+      client: mockClient as unknown as Anthropic,
+      prompts: [],
+      model: "haiku",
+    });
 
     expect(mockClient.messages.countTokens).not.toHaveBeenCalled();
     expect(estimate.input_tokens).toBe(0);
@@ -728,20 +726,20 @@ describe("estimateGenerationCost (async)", () => {
   it("should use correct model for cost calculation", async () => {
     mockClient.messages.countTokens.mockResolvedValue({ input_tokens: 1000 });
 
-    const haikuEstimate = await estimateGenerationCost(
-      mockClient as unknown as Anthropic,
-      ["test"],
-      "haiku",
-    );
+    const haikuEstimate = await estimateGenerationCost({
+      client: mockClient as unknown as Anthropic,
+      prompts: ["test"],
+      model: "haiku",
+    });
 
     mockClient.messages.countTokens.mockClear();
     mockClient.messages.countTokens.mockResolvedValue({ input_tokens: 1000 });
 
-    const opusEstimate = await estimateGenerationCost(
-      mockClient as unknown as Anthropic,
-      ["test"],
-      "opus",
-    );
+    const opusEstimate = await estimateGenerationCost({
+      client: mockClient as unknown as Anthropic,
+      prompts: ["test"],
+      model: "opus",
+    });
 
     // Opus should be more expensive than Haiku
     expect(opusEstimate.estimated_cost_usd).toBeGreaterThan(
@@ -752,11 +750,11 @@ describe("estimateGenerationCost (async)", () => {
   it("should call countTokens for each prompt", async () => {
     mockClient.messages.countTokens.mockResolvedValue({ input_tokens: 50 });
 
-    await estimateGenerationCost(
-      mockClient as unknown as Anthropic,
-      ["prompt A", "prompt B"],
-      "haiku",
-    );
+    await estimateGenerationCost({
+      client: mockClient as unknown as Anthropic,
+      prompts: ["prompt A", "prompt B"],
+      model: "haiku",
+    });
 
     expect(mockClient.messages.countTokens).toHaveBeenCalledWith(
       {
@@ -781,11 +779,11 @@ describe("estimateGenerationCost (async)", () => {
       .mockResolvedValueOnce({ input_tokens: 200 });
 
     await expect(
-      estimateGenerationCost(
-        mockClient as unknown as Anthropic,
-        ["prompt1", "prompt2", "prompt3"],
-        "haiku",
-      ),
+      estimateGenerationCost({
+        client: mockClient as unknown as Anthropic,
+        prompts: ["prompt1", "prompt2", "prompt3"],
+        model: "haiku",
+      }),
     ).rejects.toThrow("API error");
   });
 
@@ -793,14 +791,13 @@ describe("estimateGenerationCost (async)", () => {
     mockClient.messages.countTokens.mockResolvedValue({ input_tokens: 500 });
     const systemPrompt = "You are a test generator.";
 
-    await estimateGenerationCost(
-      mockClient as unknown as Anthropic,
-      ["prompt1", "prompt2"],
-      "haiku",
-      5,
-      undefined,
-      systemPrompt,
-    );
+    await estimateGenerationCost({
+      client: mockClient as unknown as Anthropic,
+      prompts: ["prompt1", "prompt2"],
+      model: "haiku",
+      concurrency: 5,
+      system: systemPrompt,
+    });
 
     // Verify all calls include the system prompt
     expect(mockClient.messages.countTokens).toHaveBeenCalledTimes(2);
@@ -825,11 +822,11 @@ describe("estimateGenerationCost (async)", () => {
   it("should not include system when not provided", async () => {
     mockClient.messages.countTokens.mockResolvedValue({ input_tokens: 100 });
 
-    await estimateGenerationCost(
-      mockClient as unknown as Anthropic,
-      ["prompt"],
-      "haiku",
-    );
+    await estimateGenerationCost({
+      client: mockClient as unknown as Anthropic,
+      prompts: ["prompt"],
+      model: "haiku",
+    });
 
     const callArgs = mockClient.messages.countTokens.mock.calls[0][0];
     expect(callArgs).not.toHaveProperty("system");

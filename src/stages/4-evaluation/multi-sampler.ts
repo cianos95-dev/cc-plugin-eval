@@ -28,6 +28,30 @@ import type {
 import type Anthropic from "@anthropic-ai/sdk";
 
 /**
+ * Options for multi-sample evaluation functions.
+ */
+export interface EvaluateMultiSampleOptions {
+  /** Anthropic client */
+  client: Anthropic;
+  /** Test scenario being evaluated */
+  scenario: TestScenario;
+  /** Execution transcript */
+  transcript: Transcript;
+  /** Programmatic detection results */
+  programmaticResult: ProgrammaticDetection[];
+  /** Evaluation configuration */
+  config: EvaluationConfig;
+}
+
+/**
+ * Options for evaluateWithMultiSampling.
+ */
+export interface EvaluateWithMultiSamplingOptions extends EvaluateMultiSampleOptions {
+  /** Maximum concurrent samples (default: 10) */
+  maxConcurrent?: number;
+}
+
+/**
  * Aggregate scores using the specified method.
  *
  * @param scores - Array of scores to aggregate
@@ -171,13 +195,17 @@ const DEFAULT_MULTI_SAMPLE_CONCURRENCY = 10;
  * ```
  */
 export async function evaluateWithMultiSampling(
-  client: Anthropic,
-  scenario: TestScenario,
-  transcript: Transcript,
-  programmaticResult: ProgrammaticDetection[],
-  config: EvaluationConfig,
-  maxConcurrent: number = DEFAULT_MULTI_SAMPLE_CONCURRENCY,
+  options: EvaluateWithMultiSamplingOptions,
 ): Promise<MultiSampleResult> {
+  const {
+    client,
+    scenario,
+    transcript,
+    programmaticResult,
+    config,
+    maxConcurrent = DEFAULT_MULTI_SAMPLE_CONCURRENCY,
+  } = options;
+
   const numSamples = config.num_samples || 1;
 
   // Run judge multiple times in parallel for improved performance
@@ -186,13 +214,13 @@ export async function evaluateWithMultiSampling(
     items: Array.from({ length: numSamples }),
     concurrency: Math.min(numSamples, maxConcurrent),
     fn: async () =>
-      evaluateWithFallback(
+      evaluateWithFallback({
         client,
         scenario,
         transcript,
         programmaticResult,
         config,
-      ),
+      }),
     continueOnError: false,
   });
   const responses = result.results;
@@ -302,19 +330,17 @@ export function getConfidenceLevel(
  * @returns Multi-sample result with single sample
  */
 export async function evaluateSingleSample(
-  client: Anthropic,
-  scenario: TestScenario,
-  transcript: Transcript,
-  programmaticResult: ProgrammaticDetection[],
-  config: EvaluationConfig,
+  options: EvaluateMultiSampleOptions,
 ): Promise<MultiSampleResult> {
-  const response = await evaluateWithFallback(
+  const { client, scenario, transcript, programmaticResult, config } = options;
+
+  const response = await evaluateWithFallback({
     client,
     scenario,
     transcript,
     programmaticResult,
     config,
-  );
+  });
 
   return {
     individual_scores: [response.quality_score],
@@ -338,27 +364,11 @@ export async function evaluateSingleSample(
  * @returns Multi-sample result
  */
 export async function runJudgment(
-  client: Anthropic,
-  scenario: TestScenario,
-  transcript: Transcript,
-  programmaticResult: ProgrammaticDetection[],
-  config: EvaluationConfig,
+  options: EvaluateMultiSampleOptions,
 ): Promise<MultiSampleResult> {
-  if (config.num_samples <= 1) {
-    return evaluateSingleSample(
-      client,
-      scenario,
-      transcript,
-      programmaticResult,
-      config,
-    );
+  if (options.config.num_samples <= 1) {
+    return evaluateSingleSample(options);
   }
 
-  return evaluateWithMultiSampling(
-    client,
-    scenario,
-    transcript,
-    programmaticResult,
-    config,
-  );
+  return evaluateWithMultiSampling(options);
 }

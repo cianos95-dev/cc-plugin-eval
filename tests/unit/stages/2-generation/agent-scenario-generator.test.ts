@@ -649,11 +649,11 @@ describe("generateAllAgentScenarios", () => {
         ],
       });
 
-    const scenarios = await generateAllAgentScenarios(
-      mockClient as unknown as Anthropic,
+    const scenarios = await generateAllAgentScenarios({
+      client: mockClient as unknown as Anthropic,
       agents,
       config,
-    );
+    });
 
     expect(mockClient.messages.create).toHaveBeenCalledTimes(2);
     expect(scenarios).toHaveLength(2);
@@ -667,12 +667,12 @@ describe("generateAllAgentScenarios", () => {
     });
 
     const progressCallback = vi.fn();
-    await generateAllAgentScenarios(
-      mockClient as unknown as Anthropic,
+    await generateAllAgentScenarios({
+      client: mockClient as unknown as Anthropic,
       agents,
       config,
-      progressCallback,
-    );
+      onProgress: progressCallback,
+    });
 
     // Called once per completed agent (parallel execution)
     expect(progressCallback).toHaveBeenCalledTimes(2);
@@ -681,11 +681,11 @@ describe("generateAllAgentScenarios", () => {
   });
 
   it("should return empty array for empty agents list", async () => {
-    const scenarios = await generateAllAgentScenarios(
-      mockClient as unknown as Anthropic,
-      [],
+    const scenarios = await generateAllAgentScenarios({
+      client: mockClient as unknown as Anthropic,
+      agents: [],
       config,
-    );
+    });
 
     expect(scenarios).toEqual([]);
     expect(mockClient.messages.create).not.toHaveBeenCalled();
@@ -731,11 +731,11 @@ describe("generateAllAgentScenarios", () => {
         ],
       });
 
-    const scenarios = await generateAllAgentScenarios(
-      mockClient as unknown as Anthropic,
+    const scenarios = await generateAllAgentScenarios({
+      client: mockClient as unknown as Anthropic,
       agents,
       config,
-    );
+    });
 
     expect(scenarios).toHaveLength(3);
     expect(scenarios[1].setup_messages).toBeDefined();

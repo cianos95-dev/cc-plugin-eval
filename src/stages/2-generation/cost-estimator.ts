@@ -28,6 +28,40 @@ import type { TextBlockParam } from "@anthropic-ai/sdk/resources/messages/messag
 export type SystemPrompt = string | TextBlockParam[];
 
 /**
+ * Options for countPromptTokens.
+ */
+export interface CountPromptTokensOptions {
+  /** Anthropic client */
+  client: Anthropic;
+  /** Model to use */
+  model: string;
+  /** Prompt text */
+  prompt: string;
+  /** Optional per-request timeout in milliseconds (default: 30000 = 30s) */
+  timeout?: number;
+  /** Optional system prompt (string or array of text blocks for caching) */
+  system?: SystemPrompt;
+}
+
+/**
+ * Options for estimateGenerationCost.
+ */
+export interface EstimateGenerationCostOptions {
+  /** Anthropic client */
+  client: Anthropic;
+  /** Prompts to estimate */
+  prompts: string[];
+  /** Model to use */
+  model: string;
+  /** Maximum concurrent token counting operations (default: 10) */
+  concurrency?: number;
+  /** Timeout for each token counting request in ms (default: 30000) */
+  tokenCountingTimeout?: number;
+  /** Optional system prompt to include in token count */
+  system?: SystemPrompt;
+}
+
+/**
  * Default SDK timeout in milliseconds (2 minutes).
  * This is a conservative default for client-level timeout.
  * Individual operations can override with per-request timeouts.
@@ -74,12 +108,9 @@ export function createAnthropicClient(timeout?: number): Anthropic {
  * @returns Token count
  */
 export async function countPromptTokens(
-  client: Anthropic,
-  model: string,
-  prompt: string,
-  timeout?: number,
-  system?: SystemPrompt,
+  options: CountPromptTokensOptions,
 ): Promise<number> {
+  const { client, model, prompt, timeout, system } = options;
   const result = await client.messages.countTokens(
     {
       model: resolveModelId(model),
@@ -111,20 +142,32 @@ const DEFAULT_TOKEN_COUNTING_CONCURRENCY = 10;
  * @returns Token estimate
  */
 export async function estimateGenerationCost(
-  client: Anthropic,
-  prompts: string[],
-  model: string,
-  concurrency: number = DEFAULT_TOKEN_COUNTING_CONCURRENCY,
-  tokenCountingTimeout?: number,
-  system?: SystemPrompt,
+  options: EstimateGenerationCostOptions,
 ): Promise<TokenEstimate> {
+  const {
+    client,
+    prompts,
+    model,
+    concurrency = DEFAULT_TOKEN_COUNTING_CONCURRENCY,
+    tokenCountingTimeout,
+    system,
+  } = options;
+
   // Count tokens in parallel for improved performance
   // Use continueOnError: false to fail fast - partial results would underestimate costs
   const result = await parallel({
     items: prompts,
     concurrency,
     fn: async (prompt) =>
-      countPromptTokens(client, model, prompt, tokenCountingTimeout, system),
+      countPromptTokens({
+        client,
+        model,
+        prompt,
+        ...(tokenCountingTimeout !== undefined && {
+          timeout: tokenCountingTimeout,
+        }),
+        ...(system !== undefined && { system }),
+      }),
     continueOnError: false,
   });
   const totalInputTokens = result.results.reduce((a, b) => a + b, 0);

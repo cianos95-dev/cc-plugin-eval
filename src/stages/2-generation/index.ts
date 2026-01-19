@@ -201,13 +201,13 @@ export async function runGeneration(
       componentType: "skills",
       components: analysis.components.skills,
       generator: async (onProgress) =>
-        generateAllSkillScenarios(
+        generateAllSkillScenarios({
           client,
-          analysis.components.skills,
-          config.generation,
+          skills: analysis.components.skills,
+          config: config.generation,
           onProgress,
-          config.max_concurrent,
-        ),
+          maxConcurrent: config.max_concurrent,
+        }),
       createFallback: createFallbackSkillScenarios,
       onProgress,
     });
@@ -220,13 +220,13 @@ export async function runGeneration(
       componentType: "agents",
       components: analysis.components.agents,
       generator: async (onProgress) =>
-        generateAllAgentScenarios(
+        generateAllAgentScenarios({
           client,
-          analysis.components.agents,
-          config.generation,
+          agents: analysis.components.agents,
+          config: config.generation,
           onProgress,
-          config.max_concurrent,
-        ),
+          maxConcurrent: config.max_concurrent,
+        }),
       createFallback: createFallbackAgentScenarios,
       onProgress,
     });

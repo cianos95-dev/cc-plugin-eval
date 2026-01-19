@@ -58,20 +58,20 @@ async function resumeFromAnalysis(
   const generation = await runGeneration(analysis, config);
   writeJson(`${resultsDir}/scenarios.json`, generation.scenarios);
 
-  const execution = await runExecution(
+  const execution = await runExecution({
     analysis,
-    generation.scenarios,
+    scenarios: generation.scenarios,
     config,
-    consoleProgress,
-  );
+    progress: consoleProgress,
+  });
 
-  const evaluation = await runEvaluation(
-    analysis.plugin_name,
-    generation.scenarios,
-    execution.results,
+  const evaluation = await runEvaluation({
+    pluginName: analysis.plugin_name,
+    scenarios: generation.scenarios,
+    executions: execution.results,
     config,
-    consoleProgress,
-  );
+    progress: consoleProgress,
+  });
 
   // Chain state updates
   let currentState = updateStateAfterAnalysis(initialState, analysis);
@@ -107,20 +107,20 @@ async function resumeFromGeneration(
   const generation = await runGeneration(analysisData, config);
   writeJson(`${resultsDir}/scenarios.json`, generation.scenarios);
 
-  const execution = await runExecution(
-    analysisData,
-    generation.scenarios,
+  const execution = await runExecution({
+    analysis: analysisData,
+    scenarios: generation.scenarios,
     config,
-    consoleProgress,
-  );
+    progress: consoleProgress,
+  });
 
-  const evaluation = await runEvaluation(
-    analysisData.plugin_name,
-    generation.scenarios,
-    execution.results,
+  const evaluation = await runEvaluation({
+    pluginName: analysisData.plugin_name,
+    scenarios: generation.scenarios,
+    executions: execution.results,
     config,
-    consoleProgress,
-  );
+    progress: consoleProgress,
+  });
 
   // Chain state updates
   let currentState = updateStateAfterGeneration(
@@ -158,20 +158,20 @@ async function resumeFromExecution(
     );
   }
 
-  const execution = await runExecution(
-    analysisData,
-    scenarioData,
+  const execution = await runExecution({
+    analysis: analysisData,
+    scenarios: scenarioData,
     config,
-    consoleProgress,
-  );
+    progress: consoleProgress,
+  });
 
-  const evaluation = await runEvaluation(
-    analysisData.plugin_name,
-    scenarioData,
-    execution.results,
+  const evaluation = await runEvaluation({
+    pluginName: analysisData.plugin_name,
+    scenarios: scenarioData,
+    executions: execution.results,
     config,
-    consoleProgress,
-  );
+    progress: consoleProgress,
+  });
 
   // Chain state updates
   let currentState = updateStateAfterExecution(initialState, execution.results);
@@ -206,13 +206,13 @@ async function resumeFromEvaluation(
     );
   }
 
-  const evaluation = await runEvaluation(
-    analysisData.plugin_name,
-    scenarioData,
-    executionData,
+  const evaluation = await runEvaluation({
+    pluginName: analysisData.plugin_name,
+    scenarios: scenarioData,
+    executions: executionData,
     config,
-    consoleProgress,
-  );
+    progress: consoleProgress,
+  });
 
   // Chain state updates
   let currentState = updateStateAfterEvaluation(

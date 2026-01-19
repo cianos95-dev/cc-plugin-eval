@@ -23,15 +23,24 @@ interface ToolCallLike {
 }
 
 /**
+ * Options for createDetection.
+ */
+interface CreateDetectionOptions {
+  componentType: ComponentType;
+  componentName: string;
+  toolName: string;
+  evidence: string;
+  timestamp: number;
+}
+
+/**
  * Create a detection from a tool call.
  */
 function createDetection(
-  componentType: ComponentType,
-  componentName: string,
-  toolName: string,
-  evidence: string,
-  timestamp: number,
+  options: CreateDetectionOptions,
 ): ProgrammaticDetection {
+  const { componentType, componentName, toolName, evidence, timestamp } =
+    options;
   return {
     component_type: componentType,
     component_name: componentName,
@@ -53,13 +62,13 @@ function processSkillTool(
   if (!isSkillInput(tc.input)) {
     return null;
   }
-  return createDetection(
-    "skill",
-    tc.input.skill,
-    tc.name,
-    `Skill tool invoked: ${tc.input.skill}${evidenceSuffix}`,
+  return createDetection({
+    componentType: "skill",
+    componentName: tc.input.skill,
+    toolName: tc.name,
+    evidence: `Skill tool invoked: ${tc.input.skill}${evidenceSuffix}`,
     timestamp,
-  );
+  });
 }
 
 /**
@@ -73,13 +82,13 @@ function processTaskTool(
   if (!isTaskInput(tc.input)) {
     return null;
   }
-  return createDetection(
-    "agent",
-    tc.input.subagent_type,
-    tc.name,
-    `Task tool invoked: ${tc.input.subagent_type}${evidenceSuffix}`,
+  return createDetection({
+    componentType: "agent",
+    componentName: tc.input.subagent_type,
+    toolName: tc.name,
+    evidence: `Task tool invoked: ${tc.input.subagent_type}${evidenceSuffix}`,
     timestamp,
-  );
+  });
 }
 
 /**
@@ -93,13 +102,13 @@ function processCommandTool(
   if (!isSkillInput(tc.input)) {
     return null;
   }
-  return createDetection(
-    "command",
-    tc.input.skill,
-    tc.name,
-    `SlashCommand invoked: ${tc.input.skill}${evidenceSuffix}`,
+  return createDetection({
+    componentType: "command",
+    componentName: tc.input.skill,
+    toolName: tc.name,
+    evidence: `SlashCommand invoked: ${tc.input.skill}${evidenceSuffix}`,
     timestamp,
-  );
+  });
 }
 
 /**
@@ -114,13 +123,13 @@ function processMcpTool(
   if (!parsed) {
     return null;
   }
-  return createDetection(
-    "mcp_server",
-    parsed.serverName,
-    tc.name,
-    `MCP tool invoked: ${tc.name} (server: ${parsed.serverName}, tool: ${parsed.toolName})${evidenceSuffix}`,
+  return createDetection({
+    componentType: "mcp_server",
+    componentName: parsed.serverName,
+    toolName: tc.name,
+    evidence: `MCP tool invoked: ${tc.name} (server: ${parsed.serverName}, tool: ${parsed.toolName})${evidenceSuffix}`,
     timestamp,
-  );
+  });
 }
 
 /**

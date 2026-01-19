@@ -399,13 +399,13 @@ describe("evaluateSingleSample", () => {
     const detections = createDetections();
     const config = createConfig();
 
-    const result = await evaluateSingleSample(
+    const result = await evaluateSingleSample({
       client,
       scenario,
       transcript,
-      detections,
+      programmaticResult: detections,
       config,
-    );
+    });
 
     expect(result.individual_scores).toEqual([8]);
     expect(result.aggregated_score).toBe(8);
@@ -422,13 +422,13 @@ describe("evaluateSingleSample", () => {
     });
     (evaluateWithFallback as Mock).mockResolvedValue(mockResponse);
 
-    const result = await evaluateSingleSample(
-      createMockClient(),
-      createScenario(),
-      createTranscript(),
-      createDetections(),
-      createConfig(),
-    );
+    const result = await evaluateSingleSample({
+      client: createMockClient(),
+      scenario: createScenario(),
+      transcript: createTranscript(),
+      programmaticResult: createDetections(),
+      config: createConfig(),
+    });
 
     expect(result.all_issues).toEqual([
       "Minor formatting issue",
@@ -446,35 +446,35 @@ describe("evaluateSingleSample", () => {
     const detections = createDetections();
     const config = createConfig({ model: "sonnet", max_tokens: 2048 });
 
-    await evaluateSingleSample(
+    await evaluateSingleSample({
       client,
       scenario,
       transcript,
-      detections,
+      programmaticResult: detections,
       config,
-    );
+    });
 
     expect(evaluateWithFallback).toHaveBeenCalledTimes(1);
-    expect(evaluateWithFallback).toHaveBeenCalledWith(
+    expect(evaluateWithFallback).toHaveBeenCalledWith({
       client,
       scenario,
       transcript,
-      detections,
+      programmaticResult: detections,
       config,
-    );
+    });
   });
 
   it("should always set is_unanimous to true (single sample is trivially unanimous)", async () => {
     const mockResponse = createJudgeResponse({ trigger_accuracy: "correct" });
     (evaluateWithFallback as Mock).mockResolvedValue(mockResponse);
 
-    const result = await evaluateSingleSample(
-      createMockClient(),
-      createScenario(),
-      createTranscript(),
-      createDetections(),
-      createConfig(),
-    );
+    const result = await evaluateSingleSample({
+      client: createMockClient(),
+      scenario: createScenario(),
+      transcript: createTranscript(),
+      programmaticResult: createDetections(),
+      config: createConfig(),
+    });
 
     expect(result.is_unanimous).toBe(true);
   });
@@ -491,13 +491,13 @@ describe("evaluateWithMultiSampling", () => {
 
     const config = createConfig({ num_samples: 3 });
 
-    await evaluateWithMultiSampling(
-      createMockClient(),
-      createScenario(),
-      createTranscript(),
-      createDetections(),
+    await evaluateWithMultiSampling({
+      client: createMockClient(),
+      scenario: createScenario(),
+      transcript: createTranscript(),
+      programmaticResult: createDetections(),
       config,
-    );
+    });
 
     expect(evaluateWithFallback).toHaveBeenCalledTimes(3);
   });
@@ -518,13 +518,13 @@ describe("evaluateWithMultiSampling", () => {
       aggregate_method: "average",
     });
 
-    const result = await evaluateWithMultiSampling(
-      createMockClient(),
-      createScenario(),
-      createTranscript(),
-      createDetections(),
+    const result = await evaluateWithMultiSampling({
+      client: createMockClient(),
+      scenario: createScenario(),
+      transcript: createTranscript(),
+      programmaticResult: createDetections(),
       config,
-    );
+    });
 
     expect(result.individual_scores).toEqual([7, 8, 9]);
     expect(result.aggregated_score).toBe(8); // (7+8+9)/3
@@ -544,13 +544,13 @@ describe("evaluateWithMultiSampling", () => {
 
     const config = createConfig({ num_samples: 3, aggregate_method: "median" });
 
-    const result = await evaluateWithMultiSampling(
-      createMockClient(),
-      createScenario(),
-      createTranscript(),
-      createDetections(),
+    const result = await evaluateWithMultiSampling({
+      client: createMockClient(),
+      scenario: createScenario(),
+      transcript: createTranscript(),
+      programmaticResult: createDetections(),
       config,
-    );
+    });
 
     expect(result.aggregated_score).toBe(8); // median of [5, 8, 10]
   });
@@ -568,13 +568,13 @@ describe("evaluateWithMultiSampling", () => {
 
     const config = createConfig({ num_samples: 3 });
 
-    const result = await evaluateWithMultiSampling(
-      createMockClient(),
-      createScenario(),
-      createTranscript(),
-      createDetections(),
+    const result = await evaluateWithMultiSampling({
+      client: createMockClient(),
+      scenario: createScenario(),
+      transcript: createTranscript(),
+      programmaticResult: createDetections(),
       config,
-    );
+    });
 
     expect(result.consensus_trigger_accuracy).toBe("correct");
   });
@@ -592,13 +592,13 @@ describe("evaluateWithMultiSampling", () => {
 
     const config = createConfig({ num_samples: 3 });
 
-    const result = await evaluateWithMultiSampling(
-      createMockClient(),
-      createScenario(),
-      createTranscript(),
-      createDetections(),
+    const result = await evaluateWithMultiSampling({
+      client: createMockClient(),
+      scenario: createScenario(),
+      transcript: createTranscript(),
+      programmaticResult: createDetections(),
       config,
-    );
+    });
 
     expect(result.is_unanimous).toBe(true);
     expect(result.consensus_trigger_accuracy).toBe("correct");
@@ -617,13 +617,13 @@ describe("evaluateWithMultiSampling", () => {
 
     const config = createConfig({ num_samples: 3 });
 
-    const result = await evaluateWithMultiSampling(
-      createMockClient(),
-      createScenario(),
-      createTranscript(),
-      createDetections(),
+    const result = await evaluateWithMultiSampling({
+      client: createMockClient(),
+      scenario: createScenario(),
+      transcript: createTranscript(),
+      programmaticResult: createDetections(),
       config,
-    );
+    });
 
     expect(result.is_unanimous).toBe(false);
     // Majority vote should still work
@@ -643,13 +643,13 @@ describe("evaluateWithMultiSampling", () => {
 
     const config = createConfig({ num_samples: 3 });
 
-    const result = await evaluateWithMultiSampling(
-      createMockClient(),
-      createScenario(),
-      createTranscript(),
-      createDetections(),
+    const result = await evaluateWithMultiSampling({
+      client: createMockClient(),
+      scenario: createScenario(),
+      transcript: createTranscript(),
+      programmaticResult: createDetections(),
       config,
-    );
+    });
 
     expect(result.all_issues).toHaveLength(3);
     expect(result.all_issues).toContain("Issue A");
@@ -682,13 +682,13 @@ describe("evaluateWithMultiSampling", () => {
       aggregate_method: "average",
     });
 
-    const result = await evaluateWithMultiSampling(
-      createMockClient(),
-      createScenario(),
-      createTranscript(),
-      createDetections(),
+    const result = await evaluateWithMultiSampling({
+      client: createMockClient(),
+      scenario: createScenario(),
+      transcript: createTranscript(),
+      programmaticResult: createDetections(),
       config,
-    );
+    });
 
     // Representative should have aggregated values
     expect(result.representative_response.quality_score).toBe(8); // (7+9)/2
@@ -704,13 +704,13 @@ describe("evaluateWithMultiSampling", () => {
 
     const config = createConfig({ num_samples: 1 });
 
-    const result = await evaluateWithMultiSampling(
-      createMockClient(),
-      createScenario(),
-      createTranscript(),
-      createDetections(),
+    const result = await evaluateWithMultiSampling({
+      client: createMockClient(),
+      scenario: createScenario(),
+      transcript: createTranscript(),
+      programmaticResult: createDetections(),
       config,
-    );
+    });
 
     expect(evaluateWithFallback).toHaveBeenCalledTimes(1);
     expect(result.individual_scores).toEqual([7]);
@@ -726,13 +726,13 @@ describe("evaluateWithMultiSampling", () => {
     const config = createConfig({ num_samples: 3 });
 
     await expect(
-      evaluateWithMultiSampling(
-        createMockClient(),
-        createScenario(),
-        createTranscript(),
-        createDetections(),
+      evaluateWithMultiSampling({
+        client: createMockClient(),
+        scenario: createScenario(),
+        transcript: createTranscript(),
+        programmaticResult: createDetections(),
         config,
-      ),
+      }),
     ).rejects.toThrow("API error");
   });
 });
@@ -748,13 +748,13 @@ describe("runJudgment", () => {
 
     const config = createConfig({ num_samples: 1 });
 
-    const result = await runJudgment(
-      createMockClient(),
-      createScenario(),
-      createTranscript(),
-      createDetections(),
+    const result = await runJudgment({
+      client: createMockClient(),
+      scenario: createScenario(),
+      transcript: createTranscript(),
+      programmaticResult: createDetections(),
       config,
-    );
+    });
 
     expect(evaluateWithFallback).toHaveBeenCalledTimes(1);
     expect(result.individual_scores).toEqual([8]);
@@ -767,13 +767,13 @@ describe("runJudgment", () => {
 
     const config = createConfig({ num_samples: 3 });
 
-    const result = await runJudgment(
-      createMockClient(),
-      createScenario(),
-      createTranscript(),
-      createDetections(),
+    const result = await runJudgment({
+      client: createMockClient(),
+      scenario: createScenario(),
+      transcript: createTranscript(),
+      programmaticResult: createDetections(),
       config,
-    );
+    });
 
     expect(evaluateWithFallback).toHaveBeenCalledTimes(3);
     expect(result.individual_scores).toHaveLength(3);
@@ -785,13 +785,13 @@ describe("runJudgment", () => {
 
     const config = createConfig({ num_samples: 0 });
 
-    const result = await runJudgment(
-      createMockClient(),
-      createScenario(),
-      createTranscript(),
-      createDetections(),
+    const result = await runJudgment({
+      client: createMockClient(),
+      scenario: createScenario(),
+      transcript: createTranscript(),
+      programmaticResult: createDetections(),
       config,
-    );
+    });
 
     // Should treat 0 as single sample (via evaluateSingleSample path)
     expect(evaluateWithFallback).toHaveBeenCalledTimes(1);
@@ -804,13 +804,13 @@ describe("runJudgment", () => {
     const config = createConfig({ num_samples: 1 });
 
     await expect(
-      runJudgment(
-        createMockClient(),
-        createScenario(),
-        createTranscript(),
-        createDetections(),
+      runJudgment({
+        client: createMockClient(),
+        scenario: createScenario(),
+        transcript: createTranscript(),
+        programmaticResult: createDetections(),
         config,
-      ),
+      }),
     ).rejects.toThrow("API Error");
   });
 });

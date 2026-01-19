@@ -18,24 +18,41 @@ import type { ProgrammaticResult, ScenarioEvaluationResult } from "./types.js";
 import type { getUniqueDetections } from "../detection/index.js";
 
 /**
+ * Options for buildEvaluationResult.
+ */
+export interface BuildEvaluationResultOptions {
+  /** Test scenario being evaluated */
+  scenario: TestScenario;
+  /** Whether component was triggered */
+  triggered: boolean;
+  /** Unique component detections */
+  uniqueDetections: ReturnType<typeof getUniqueDetections>;
+  /** Conflict analysis result */
+  conflictAnalysis: ReturnType<typeof calculateConflictSeverity>;
+  /** LLM judgment result (null if programmatic-only) */
+  judgment: MultiSampleResult | null;
+  /** How the trigger was detected */
+  detectionSource: DetectionSource;
+}
+
+/**
  * Build the evaluation result object.
  *
- * @param scenario - Test scenario being evaluated
- * @param triggered - Whether component was triggered
- * @param uniqueDetections - Unique component detections
- * @param conflictAnalysis - Conflict analysis result
- * @param judgment - LLM judgment result (null if programmatic-only)
- * @param detectionSource - How the trigger was detected
+ * @param options - Build evaluation result options
  * @returns Complete evaluation result
  */
 export function buildEvaluationResult(
-  scenario: TestScenario,
-  triggered: boolean,
-  uniqueDetections: ReturnType<typeof getUniqueDetections>,
-  conflictAnalysis: ReturnType<typeof calculateConflictSeverity>,
-  judgment: MultiSampleResult | null,
-  detectionSource: DetectionSource,
+  options: BuildEvaluationResultOptions,
 ): EvaluationResult {
+  const {
+    scenario,
+    triggered,
+    uniqueDetections,
+    conflictAnalysis,
+    judgment,
+    detectionSource,
+  } = options;
+
   const allTriggeredComponents: TriggeredComponent[] = uniqueDetections.map(
     (d) => ({
       component_type: d.component_type,
@@ -94,14 +111,14 @@ export function buildFinalResult(
     judgeStrategy,
   } = programmatic;
 
-  const result = buildEvaluationResult(
-    context.scenario,
+  const result = buildEvaluationResult({
+    scenario: context.scenario,
     triggered,
     uniqueDetections,
     conflictAnalysis,
     judgment,
-    judgeStrategy.detectionSource,
-  );
+    detectionSource: judgeStrategy.detectionSource,
+  });
 
   const variance = judgment?.score_variance ?? 0;
   const isUnanimous = judgment?.is_unanimous ?? true;

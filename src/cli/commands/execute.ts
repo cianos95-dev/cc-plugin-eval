@@ -76,12 +76,12 @@ export function registerExecuteCommand(program: Command): void {
         writeJson(`${resultsDir}/scenarios.json`, generation.scenarios);
 
         // Stage 3: Execution
-        const execution = await runExecution(
+        const execution = await runExecution({
           analysis,
-          generation.scenarios,
+          scenarios: generation.scenarios,
           config,
-          consoleProgress,
-        );
+          progress: consoleProgress,
+        });
         state = updateStateAfterExecution(state, execution.results);
         await saveState(state);
 

@@ -193,24 +193,34 @@ export async function generateSkillScenarios(
 }
 
 /**
+ * Options for generateAllSkillScenarios.
+ */
+export interface GenerateAllSkillScenariosOptions {
+  /** Anthropic client */
+  client: Anthropic;
+  /** Array of skill components */
+  skills: SkillComponent[];
+  /** Generation config */
+  config: GenerationConfig;
+  /** Optional progress callback */
+  onProgress?: (completed: number, total: number, skill: string) => void;
+  /** Maximum concurrent LLM calls (defaults to 10) */
+  maxConcurrent?: number;
+}
+
+/**
  * Generate scenarios for all skills.
  *
  * Uses parallel execution with optional rate limiting.
  *
- * @param client - Anthropic client
- * @param skills - Array of skill components
- * @param config - Generation config
- * @param onProgress - Optional progress callback
- * @param maxConcurrent - Maximum concurrent LLM calls (defaults to 10)
+ * @param options - Generate all skill scenarios options
  * @returns Array of all test scenarios
  */
 export async function generateAllSkillScenarios(
-  client: Anthropic,
-  skills: SkillComponent[],
-  config: GenerationConfig,
-  onProgress?: (completed: number, total: number, skill: string) => void,
-  maxConcurrent = 10,
+  options: GenerateAllSkillScenariosOptions,
 ): Promise<TestScenario[]> {
+  const { client, skills, config, onProgress, maxConcurrent = 10 } = options;
+
   // Create rate limiter if configured
   const rateLimiter = setupRateLimiter(config);
 

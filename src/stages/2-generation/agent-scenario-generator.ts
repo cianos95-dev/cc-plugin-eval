@@ -307,24 +307,34 @@ export async function generateAgentScenarios(
 }
 
 /**
+ * Options for generateAllAgentScenarios.
+ */
+export interface GenerateAllAgentScenariosOptions {
+  /** Anthropic client */
+  client: Anthropic;
+  /** Array of agent components */
+  agents: AgentComponent[];
+  /** Generation config */
+  config: GenerationConfig;
+  /** Optional progress callback */
+  onProgress?: (completed: number, total: number, agent: string) => void;
+  /** Maximum concurrent LLM calls (defaults to 10) */
+  maxConcurrent?: number;
+}
+
+/**
  * Generate scenarios for all agents.
  *
  * Uses parallel execution with optional rate limiting.
  *
- * @param client - Anthropic client
- * @param agents - Array of agent components
- * @param config - Generation config
- * @param onProgress - Optional progress callback
- * @param maxConcurrent - Maximum concurrent LLM calls (defaults to 10)
+ * @param options - Generate all agent scenarios options
  * @returns Array of all test scenarios
  */
 export async function generateAllAgentScenarios(
-  client: Anthropic,
-  agents: AgentComponent[],
-  config: GenerationConfig,
-  onProgress?: (completed: number, total: number, agent: string) => void,
-  maxConcurrent = 10,
+  options: GenerateAllAgentScenariosOptions,
 ): Promise<TestScenario[]> {
+  const { client, agents, config, onProgress, maxConcurrent = 10 } = options;
+
   // Create rate limiter if configured
   const rateLimiter = setupRateLimiter(config);
 

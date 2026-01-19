@@ -94,14 +94,22 @@ export interface PluginLoaderOptions {
   enableMcpDiscovery?: boolean | undefined;
 }
 
+/**
+ * Options for buildPluginQueryInput.
+ */
+interface BuildPluginQueryInputOptions {
+  pluginPath: string;
+  config: ExecutionConfig;
+  settingSources: SettingSource[];
+  controller: AbortController;
+  startTime: number;
+}
+
 /** Build query input for plugin verification */
 function buildPluginQueryInput(
-  pluginPath: string,
-  config: ExecutionConfig,
-  settingSources: SettingSource[],
-  controller: AbortController,
-  startTime: number,
+  options: BuildPluginQueryInputOptions,
 ): QueryInput {
+  const { pluginPath, config, settingSources, controller, startTime } = options;
   return {
     prompt: "Plugin initialization check - respond with OK",
     options: {
@@ -223,13 +231,13 @@ export async function verifyPluginLoad(
   const settingSources: SettingSource[] = enableMcpDiscovery ? ["project"] : [];
 
   try {
-    const queryInput = buildPluginQueryInput(
+    const queryInput = buildPluginQueryInput({
       pluginPath,
       config,
       settingSources,
       controller,
       startTime,
-    );
+    });
     const q = queryFn ? queryFn(queryInput) : executeQuery(queryInput);
 
     return await processQueryMessages(q, pluginPath, timings);

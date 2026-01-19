@@ -145,25 +145,25 @@ export function registerRunCommand(program: Command): void {
         }
 
         // Stage 3: Execution
-        const execution = await runExecution(
+        const execution = await runExecution({
           analysis,
-          scenariosToRun,
+          scenarios: scenariosToRun,
           config,
-          consoleProgress,
-        );
+          progress: consoleProgress,
+        });
         state = updateStateAfterExecution(state, execution.results);
         await saveState(state);
 
         writeExecutionMetadata(resultsDir, execution);
 
         // Stage 4: Evaluation
-        const evaluation = await runEvaluation(
-          analysis.plugin_name,
-          scenariosToRun,
-          execution.results,
+        const evaluation = await runEvaluation({
+          pluginName: analysis.plugin_name,
+          scenarios: scenariosToRun,
+          executions: execution.results,
           config,
-          consoleProgress,
-        );
+          progress: consoleProgress,
+        });
         state = updateStateAfterEvaluation(state, evaluation.results);
         await saveState(state);
 

@@ -30,6 +30,22 @@ import type {
 } from "../../../types/index.js";
 
 /**
+ * Options for detectAllComponentsWithHooks.
+ */
+export interface DetectAllComponentsWithHooksOptions {
+  /** Tool captures from execution */
+  captures: ToolCapture[];
+  /** Execution transcript */
+  transcript: Transcript;
+  /** Test scenario */
+  scenario: TestScenario;
+  /** Optional hook response captures */
+  hookResponses?: HookResponseCapture[];
+  /** Optional subagent lifecycle captures */
+  subagentCaptures?: SubagentCapture[];
+}
+
+/**
  * Detect all components using all detection methods.
  *
  * Combines real-time captures, direct command detection, and transcript
@@ -108,12 +124,11 @@ export function detectAllComponents(
  * @returns Array of all detected components including hooks, agents, and MCP servers
  */
 export function detectAllComponentsWithHooks(
-  captures: ToolCapture[],
-  transcript: Transcript,
-  scenario: TestScenario,
-  hookResponses?: HookResponseCapture[],
-  subagentCaptures?: SubagentCapture[],
+  options: DetectAllComponentsWithHooksOptions,
 ): ProgrammaticDetection[] {
+  const { captures, transcript, scenario, hookResponses, subagentCaptures } =
+    options;
+
   // Get standard component detections (now includes MCP servers)
   const detections = detectAllComponents(captures, transcript, scenario);
 

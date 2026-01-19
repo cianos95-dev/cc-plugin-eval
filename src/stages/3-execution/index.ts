@@ -72,6 +72,22 @@ export interface ExecutionOutput {
 }
 
 /**
+ * Options for runExecution.
+ */
+export interface RunExecutionOptions {
+  /** Output from Stage 1 (plugin analysis) */
+  analysis: AnalysisOutput;
+  /** Output from Stage 2 (test scenarios) */
+  scenarios: TestScenario[];
+  /** Evaluation configuration */
+  config: EvalConfig;
+  /** Optional progress callbacks */
+  progress?: ProgressCallbacks;
+  /** Optional query function (for testing) */
+  queryFn?: QueryFunction;
+}
+
+/**
  * Run Stage 3: Execution.
  *
  * Executes all test scenarios against the plugin using the
@@ -99,12 +115,16 @@ export interface ExecutionOutput {
  * ```
  */
 export async function runExecution(
-  analysis: AnalysisOutput,
-  scenarios: TestScenario[],
-  config: EvalConfig,
-  progress: ProgressCallbacks = consoleProgress,
-  queryFn?: QueryFunction,
+  options: RunExecutionOptions,
 ): Promise<ExecutionOutput> {
+  const {
+    analysis,
+    scenarios,
+    config,
+    progress = consoleProgress,
+    queryFn,
+  } = options;
+
   logger.stageHeader("Stage 3: Execution", scenarios.length);
 
   const pluginPath = config.plugin.path;

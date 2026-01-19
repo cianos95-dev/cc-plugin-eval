@@ -29,12 +29,12 @@ import type { OutputConfig, ProgressCallbacks } from "../../types/index.js";
  *
  * @example
  * ```typescript
- * const output = await runExecution(
+ * const output = await runExecution({
  *   analysis,
  *   scenarios,
  *   config,
- *   consoleProgress
- * );
+ *   progress: consoleProgress,
+ * });
  * ```
  */
 export const consoleProgress: ProgressCallbacks = {
@@ -64,12 +64,12 @@ export const consoleProgress: ProgressCallbacks = {
  *
  * @example
  * ```typescript
- * const output = await runExecution(
+ * const output = await runExecution({
  *   analysis,
  *   scenarios,
  *   config,
- *   verboseProgress
- * );
+ *   progress: verboseProgress,
+ * });
  * ```
  */
 export const verboseProgress: ProgressCallbacks = {
@@ -106,12 +106,12 @@ export const verboseProgress: ProgressCallbacks = {
  *
  * @example
  * ```typescript
- * const output = await runExecution(
+ * const output = await runExecution({
  *   analysis,
  *   scenarios,
  *   config,
- *   silentProgress
- * );
+ *   progress: silentProgress,
+ * });
  * ```
  */
 export const silentProgress: ProgressCallbacks = {
@@ -126,12 +126,12 @@ export const silentProgress: ProgressCallbacks = {
  *
  * @example
  * ```typescript
- * const output = await runExecution(
+ * const output = await runExecution({
  *   analysis,
  *   scenarios,
  *   config,
- *   jsonProgress
- * );
+ *   progress: jsonProgress,
+ * });
  * ```
  */
 export const jsonProgress: ProgressCallbacks = {

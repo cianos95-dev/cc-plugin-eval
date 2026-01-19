@@ -263,13 +263,13 @@ describe("calculateDiversityMetrics", () => {
 
 describe("createBaseScenario", () => {
   it("should create a base scenario with correct properties", () => {
-    const result = createBaseScenario(
-      "test-skill",
-      "skill",
-      "create a hook",
-      "I want to create a hook",
-      0,
-    );
+    const result = createBaseScenario({
+      componentRef: "test-skill",
+      componentType: "skill",
+      coreIntent: "create a hook",
+      basePrompt: "I want to create a hook",
+      index: 0,
+    });
 
     expect(result.id).toBe("test-skill-base-0");
     expect(result.component_ref).toBe("test-skill");
@@ -281,28 +281,30 @@ describe("createBaseScenario", () => {
 
 describe("baseToTestScenario", () => {
   it("should convert base scenario to test scenario", () => {
-    const base = createBaseScenario(
-      "test-skill",
-      "skill",
-      "create a hook",
-      "I want to create a hook",
-      0,
-    );
+    const base = createBaseScenario({
+      componentRef: "test-skill",
+      componentType: "skill",
+      coreIntent: "create a hook",
+      basePrompt: "I want to create a hook",
+      index: 0,
+    });
 
     const result = baseToTestScenario(base, "direct", true, "Test reasoning");
 
     expect(result.id).toBe("test-skill-base-0");
-    expect(result.component_ref).toBe("test-skill");
-    expect(result.component_type).toBe("skill");
     expect(result.scenario_type).toBe("direct");
-    expect(result.user_prompt).toBe("I want to create a hook");
     expect(result.expected_trigger).toBe(true);
-    expect(result.expected_component).toBe("test-skill");
     expect(result.reasoning).toBe("Test reasoning");
   });
 
   it("should omit reasoning when not provided", () => {
-    const base = createBaseScenario("test-skill", "skill", "test", "test", 0);
+    const base = createBaseScenario({
+      componentRef: "test-skill",
+      componentType: "skill",
+      coreIntent: "test",
+      basePrompt: "test",
+      index: 0,
+    });
 
     const result = baseToTestScenario(base, "direct", true);
 

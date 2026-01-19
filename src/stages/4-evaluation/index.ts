@@ -70,6 +70,68 @@ import type {
 import type Anthropic from "@anthropic-ai/sdk";
 
 /**
+ * Sample data entry for multi-sampling metrics.
+ */
+interface SampleDataEntry {
+  scenarioId: string;
+  variance: number;
+  numSamples: number;
+  hasConsensus: boolean;
+}
+
+/**
+ * Options for runSynchronousEvaluation.
+ */
+interface RunSynchronousEvaluationOptions {
+  /** Anthropic client */
+  client: Anthropic;
+  /** Programmatic detection results */
+  programmaticResults: ProgrammaticResult[];
+  /** Evaluation configuration */
+  config: EvalConfig;
+  /** Progress callbacks */
+  progress: ProgressCallbacks;
+  /** Sample data array (mutated during evaluation) */
+  sampleData: SampleDataEntry[];
+}
+
+/**
+ * Options for calculateAndSaveMetrics.
+ */
+interface CalculateAndSaveMetricsOptions {
+  /** Plugin name */
+  pluginName: string;
+  /** Results with scenario and execution context */
+  resultsWithContext: {
+    result: EvaluationResult;
+    scenario: TestScenario;
+    execution: ExecutionResult;
+  }[];
+  /** Execution results */
+  executions: ExecutionResult[];
+  /** Evaluation configuration */
+  config: EvalConfig;
+  /** Sample data for multi-sampling metrics */
+  sampleData: SampleDataEntry[];
+}
+
+/**
+ * Options for runEvaluation.
+ */
+export interface RunEvaluationOptions {
+  /** Plugin name */
+  pluginName: string;
+  /** Test scenarios */
+  scenarios: TestScenario[];
+  /** Execution results */
+  executions: ExecutionResult[];
+  /** Evaluation configuration */
+  config: EvalConfig;
+  /** Progress callbacks */
+  progress?: ProgressCallbacks;
+}
+
+/**
  * Output from Stage 4: Evaluation.
  */
 export interface EvaluationOutput {
@@ -127,13 +189,17 @@ function runProgrammaticDetection(
   // Otherwise use the simpler detectAllComponents
   const detections =
     scenario.component_type === "hook" || scenario.component_type === "agent"
-      ? detectAllComponentsWithHooks(
-          execution.detected_tools,
-          execution.transcript,
+      ? detectAllComponentsWithHooks({
+          captures: execution.detected_tools,
+          transcript: execution.transcript,
           scenario,
-          execution.hook_responses,
-          execution.subagent_captures,
-        )
+          ...(execution.hook_responses !== undefined && {
+            hookResponses: execution.hook_responses,
+          }),
+          ...(execution.subagent_captures !== undefined && {
+            subagentCaptures: execution.subagent_captures,
+          }),
+        })
       : detectAllComponents(
           execution.detected_tools,
           execution.transcript,
@@ -256,17 +322,9 @@ async function runBatchedEvaluation(
  * Run synchronous LLM evaluation (original behavior).
  */
 async function runSynchronousEvaluation(
-  client: Anthropic,
-  programmaticResults: ProgrammaticResult[],
-  config: EvalConfig,
-  progress: ProgressCallbacks,
-  sampleData: {
-    scenarioId: string;
-    variance: number;
-    numSamples: number;
-    hasConsensus: boolean;
-  }[],
+  options: RunSynchronousEvaluationOptions,
 ): Promise<ScenarioEvaluationResult[]> {
+  const { client, programmaticResults, config, progress, sampleData } = options;
   const evalConfig = config.evaluation;
 
   const parallelResult = await parallel<
@@ -280,13 +338,13 @@ async function runSynchronousEvaluation(
 
       if (pr.judgeStrategy.needsLLMJudge) {
         try {
-          judgment = await runJudgment(
+          judgment = await runJudgment({
             client,
-            pr.context.scenario,
-            pr.context.execution.transcript,
-            pr.uniqueDetections,
-            evalConfig,
-          );
+            scenario: pr.context.scenario,
+            transcript: pr.context.execution.transcript,
+            programmaticResult: pr.uniqueDetections,
+            config: evalConfig,
+          });
         } catch (err) {
           const errorResponse = createErrorJudgeResponse(
             formatErrorWithRequestId(err),
@@ -348,21 +406,11 @@ async function runSynchronousEvaluation(
  * @returns Calculated metrics
  */
 async function calculateAndSaveMetrics(
-  pluginName: string,
-  resultsWithContext: {
-    result: EvaluationResult;
-    scenario: TestScenario;
-    execution: ExecutionResult;
-  }[],
-  executions: ExecutionResult[],
-  config: EvalConfig,
-  sampleData: {
-    scenarioId: string;
-    variance: number;
-    numSamples: number;
-    hasConsensus: boolean;
-  }[],
+  options: CalculateAndSaveMetricsOptions,
 ): Promise<EvalMetrics> {
+  const { pluginName, resultsWithContext, executions, config, sampleData } =
+    options;
+
   // Build metrics options
   const metricsOptions: {
     numSamples?: number;
@@ -406,12 +454,10 @@ async function calculateAndSaveMetrics(
  * @returns Evaluation output
  */
 export async function runEvaluation(
-  pluginName: string,
-  scenarios: TestScenario[],
-  executions: ExecutionResult[],
-  config: EvalConfig,
-  progress: ProgressCallbacks = {},
+  options: RunEvaluationOptions,
 ): Promise<EvaluationOutput> {
+  const { pluginName, scenarios, executions, config, progress = {} } = options;
+
   logger.stageHeader("Stage 4: Evaluation", executions.length);
 
   const startTime = Date.now();
@@ -470,12 +516,7 @@ export async function runEvaluation(
   });
 
   // Track sample data for metrics
-  const sampleData: {
-    scenarioId: string;
-    variance: number;
-    numSamples: number;
-    hasConsensus: boolean;
-  }[] = [];
+  const sampleData: SampleDataEntry[] = [];
 
   let evalResults: ScenarioEvaluationResult[];
 
@@ -506,13 +547,13 @@ export async function runEvaluation(
     );
 
     // Phase 2b: Run synchronous LLM evaluation
-    evalResults = await runSynchronousEvaluation(
+    evalResults = await runSynchronousEvaluation({
       client,
       programmaticResults,
       config,
       progress,
       sampleData,
-    );
+    });
   }
 
   const results = evalResults.map((r) => r.result);
@@ -536,13 +577,13 @@ export async function runEvaluation(
   });
 
   // Calculate metrics and save results
-  const metrics = await calculateAndSaveMetrics(
+  const metrics = await calculateAndSaveMetrics({
     pluginName,
     resultsWithContext,
     executions,
     config,
     sampleData,
-  );
+  });
 
   const totalDuration = Date.now() - startTime;
 

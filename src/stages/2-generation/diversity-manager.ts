@@ -59,22 +59,32 @@ export function calculateScenarioDistribution(
 }
 
 /**
+ * Options for createBaseScenario.
+ */
+export interface CreateBaseScenarioOptions {
+  /** Component reference (name) */
+  componentRef: string;
+  /** Type of component */
+  componentType: ComponentType;
+  /** The triggering mechanism to preserve */
+  coreIntent: string;
+  /** Original prompt */
+  basePrompt: string;
+  /** Index for ID generation */
+  index: number;
+}
+
+/**
  * Create a base scenario from a component.
  *
- * @param componentRef - Component reference (name)
- * @param componentType - Type of component
- * @param coreIntent - The triggering mechanism to preserve
- * @param basePrompt - Original prompt
- * @param index - Index for ID generation
+ * @param options - Create base scenario options
  * @returns Base scenario
  */
 export function createBaseScenario(
-  componentRef: string,
-  componentType: ComponentType,
-  coreIntent: string,
-  basePrompt: string,
-  index: number,
+  options: CreateBaseScenarioOptions,
 ): BaseScenario {
+  const { componentRef, componentType, coreIntent, basePrompt, index } =
+    options;
   return {
     id: `${componentRef}-base-${String(index)}`,
     component_ref: componentRef,

@@ -565,11 +565,11 @@ describe("generateAllSkillScenarios", () => {
         ],
       });
 
-    const scenarios = await generateAllSkillScenarios(
-      mockClient as unknown as Anthropic,
+    const scenarios = await generateAllSkillScenarios({
+      client: mockClient as unknown as Anthropic,
       skills,
       config,
-    );
+    });
 
     expect(mockClient.messages.create).toHaveBeenCalledTimes(2);
     expect(scenarios).toHaveLength(2);
@@ -583,12 +583,12 @@ describe("generateAllSkillScenarios", () => {
     });
 
     const progressCallback = vi.fn();
-    await generateAllSkillScenarios(
-      mockClient as unknown as Anthropic,
+    await generateAllSkillScenarios({
+      client: mockClient as unknown as Anthropic,
       skills,
       config,
-      progressCallback,
-    );
+      onProgress: progressCallback,
+    });
 
     // Called once per completed skill (parallel execution)
     expect(progressCallback).toHaveBeenCalledTimes(2);
@@ -597,11 +597,11 @@ describe("generateAllSkillScenarios", () => {
   });
 
   it("should return empty array for empty skills list", async () => {
-    const scenarios = await generateAllSkillScenarios(
-      mockClient as unknown as Anthropic,
-      [],
+    const scenarios = await generateAllSkillScenarios({
+      client: mockClient as unknown as Anthropic,
+      skills: [],
       config,
-    );
+    });
 
     expect(scenarios).toEqual([]);
     expect(mockClient.messages.create).not.toHaveBeenCalled();
@@ -646,11 +646,11 @@ describe("generateAllSkillScenarios", () => {
         ],
       });
 
-    const scenarios = await generateAllSkillScenarios(
-      mockClient as unknown as Anthropic,
+    const scenarios = await generateAllSkillScenarios({
+      client: mockClient as unknown as Anthropic,
       skills,
       config,
-    );
+    });
 
     expect(scenarios).toHaveLength(3);
   });

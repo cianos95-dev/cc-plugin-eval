@@ -366,13 +366,13 @@ describe("evaluateWithLLMJudge", () => {
     const detections = createDetections([{ name: "commit", type: "skill" }]);
     const config = createConfig({ model: "sonnet", max_tokens: 2048 });
 
-    await evaluateWithLLMJudge(
-      mockClient,
+    await evaluateWithLLMJudge({
+      client: mockClient,
       scenario,
       transcript,
-      detections,
+      programmaticResult: detections,
       config,
-    );
+    });
 
     expect(mockClient.beta.messages.create).toHaveBeenCalledTimes(1);
     const callArgs = mockClient.beta.messages.create.mock
@@ -403,13 +403,13 @@ describe("evaluateWithLLMJudge", () => {
     const detections = createDetections([{ name: "commit", type: "skill" }]);
     const config = createConfig();
 
-    const result = await evaluateWithLLMJudge(
-      mockClient,
+    const result = await evaluateWithLLMJudge({
+      client: mockClient,
       scenario,
       transcript,
-      detections,
+      programmaticResult: detections,
       config,
-    );
+    });
 
     expect(result.quality_score).toBe(9);
     expect(result.response_relevance).toBe(8);
@@ -436,13 +436,13 @@ describe("evaluateWithLLMJudge", () => {
     const detections = createDetections([]);
     const config = createConfig();
 
-    const result = await evaluateWithLLMJudge(
-      mockClient,
+    const result = await evaluateWithLLMJudge({
+      client: mockClient,
       scenario,
       transcript,
-      detections,
+      programmaticResult: detections,
       config,
-    );
+    });
 
     expect(result.highlights).toHaveLength(1);
     expect(result.highlights?.[0]?.description).toBe("Good trigger");
@@ -467,13 +467,13 @@ describe("evaluateWithLLMJudge", () => {
     const detections = createDetections([]);
     const config = createConfig();
 
-    const result = await evaluateWithLLMJudge(
-      mockClient,
+    const result = await evaluateWithLLMJudge({
+      client: mockClient,
       scenario,
       transcript,
-      detections,
+      programmaticResult: detections,
       config,
-    );
+    });
 
     expect(result.highlights).toBeUndefined();
   });
@@ -486,13 +486,13 @@ describe("evaluateWithLLMJudge", () => {
     const config = createConfig();
 
     await expect(
-      evaluateWithLLMJudge(
-        mockClient,
+      evaluateWithLLMJudge({
+        client: mockClient,
         scenario,
         transcript,
-        detections,
+        programmaticResult: detections,
         config,
-      ),
+      }),
     ).rejects.toThrow("Failed to parse structured output");
   });
 
@@ -512,13 +512,13 @@ describe("evaluateWithLLMJudge", () => {
     const config = createConfig();
 
     await expect(
-      evaluateWithLLMJudge(
-        mockClient,
+      evaluateWithLLMJudge({
+        client: mockClient,
         scenario,
         transcript,
-        detections,
+        programmaticResult: detections,
         config,
-      ),
+      }),
     ).rejects.toThrow("Failed to parse structured output");
   });
 
@@ -538,13 +538,13 @@ describe("evaluateWithLLMJudge", () => {
     const config = createConfig();
 
     await expect(
-      evaluateWithLLMJudge(
-        mockClient,
+      evaluateWithLLMJudge({
+        client: mockClient,
         scenario,
         transcript,
-        detections,
+        programmaticResult: detections,
         config,
-      ),
+      }),
     ).rejects.toThrow("Failed to parse structured output");
   });
 
@@ -571,13 +571,13 @@ describe("evaluateWithLLMJudge", () => {
     const config = createConfig();
 
     await expect(
-      evaluateWithLLMJudge(
-        mockClient,
+      evaluateWithLLMJudge({
+        client: mockClient,
         scenario,
         transcript,
-        detections,
+        programmaticResult: detections,
         config,
-      ),
+      }),
     ).rejects.toThrow("No text block");
   });
 });
@@ -595,13 +595,13 @@ describe("evaluateWithFallback", () => {
     const detections = createDetections([{ name: "commit", type: "skill" }]);
     const config = createConfig();
 
-    const result = await evaluateWithFallback(
-      mockClient,
+    const result = await evaluateWithFallback({
+      client: mockClient,
       scenario,
       transcript,
-      detections,
+      programmaticResult: detections,
       config,
-    );
+    });
 
     expect(result.quality_score).toBe(9);
     expect(mockClient.beta.messages.create).toHaveBeenCalledTimes(1);
@@ -625,13 +625,13 @@ describe("evaluateWithFallback", () => {
     const detections = createDetections([]);
     const config = createConfig();
 
-    const result = await evaluateWithFallback(
-      mockClient,
+    const result = await evaluateWithFallback({
+      client: mockClient,
       scenario,
       transcript,
-      detections,
+      programmaticResult: detections,
       config,
-    );
+    });
 
     expect(result.quality_score).toBe(7);
     expect(betaCreateMock).toHaveBeenCalledTimes(1);
@@ -656,13 +656,13 @@ describe("evaluateWithFallback", () => {
     const detections = createDetections([]);
     const config = createConfig();
 
-    const result = await evaluateWithFallback(
-      mockClient,
+    const result = await evaluateWithFallback({
+      client: mockClient,
       scenario,
       transcript,
-      detections,
+      programmaticResult: detections,
       config,
-    );
+    });
 
     expect(result.quality_score).toBe(6);
   });
@@ -684,13 +684,13 @@ describe("evaluateWithFallback", () => {
     const detections = createDetections([]);
     const config = createConfig();
 
-    const result = await evaluateWithFallback(
-      mockClient,
+    const result = await evaluateWithFallback({
+      client: mockClient,
       scenario,
       transcript,
-      detections,
+      programmaticResult: detections,
       config,
-    );
+    });
 
     // Should return default error response
     expect(result.quality_score).toBe(1);

@@ -236,12 +236,12 @@ describe("runEvaluation", () => {
       const executions = [createExecutionResult()];
       const config = createConfig();
 
-      const output = await runEvaluation(
-        "test-plugin",
+      const output = await runEvaluation({
+        pluginName: "test-plugin",
         scenarios,
         executions,
         config,
-      );
+      });
 
       expect(output.plugin_name).toBe("test-plugin");
       expect(output.results).toHaveLength(1);
@@ -254,12 +254,12 @@ describe("runEvaluation", () => {
       const executions: ExecutionResult[] = [];
       const config = createConfig();
 
-      const output = await runEvaluation(
-        "test-plugin",
+      const output = await runEvaluation({
+        pluginName: "test-plugin",
         scenarios,
         executions,
         config,
-      );
+      });
 
       expect(output.results).toHaveLength(0);
       expect(output.metrics.total_scenarios).toBe(0);
@@ -271,7 +271,12 @@ describe("runEvaluation", () => {
       const executions = [createExecutionResult()];
       const config = createConfig();
 
-      await runEvaluation("test-plugin", scenarios, executions, config);
+      await runEvaluation({
+        pluginName: "test-plugin",
+        scenarios,
+        executions,
+        config,
+      });
 
       expect(writeJsonAsync).toHaveBeenCalledTimes(1);
       expect(writeJsonAsync).toHaveBeenCalledWith(
@@ -295,12 +300,12 @@ describe("runEvaluation", () => {
       ];
       const config = createConfig();
 
-      const output = await runEvaluation(
-        "test-plugin",
+      const output = await runEvaluation({
+        pluginName: "test-plugin",
         scenarios,
         executions,
         config,
-      );
+      });
 
       expect(output.results[0]?.triggered).toBe(true);
       expect(output.results[0]?.confidence).toBe(100);
@@ -340,12 +345,12 @@ describe("runEvaluation", () => {
       ];
       const config = createConfig();
 
-      const output = await runEvaluation(
-        "test-plugin",
+      const output = await runEvaluation({
+        pluginName: "test-plugin",
         scenarios,
         executions,
         config,
-      );
+      });
 
       expect(output.results[0]?.triggered).toBe(false);
       expect(output.results[0]?.confidence).toBe(0);
@@ -367,12 +372,12 @@ describe("runEvaluation", () => {
       ];
       const config = createConfig();
 
-      const output = await runEvaluation(
-        "test-plugin",
+      const output = await runEvaluation({
+        pluginName: "test-plugin",
         scenarios,
         executions,
         config,
-      );
+      });
 
       expect(output.results[0]?.triggered).toBe(true);
       expect(output.results[0]?.all_triggered_components).toContainEqual(
@@ -399,12 +404,12 @@ describe("runEvaluation", () => {
       ];
       const config = createConfig();
 
-      const output = await runEvaluation(
-        "test-plugin",
+      const output = await runEvaluation({
+        pluginName: "test-plugin",
         scenarios,
         executions,
         config,
-      );
+      });
 
       expect(output.results[0]?.triggered).toBe(true);
       expect(output.results[0]?.all_triggered_components).toContainEqual(
@@ -435,12 +440,12 @@ describe("runEvaluation", () => {
       const executions = [createExecutionResult()];
       const config = createConfig();
 
-      const output = await runEvaluation(
-        "test-plugin",
+      const output = await runEvaluation({
+        pluginName: "test-plugin",
         scenarios,
         executions,
         config,
-      );
+      });
 
       expect(runJudgment).toHaveBeenCalled();
       expect(output.results[0]?.quality_score).toBe(9);
@@ -477,12 +482,12 @@ describe("runEvaluation", () => {
       ];
       const config = createConfig();
 
-      const output = await runEvaluation(
-        "test-plugin",
+      const output = await runEvaluation({
+        pluginName: "test-plugin",
         scenarios,
         executions,
         config,
-      );
+      });
 
       expect(runJudgment).toHaveBeenCalled();
       expect(output.results[0]?.issues).toContain(
@@ -516,7 +521,12 @@ describe("runEvaluation", () => {
         },
       });
 
-      await runEvaluation("test-plugin", scenarios, executions, config);
+      await runEvaluation({
+        pluginName: "test-plugin",
+        scenarios,
+        executions,
+        config,
+      });
 
       // True negative with direct scenario type - no LLM needed
       expect(runJudgment).not.toHaveBeenCalled();
@@ -543,7 +553,12 @@ describe("runEvaluation", () => {
         },
       });
 
-      await runEvaluation("test-plugin", scenarios, executions, config);
+      await runEvaluation({
+        pluginName: "test-plugin",
+        scenarios,
+        executions,
+        config,
+      });
 
       expect(runJudgment).toHaveBeenCalled();
     });
@@ -555,12 +570,12 @@ describe("runEvaluation", () => {
       const executions = [createExecutionResult()];
       const config = createConfig();
 
-      const output = await runEvaluation(
-        "test-plugin",
+      const output = await runEvaluation({
+        pluginName: "test-plugin",
         scenarios,
         executions,
         config,
-      );
+      });
 
       // Should still return result with error captured
       expect(output.results).toHaveLength(1);
@@ -579,12 +594,12 @@ describe("runEvaluation", () => {
       ];
       const config = createConfig();
 
-      const output = await runEvaluation(
-        "test-plugin",
+      const output = await runEvaluation({
+        pluginName: "test-plugin",
         scenarios,
         executions,
         config,
-      );
+      });
 
       expect(output.results[0]?.has_conflict).toBe(false);
       expect(output.results[0]?.conflict_severity).toBe("none");
@@ -599,12 +614,12 @@ describe("runEvaluation", () => {
       ];
       const config = createConfig();
 
-      const output = await runEvaluation(
-        "test-plugin",
+      const output = await runEvaluation({
+        pluginName: "test-plugin",
         scenarios,
         executions,
         config,
-      );
+      });
 
       expect(output.results[0]?.has_conflict).toBe(true);
       expect(output.results[0]?.conflict_severity).toBe("major");
@@ -624,12 +639,12 @@ describe("runEvaluation", () => {
       ];
       const config = createConfig();
 
-      const output = await runEvaluation(
-        "test-plugin",
+      const output = await runEvaluation({
+        pluginName: "test-plugin",
         scenarios,
         executions,
         config,
-      );
+      });
 
       expect(output.results[0]?.has_conflict).toBe(true);
       expect(output.results[0]?.conflict_severity).toBe("minor");
@@ -660,12 +675,12 @@ describe("runEvaluation", () => {
       ];
       const config = createConfig();
 
-      const output = await runEvaluation(
-        "test-plugin",
+      const output = await runEvaluation({
+        pluginName: "test-plugin",
         scenarios,
         executions,
         config,
-      );
+      });
 
       expect(output.metrics.trigger_rate).toBeCloseTo(2 / 3);
       expect(output.metrics.triggered_count).toBe(2);
@@ -698,12 +713,12 @@ describe("runEvaluation", () => {
       ];
       const config = createConfig();
 
-      const output = await runEvaluation(
-        "test-plugin",
+      const output = await runEvaluation({
+        pluginName: "test-plugin",
         scenarios,
         executions,
         config,
-      );
+      });
 
       expect(output.metrics.accuracy).toBe(1); // Both correct
     });
@@ -719,12 +734,12 @@ describe("runEvaluation", () => {
       ];
       const config = createConfig();
 
-      const output = await runEvaluation(
-        "test-plugin",
+      const output = await runEvaluation({
+        pluginName: "test-plugin",
         scenarios,
         executions,
         config,
-      );
+      });
 
       expect(output.metrics.total_cost_usd).toBe(0.08);
       expect(output.metrics.avg_cost_per_scenario).toBe(0.04);
@@ -748,12 +763,12 @@ describe("runEvaluation", () => {
       ];
       const config = createConfig();
 
-      const output = await runEvaluation(
-        "test-plugin",
+      const output = await runEvaluation({
+        pluginName: "test-plugin",
         scenarios,
         executions,
         config,
-      );
+      });
 
       expect(output.metrics.conflict_count).toBe(1);
       expect(output.metrics.major_conflicts).toBe(1);
@@ -770,8 +785,12 @@ describe("runEvaluation", () => {
       ];
       const config = createConfig();
 
-      await runEvaluation("test-plugin", scenarios, executions, config, {
-        onStageStart,
+      await runEvaluation({
+        pluginName: "test-plugin",
+        scenarios,
+        executions,
+        config,
+        progress: { onStageStart },
       });
 
       expect(onStageStart).toHaveBeenCalledWith("evaluation", 2);
@@ -783,8 +802,12 @@ describe("runEvaluation", () => {
       const executions = [createExecutionResult()];
       const config = createConfig();
 
-      await runEvaluation("test-plugin", scenarios, executions, config, {
-        onStageComplete,
+      await runEvaluation({
+        pluginName: "test-plugin",
+        scenarios,
+        executions,
+        config,
+        progress: { onStageComplete },
       });
 
       expect(onStageComplete).toHaveBeenCalledWith(
@@ -802,8 +825,12 @@ describe("runEvaluation", () => {
       const executions = [createExecutionResult()];
       const config = createConfig();
 
-      await runEvaluation("test-plugin", scenarios, executions, config, {
-        onError,
+      await runEvaluation({
+        pluginName: "test-plugin",
+        scenarios,
+        executions,
+        config,
+        progress: { onError },
       });
 
       // onError is called by parallel utility, but our mock doesn't trigger it
@@ -848,12 +875,12 @@ describe("runEvaluation", () => {
       ];
       const config = createConfig();
 
-      const output = await runEvaluation(
-        "test-plugin",
+      const output = await runEvaluation({
+        pluginName: "test-plugin",
         scenarios,
         executions,
         config,
-      );
+      });
 
       expect(output.results).toHaveLength(3);
 
@@ -881,12 +908,12 @@ describe("runEvaluation", () => {
       ];
       const config = createConfig();
 
-      const output = await runEvaluation(
-        "test-plugin",
+      const output = await runEvaluation({
+        pluginName: "test-plugin",
         scenarios,
         executions,
         config,
-      );
+      });
 
       expect(output.results).toHaveLength(1);
       expect(logger.warn).toHaveBeenCalledWith(
@@ -917,12 +944,12 @@ describe("runEvaluation", () => {
       ];
       const config = createConfig();
 
-      const output = await runEvaluation(
-        "test-plugin",
+      const output = await runEvaluation({
+        pluginName: "test-plugin",
         scenarios,
         executions,
         config,
-      );
+      });
 
       expect(output.results[0]?.detection_source).toBe("programmatic");
     });
@@ -932,12 +959,12 @@ describe("runEvaluation", () => {
       const executions = [createExecutionResult()];
       const config = createConfig();
 
-      const output = await runEvaluation(
-        "test-plugin",
+      const output = await runEvaluation({
+        pluginName: "test-plugin",
         scenarios,
         executions,
         config,
-      );
+      });
 
       expect(output.results[0]?.detection_source).toBe("both");
     });
@@ -952,12 +979,12 @@ describe("runEvaluation", () => {
         },
       });
 
-      const output = await runEvaluation(
-        "test-plugin",
+      const output = await runEvaluation({
+        pluginName: "test-plugin",
         scenarios,
         executions,
         config,
-      );
+      });
 
       expect(output.results[0]?.detection_source).toBe("llm");
     });
@@ -983,12 +1010,12 @@ describe("runEvaluation", () => {
         },
       });
 
-      const output = await runEvaluation(
-        "test-plugin",
+      const output = await runEvaluation({
+        pluginName: "test-plugin",
         scenarios,
         executions,
         config,
-      );
+      });
 
       expect(output.metrics.multi_sample_stats).toBeDefined();
       expect(output.metrics.multi_sample_stats?.avg_score_variance).toBeCloseTo(
@@ -1035,12 +1062,12 @@ describe("runEvaluation", () => {
         },
       });
 
-      const output = await runEvaluation(
-        "test-plugin",
+      const output = await runEvaluation({
+        pluginName: "test-plugin",
         scenarios,
         executions,
         config,
-      );
+      });
 
       expect(output.metrics.multi_sample_stats).toBeDefined();
       expect(
@@ -1063,12 +1090,12 @@ describe("runEvaluation", () => {
         },
       });
 
-      const output = await runEvaluation(
-        "test-plugin",
+      const output = await runEvaluation({
+        pluginName: "test-plugin",
         scenarios,
         executions,
         config,
-      );
+      });
 
       expect(output.metrics.multi_sample_stats).toBeUndefined();
     });
@@ -1114,12 +1141,12 @@ describe("runEvaluation", () => {
         },
       });
 
-      const output = await runEvaluation(
-        "test-plugin",
+      const output = await runEvaluation({
+        pluginName: "test-plugin",
         scenarios,
         executions,
         config,
-      );
+      });
 
       expect(output.metrics.multi_sample_stats).toBeDefined();
       // 1 out of 2 scenarios had unanimous trigger_accuracy agreement
@@ -1168,12 +1195,12 @@ describe("runEvaluation", () => {
         },
       });
 
-      const output = await runEvaluation(
-        "test-plugin",
+      const output = await runEvaluation({
+        pluginName: "test-plugin",
         scenarios,
         executions,
         config,
-      );
+      });
 
       expect(output.metrics.multi_sample_stats).toBeDefined();
       // s2 has high variance (> 1.0)

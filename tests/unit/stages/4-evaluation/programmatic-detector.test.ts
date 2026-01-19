@@ -960,12 +960,12 @@ describe("detectAllComponentsWithHooks", () => {
       },
     ];
 
-    const detections = detectAllComponentsWithHooks(
+    const detections = detectAllComponentsWithHooks({
       captures,
       transcript,
       scenario,
       hookResponses,
-    );
+    });
 
     expect(detections.length).toBeGreaterThan(0);
     expect(detections.some((d) => d.component_type === "skill")).toBe(true);
@@ -996,12 +996,12 @@ describe("detectAllComponentsWithHooks", () => {
       },
     ];
 
-    const detections = detectAllComponentsWithHooks(
+    const detections = detectAllComponentsWithHooks({
       captures,
       transcript,
       scenario,
       hookResponses,
-    );
+    });
 
     const hookDetections = detections.filter(
       (d) => d.component_type === "hook",
@@ -1024,12 +1024,12 @@ describe("detectAllComponentsWithHooks", () => {
       },
     ];
 
-    const detections = detectAllComponentsWithHooks(
+    const detections = detectAllComponentsWithHooks({
       captures,
       transcript,
       scenario,
       hookResponses,
-    );
+    });
 
     expect(detections.every((d) => d.component_type !== "hook")).toBe(true);
   });
@@ -1039,11 +1039,11 @@ describe("detectAllComponentsWithHooks", () => {
     const transcript = createTranscript([]);
     const scenario = createScenario({ component_type: "skill" });
 
-    const detections = detectAllComponentsWithHooks(
+    const detections = detectAllComponentsWithHooks({
       captures,
       transcript,
       scenario,
-    );
+    });
 
     expect(detections).toHaveLength(1);
     expect(detections[0]?.component_type).toBe("skill");
@@ -1057,11 +1057,11 @@ describe("detectAllComponentsWithHooks", () => {
     const transcript = createTranscript([]);
     const scenario = createScenario({ component_type: "skill" });
 
-    const detections = detectAllComponentsWithHooks(
+    const detections = detectAllComponentsWithHooks({
       captures,
       transcript,
       scenario,
-    );
+    });
 
     expect(detections).toHaveLength(1);
   });
@@ -1082,13 +1082,12 @@ describe("detectAllComponentsWithHooks", () => {
       },
     ];
 
-    const detections = detectAllComponentsWithHooks(
+    const detections = detectAllComponentsWithHooks({
       captures,
       transcript,
       scenario,
-      undefined,
       subagentCaptures,
-    );
+    });
 
     expect(detections).toHaveLength(1);
     expect(detections[0]?.component_type).toBe("agent");
