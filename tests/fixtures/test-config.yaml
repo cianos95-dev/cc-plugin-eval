@@ -17,7 +17,7 @@ generation:
   semantic_variations: false
 
 execution:
-  model: "claude-sonnet-4-20250514"
+  model: "claude-sonnet-4-5-20250929"
   max_turns: 3
   timeout_ms: 30000
   max_budget_usd: 1.0
@@ -27,7 +27,7 @@ execution:
   additional_plugins: []
 
 evaluation:
-  model: "claude-sonnet-4-5-20250929"
+  model: "claude-haiku-4-5-20251001"
   max_tokens: 2000
   detection_mode: "programmatic_first"
   reasoning_effort: "low"
