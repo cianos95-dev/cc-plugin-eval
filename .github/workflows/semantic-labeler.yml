@@ -79,7 +79,7 @@ jobs:
             ```
 
             After applying labels, briefly explain your reasoning.
-          claude_args: '--allowedTools "Bash(gh label:*),Bash(gh issue:*)"'
+          claude_args: '--model claude-opus-4-5-20251101 --allowedTools "Bash(gh label:*),Bash(gh issue:*)"'
 
   label-pr:
     name: Label Pull Request
@@ -145,4 +145,4 @@ jobs:
             ```
 
             After applying labels, briefly explain your reasoning.
-          claude_args: '--allowedTools "Bash(gh label:*),Bash(gh pr:*),Read,Glob"'
+          claude_args: '--model claude-opus-4-5-20251101 --allowedTools "Bash(gh label:*),Bash(gh pr:*),Read,Glob"'

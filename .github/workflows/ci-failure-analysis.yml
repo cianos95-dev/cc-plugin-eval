@@ -169,4 +169,4 @@ jobs:
 
             Summarize what you found and what action was taken (comment posted, no PR found, etc.).
 
-          claude_args: '--allowedTools "mcp__github_ci__get_ci_status,mcp__github_ci__get_workflow_run_details,mcp__github_ci__download_job_log,Bash(gh run view:*),Bash(gh pr list:*),Bash(gh pr comment:*),Bash(gh pr view:*)"'
+          claude_args: '--model claude-opus-4-5-20251101 --allowedTools "mcp__github_ci__get_ci_status,mcp__github_ci__get_workflow_run_details,mcp__github_ci__download_job_log,Bash(gh run view:*),Bash(gh pr list:*),Bash(gh pr comment:*),Bash(gh pr view:*)"'

@@ -129,4 +129,4 @@ jobs:
           # Security: Wildcards (:*) are required to pass arguments (e.g., issue number) but are
           # scoped to specific safe subcommands. gh issue view/comment/edit only affect issue
           # metadata (not code), rg/Read/Glob/Grep are read-only. Follows claude-pr-review.yml pattern.
-          claude_args: '--allowedTools "Bash(gh issue view:*),Bash(gh issue comment:*),Bash(gh issue edit:*),Bash(rg:*),Read,Glob,Grep"'
+          claude_args: '--model claude-opus-4-5-20251101 --allowedTools "Bash(gh issue view:*),Bash(gh issue comment:*),Bash(gh issue edit:*),Bash(rg:*),Read,Glob,Grep"'
