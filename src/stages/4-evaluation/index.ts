@@ -165,7 +165,13 @@ export interface EvaluationOutput {
   plugin_name: string;
   results: EvaluationResult[];
   metrics: EvalMetrics;
-  /** Cost from Stage 4 evaluation LLM calls only */
+  /** Aggregate cost across all stages (generation + execution + evaluation) */
+  total_cost_usd: number;
+  /** Cost from Stage 2 generation LLM calls */
+  generation_cost_usd: number;
+  /** Cost from Stage 3 execution LLM calls */
+  execution_cost_usd: number;
+  /** Cost from Stage 4 evaluation LLM calls */
   evaluation_cost_usd: number;
   total_duration_ms: number;
 }
@@ -524,6 +530,9 @@ export async function runEvaluation(
       plugin_name: pluginName,
       results: [],
       metrics: createEmptyMetrics(),
+      total_cost_usd: 0,
+      generation_cost_usd: 0,
+      execution_cost_usd: 0,
       evaluation_cost_usd: 0,
       total_duration_ms: Date.now() - startTime,
     };
@@ -647,6 +656,11 @@ export async function runEvaluation(
 
   const totalDuration = Date.now() - startTime;
 
+  // Calculate execution cost from executions
+  const executionCost = executions.reduce((sum, e) => sum + e.cost_usd, 0);
+  const generationCost = generationCostUsd ?? 0;
+  const totalCost = generationCost + executionCost + evaluationCost;
+
   logger.success(
     `Evaluation complete: ${String(results.length)} scenarios evaluated, cost: $${evaluationCost.toFixed(4)}`,
   );
@@ -656,6 +670,9 @@ export async function runEvaluation(
     plugin_name: pluginName,
     results,
     metrics,
+    total_cost_usd: totalCost,
+    generation_cost_usd: generationCost,
+    execution_cost_usd: executionCost,
     evaluation_cost_usd: evaluationCost,
     total_duration_ms: totalDuration,
   };
@@ -691,6 +708,11 @@ async function saveEvaluationResults(
       aggregate_method: config.evaluation.aggregate_method,
       model: config.evaluation.model,
     },
+    // Top-level cost breakdown for convenience
+    total_cost_usd: metrics.total_cost_usd,
+    generation_cost_usd: metrics.generation_cost_usd,
+    execution_cost_usd: metrics.execution_cost_usd,
+    evaluation_cost_usd: metrics.evaluation_cost_usd,
     metrics,
     results,
   };
