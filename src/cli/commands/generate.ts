@@ -28,10 +28,20 @@ export function registerGenerateCommand(program: Command): void {
   program
     .command("generate")
     .description("Run Stages 1-2: Analysis and Scenario Generation")
+    .optionsGroup("Input Options:")
     .option("-p, --plugin <path>", "Path to plugin directory")
-    .option("-c, --config <path>", "Path to config file")
+    .option("-c, --config <path>", "Path to config file (default: config.yaml)")
+    .optionsGroup("Testing Options:")
     .option("--verbose", "Detailed progress output")
-    .option("--semantic", "Enable semantic variation testing")
+    .option("--semantic", "Generate prompt variations to test robustness")
+    .addHelpText(
+      "after",
+      `
+Examples:
+  $ cc-plugin-eval generate -p ./my-plugin
+  $ cc-plugin-eval generate -p ./my-plugin --semantic --verbose
+`,
+    )
     .action(async (options: Record<string, unknown>) => {
       try {
         const cliOptions = extractCLIOptions(options);

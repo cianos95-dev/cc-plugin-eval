@@ -307,11 +307,21 @@ export function registerResumeCommand(program: Command): void {
   program
     .command("resume")
     .description("Resume from saved state")
+    .optionsGroup("Identification Options:")
     .option("-r, --run-id <id>", "Run ID to resume")
-    .option("-p, --plugin <name>", "Plugin name (for finding run)")
+    .option("-p, --plugin <name>", "Plugin name (finds latest run)")
     .option(
       "-s, --from-stage <stage>",
       "Stage to resume from: analysis|generation|execution|evaluation",
+    )
+    .addHelpText(
+      "after",
+      `
+Examples:
+  $ cc-plugin-eval resume -p my-plugin
+  $ cc-plugin-eval resume -r abc123
+  $ cc-plugin-eval resume -r abc123 -s execution
+`,
     )
     .action(async (options: Record<string, unknown>) => {
       try {

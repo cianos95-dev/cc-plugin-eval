@@ -73,13 +73,28 @@ export function registerRunCommand(program: Command): void {
       "--with-plugins <paths>",
       "Additional plugins for conflict testing (comma-separated)",
     )
-    .option("--semantic", "Enable semantic variation testing")
+    .option("--semantic", "Generate prompt variations to test robustness")
     .option(
       "--samples <n>",
-      "Number of samples for multi-sample judgment",
+      "Multi-sample judgment count (improves confidence)",
       parseInt,
     )
-    .option("--reps <n>", "Number of repetitions per scenario", parseInt)
+    .option(
+      "--reps <n>",
+      "Repeat each scenario N times (measures variance)",
+      parseInt,
+    )
+    .addHelpText(
+      "after",
+      `
+Examples:
+  $ cc-plugin-eval run -p ./my-plugin
+  $ cc-plugin-eval run -p ./my-plugin --dry-run
+  $ cc-plugin-eval run -p ./my-plugin --estimate
+  $ cc-plugin-eval run -p ./my-plugin --fast --failed-run abc123
+  $ cc-plugin-eval run -p ./my-plugin --semantic --reps 3
+`,
+    )
     .action(async (options: Record<string, unknown>) => {
       try {
         const cliOptions = extractCLIOptions(options);

@@ -22,10 +22,22 @@ export function registerReportCommand(program: Command): void {
   program
     .command("report")
     .description("Generate report from existing results")
+    .optionsGroup("Identification Options:")
     .option("-r, --run-id <id>", "Run ID to report on")
     .option("-p, --plugin <name>", "Plugin name")
+    .optionsGroup("Output Options:")
     .option("-o, --output <format>", "Output format: json|yaml|junit-xml|tap")
     .option("--cli", "Output CLI summary")
+    .addHelpText(
+      "after",
+      `
+Examples:
+  $ cc-plugin-eval report -p my-plugin
+  $ cc-plugin-eval report -r abc123 -o yaml
+  $ cc-plugin-eval report -r abc123 -o junit-xml > results.xml
+  $ cc-plugin-eval report -r abc123 --cli
+`,
+    )
     .action((options: Record<string, unknown>) => {
       try {
         // Extract and validate CLI options

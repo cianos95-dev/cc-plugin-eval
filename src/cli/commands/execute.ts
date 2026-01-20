@@ -40,9 +40,19 @@ export function registerExecuteCommand(program: Command): void {
   program
     .command("execute")
     .description("Run Stages 1-3: Analysis, Generation, and Execution")
+    .optionsGroup("Input Options:")
     .option("-p, --plugin <path>", "Path to plugin directory")
-    .option("-c, --config <path>", "Path to config file")
+    .option("-c, --config <path>", "Path to config file (default: config.yaml)")
+    .optionsGroup("Output Options:")
     .option("--verbose", "Detailed progress output")
+    .addHelpText(
+      "after",
+      `
+Examples:
+  $ cc-plugin-eval execute -p ./my-plugin
+  $ cc-plugin-eval execute -p ./my-plugin --verbose
+`,
+    )
     .action(async (options: Record<string, unknown>) => {
       try {
         const cliOptions = extractCLIOptions(options);

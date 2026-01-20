@@ -57,7 +57,16 @@ export function registerListCommand(program: Command): void {
   program
     .command("list")
     .description("List previous runs")
-    .option("-p, --plugin <name>", "Plugin name")
+    .optionsGroup("Filter Options:")
+    .option("-p, --plugin <name>", "Filter by plugin name")
+    .addHelpText(
+      "after",
+      `
+Examples:
+  $ cc-plugin-eval list
+  $ cc-plugin-eval list -p my-plugin
+`,
+    )
     .action((options: Record<string, unknown>) => {
       const pluginName = options["plugin"] as string | undefined;
 

@@ -19,8 +19,17 @@ export function registerAnalyzeCommand(program: Command): void {
   program
     .command("analyze")
     .description("Run Stage 1: Plugin Analysis only")
+    .optionsGroup("Input Options:")
     .option("-p, --plugin <path>", "Path to plugin directory")
-    .option("-c, --config <path>", "Path to config file")
+    .option("-c, --config <path>", "Path to config file (default: config.yaml)")
+    .addHelpText(
+      "after",
+      `
+Examples:
+  $ cc-plugin-eval analyze -p ./my-plugin
+  $ cc-plugin-eval analyze -p ./my-plugin -c custom-config.yaml
+`,
+    )
     .action(async (options: Record<string, unknown>) => {
       try {
         const cliOptions = extractCLIOptions(options);
