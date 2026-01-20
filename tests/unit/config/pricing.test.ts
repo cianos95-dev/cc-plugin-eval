@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   calculateCacheSavings,
   calculateCost,
+  calculateCostFromUsage,
   formatCost,
   getModelPricing,
   MODEL_PRICING,
@@ -133,5 +134,134 @@ describe("calculateCacheSavings", () => {
       "claude-haiku-3-5-20250929",
     );
     expect(haikuSavings).toBeGreaterThan(0);
+  });
+});
+
+describe("calculateCostFromUsage", () => {
+  it("calculates cost with input and output tokens only", () => {
+    // 100K input at $3/M + 50K output at $15/M
+    // = 0.1 * 3 + 0.05 * 15 = 0.30 + 0.75 = 1.05
+    const cost = calculateCostFromUsage(
+      { input_tokens: 100_000, output_tokens: 50_000 },
+      "claude-sonnet-4-5-20250929",
+    );
+    expect(cost).toBeCloseTo(1.05);
+  });
+
+  it("calculates cost with cache creation tokens", () => {
+    // 100K input at $3/M + 50K output at $15/M + 20K cache_creation at $3.75/M
+    // = 0.30 + 0.75 + 0.075 = 1.125
+    const cost = calculateCostFromUsage(
+      {
+        input_tokens: 100_000,
+        output_tokens: 50_000,
+        cache_creation_input_tokens: 20_000,
+      },
+      "claude-sonnet-4-5-20250929",
+    );
+    expect(cost).toBeCloseTo(1.125);
+  });
+
+  it("calculates cost with cache read tokens", () => {
+    // 100K input at $3/M + 50K output at $15/M + 30K cache_read at $0.30/M
+    // = 0.30 + 0.75 + 0.009 = 1.059
+    const cost = calculateCostFromUsage(
+      {
+        input_tokens: 100_000,
+        output_tokens: 50_000,
+        cache_read_input_tokens: 30_000,
+      },
+      "claude-sonnet-4-5-20250929",
+    );
+    expect(cost).toBeCloseTo(1.059);
+  });
+
+  it("calculates cost with all token types", () => {
+    // 100K input at $3/M + 50K output at $15/M + 20K cache_creation at $3.75/M + 30K cache_read at $0.30/M
+    // = 0.30 + 0.75 + 0.075 + 0.009 = 1.134
+    const cost = calculateCostFromUsage(
+      {
+        input_tokens: 100_000,
+        output_tokens: 50_000,
+        cache_creation_input_tokens: 20_000,
+        cache_read_input_tokens: 30_000,
+      },
+      "claude-sonnet-4-5-20250929",
+    );
+    expect(cost).toBeCloseTo(1.134);
+  });
+
+  it("handles zero tokens", () => {
+    const cost = calculateCostFromUsage(
+      { input_tokens: 0, output_tokens: 0 },
+      "claude-sonnet-4-5-20250929",
+    );
+    expect(cost).toBe(0);
+  });
+
+  it("handles null cache token fields", () => {
+    // Same as input/output only case
+    const cost = calculateCostFromUsage(
+      {
+        input_tokens: 100_000,
+        output_tokens: 50_000,
+        cache_creation_input_tokens: null,
+        cache_read_input_tokens: null,
+      },
+      "claude-sonnet-4-5-20250929",
+    );
+    expect(cost).toBeCloseTo(1.05);
+  });
+
+  it("handles undefined cache token fields", () => {
+    // Same as input/output only case
+    const cost = calculateCostFromUsage(
+      {
+        input_tokens: 100_000,
+        output_tokens: 50_000,
+        cache_creation_input_tokens: undefined,
+        cache_read_input_tokens: undefined,
+      },
+      "claude-sonnet-4-5-20250929",
+    );
+    expect(cost).toBeCloseTo(1.05);
+  });
+
+  it("uses default pricing for unknown models", () => {
+    // Default pricing: input $3/M, output $15/M, cache_creation $3.75/M, cache_read $0.30/M
+    // 100K input + 50K output + 20K cache_creation + 30K cache_read
+    // = 0.30 + 0.75 + 0.075 + 0.009 = 1.134
+    const cost = calculateCostFromUsage(
+      {
+        input_tokens: 100_000,
+        output_tokens: 50_000,
+        cache_creation_input_tokens: 20_000,
+        cache_read_input_tokens: 30_000,
+      },
+      "unknown-future-model",
+    );
+    expect(cost).toBeCloseTo(1.134);
+  });
+
+  it("works with different models", () => {
+    const usage = {
+      input_tokens: 100_000,
+      output_tokens: 50_000,
+      cache_creation_input_tokens: 20_000,
+      cache_read_input_tokens: 30_000,
+    };
+
+    // Opus 4.5: input $5/M, output $25/M, cache_creation $6.25/M, cache_read $0.50/M
+    // = 0.50 + 1.25 + 0.125 + 0.015 = 1.89
+    const opusCost = calculateCostFromUsage(usage, "claude-opus-4-5-20251101");
+    expect(opusCost).toBeCloseTo(1.89);
+
+    // Haiku 3.5: input $0.80/M, output $4/M, cache_creation $1/M, cache_read $0.08/M
+    // = 0.08 + 0.20 + 0.02 + 0.0024 = 0.3024
+    const haikuCost = calculateCostFromUsage(
+      usage,
+      "claude-haiku-3-5-20250929",
+    );
+    expect(haikuCost).toBeCloseTo(0.3024);
   });
 });

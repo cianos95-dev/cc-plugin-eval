@@ -110,6 +110,43 @@ export function calculateCost(
 }
 
 /**
+ * Calculate cost from Anthropic SDK Message usage data.
+ *
+ * Handles regular input/output tokens plus cache tokens with appropriate pricing.
+ * This function accepts the SDK's native usage object, making it easy to calculate
+ * costs from any API response without manual field extraction.
+ *
+ * @param usage - The usage object from Anthropic.Message or Anthropic.Beta.BetaMessage
+ * @param modelId - Full model identifier
+ * @returns Cost in USD
+ */
+export function calculateCostFromUsage(
+  usage: {
+    input_tokens: number;
+    output_tokens: number;
+    cache_creation_input_tokens?: number | null;
+    cache_read_input_tokens?: number | null;
+  },
+  modelId: string,
+): number {
+  const pricing = getModelPricing(modelId);
+
+  // Regular tokens
+  const inputCost = (usage.input_tokens / 1_000_000) * pricing.input;
+  const outputCost = (usage.output_tokens / 1_000_000) * pricing.output;
+
+  // Cache tokens (may be undefined/null in some responses)
+  const cacheCreationTokens = usage.cache_creation_input_tokens ?? 0;
+  const cacheReadTokens = usage.cache_read_input_tokens ?? 0;
+
+  const cacheCreationCost =
+    (cacheCreationTokens / 1_000_000) * pricing.cache_creation;
+  const cacheReadCost = (cacheReadTokens / 1_000_000) * pricing.cache_read;
+
+  return inputCost + outputCost + cacheCreationCost + cacheReadCost;
+}
+
+/**
  * Calculate savings from prompt caching.
  *
  * Computes the difference between what tokens would have cost as regular
