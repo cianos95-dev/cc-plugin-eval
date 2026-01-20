@@ -20,6 +20,7 @@ import type {
 import type {
   SDKMessage,
   SDKSystemMessage,
+  SDKResultMessage,
   QueryInput,
 } from "../../../../src/stages/3-execution/sdk-client.js";
 
@@ -475,6 +476,136 @@ describe("verifyPluginLoad timing", () => {
     expect(
       result.diagnostics?.timing_breakdown?.time_to_first_message_ms,
     ).toBeGreaterThanOrEqual(0);
+  });
+});
+
+describe("verifyPluginLoad cost extraction", () => {
+  const mockConfig: ExecutionConfig = {
+    model: "claude-sonnet-4-20250514",
+    session_strategy: "per_scenario",
+    allowed_tools: [],
+    disallowed_tools: [],
+    mcp_servers: {
+      skip_auth_required: true,
+      connection_timeout_ms: 5000,
+    },
+  };
+
+  /**
+   * Create a mock query function that yields messages in sequence.
+   */
+  function createMockQueryFn(messages: SDKMessage[]): QueryFunction {
+    return (_input: QueryInput) => {
+      return {
+        async *[Symbol.asyncIterator]() {
+          for (const message of messages) {
+            yield message;
+          }
+        },
+      };
+    };
+  }
+
+  it("should extract cost from result message", async () => {
+    const initMessage: SDKSystemMessage = {
+      type: "system",
+      subtype: "init",
+      session_id: "test-session",
+      tools: [],
+      slash_commands: [],
+      plugins: [{ name: "test-plugin", path: "/path/to/plugin" }],
+      mcp_servers: [],
+    };
+
+    const resultMessage: SDKResultMessage = {
+      type: "result",
+      subtype: "success",
+      duration_ms: 100,
+      duration_api_ms: 80,
+      is_error: false,
+      num_turns: 1,
+      result: "OK",
+      total_cost_usd: 0.03,
+      usage: { input_tokens: 100, output_tokens: 50 },
+      modelUsage: {},
+      permission_denials: [],
+      uuid: "test-uuid" as `${string}-${string}-${string}-${string}-${string}`,
+      session_id: "test-session",
+    };
+
+    const mockQueryFn = createMockQueryFn([initMessage, resultMessage]);
+
+    const result = await verifyPluginLoad({
+      pluginPath: "/path/to/plugin",
+      config: mockConfig,
+      queryFn: mockQueryFn,
+    });
+
+    expect(result.loaded).toBe(true);
+    expect(result.load_cost_usd).toBe(0.03);
+  });
+
+  it("should set load_cost_usd to 0 when no result message received", async () => {
+    const initMessage: SDKSystemMessage = {
+      type: "system",
+      subtype: "init",
+      session_id: "test-session",
+      tools: [],
+      slash_commands: [],
+      plugins: [{ name: "test-plugin", path: "/path/to/plugin" }],
+      mcp_servers: [],
+    };
+
+    // Only init message, no result message
+    const mockQueryFn = createMockQueryFn([initMessage]);
+
+    const result = await verifyPluginLoad({
+      pluginPath: "/path/to/plugin",
+      config: mockConfig,
+      queryFn: mockQueryFn,
+    });
+
+    expect(result.loaded).toBe(true);
+    expect(result.load_cost_usd).toBe(0);
+  });
+
+  it("should extract cost from error result message", async () => {
+    const initMessage: SDKSystemMessage = {
+      type: "system",
+      subtype: "init",
+      session_id: "test-session",
+      tools: [],
+      slash_commands: [],
+      plugins: [{ name: "test-plugin", path: "/path/to/plugin" }],
+      mcp_servers: [],
+    };
+
+    const errorResultMessage: SDKResultMessage = {
+      type: "result",
+      subtype: "error_during_execution",
+      duration_ms: 100,
+      duration_api_ms: 80,
+      is_error: true,
+      num_turns: 1,
+      total_cost_usd: 0.025,
+      usage: { input_tokens: 100, output_tokens: 50 },
+      modelUsage: {},
+      permission_denials: [],
+      errors: ["Some error"],
+      uuid: "test-uuid" as `${string}-${string}-${string}-${string}-${string}`,
+      session_id: "test-session",
+    };
+
+    const mockQueryFn = createMockQueryFn([initMessage, errorResultMessage]);
+
+    const result = await verifyPluginLoad({
+      pluginPath: "/path/to/plugin",
+      config: mockConfig,
+      queryFn: mockQueryFn,
+    });
+
+    expect(result.loaded).toBe(true);
+    expect(result.load_cost_usd).toBe(0.025);
   });
 });
 

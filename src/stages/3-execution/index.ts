@@ -64,6 +64,8 @@ import type {
 export interface ExecutionOutput {
   plugin_name: string;
   results: ExecutionResult[];
+  /** Cost of plugin load verification API call in USD */
+  plugin_load_cost_usd: number;
   total_cost_usd: number;
   total_duration_ms: number;
   success_count: number;
@@ -161,7 +163,8 @@ export async function runExecution(
     return {
       plugin_name: pluginName,
       results: [],
-      total_cost_usd: 0,
+      plugin_load_cost_usd: loadResult.load_cost_usd ?? 0,
+      total_cost_usd: loadResult.load_cost_usd ?? 0,
       total_duration_ms: Date.now() - startTime,
       success_count: 0,
       error_count: scenarios.length, // All scenarios failed
@@ -227,7 +230,9 @@ export async function runExecution(
   );
 
   // Calculate totals
-  const totalCost = results.reduce((sum, r) => sum + r.cost_usd, 0);
+  const pluginLoadCost = loadResult.load_cost_usd ?? 0;
+  const scenarioCost = results.reduce((sum, r) => sum + r.cost_usd, 0);
+  const totalCost = pluginLoadCost + scenarioCost;
   const totalDuration = Date.now() - startTime;
   const successCount = results.filter((r) => r.errors.length === 0).length;
   const errorCount = results.filter((r) => r.errors.length > 0).length;
@@ -250,6 +255,7 @@ export async function runExecution(
   return {
     plugin_name: pluginName,
     results,
+    plugin_load_cost_usd: pluginLoadCost,
     total_cost_usd: totalCost,
     total_duration_ms: totalDuration,
     success_count: successCount,

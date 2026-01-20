@@ -86,6 +86,11 @@ export interface PluginLoadResult {
   error_type?: PluginErrorType;
   recovery_hint?: string;
   diagnostics?: PluginLoadDiagnostics;
+  /**
+   * Cost of the plugin load API call in USD.
+   * Extracted from the SDK's result message for the plugin verification call.
+   */
+  load_cost_usd?: number;
 }
 
 /**

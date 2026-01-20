@@ -21,6 +21,7 @@ import { logger } from "../../utils/logging.js";
 import {
   executeQuery,
   isSystemMessage,
+  isResultMessage,
   getErrorFromMessage,
   type SDKSystemMessage,
   type QueryInput,
@@ -139,14 +140,32 @@ async function processQueryMessages(
   pluginPath: string,
   timings: PluginLoadTimings,
 ): Promise<PluginLoadResult> {
+  let initResult: PluginLoadResult | null = null;
+
   for await (const message of q) {
     timings.firstMessage ??= Date.now();
 
     if (isSystemMessage(message)) {
       timings.initMessage = Date.now();
-      const initResult = processInitMessage(message, pluginPath, timings);
+      initResult = processInitMessage(message, pluginPath, timings);
       await enrichMcpServerStatus(initResult, q);
-      return initResult;
+      // Continue iterating to find result message with cost
+      continue;
+    }
+
+    // Extract cost from result message
+    if (isResultMessage(message)) {
+      if (initResult) {
+        initResult.load_cost_usd = message.total_cost_usd;
+        return initResult;
+      }
+      // Got result before init - shouldn't happen, but handle gracefully
+      return createFailedResult(
+        pluginPath,
+        "Received result message before init message",
+        "unknown",
+        timings,
+      );
     }
 
     const errorText = getErrorFromMessage(message);
@@ -158,6 +177,12 @@ async function processQueryMessages(
         timings,
       );
     }
+  }
+
+  // If we got init but no result, return init with 0 cost
+  if (initResult) {
+    initResult.load_cost_usd = 0;
+    return initResult;
   }
 
   return createFailedResult(
