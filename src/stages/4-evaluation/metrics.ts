@@ -399,6 +399,7 @@ function calculateCostMetrics(
   executions: ExecutionResult[],
   options: {
     generationCostUsd?: number | undefined;
+    pluginLoadCostUsd?: number | undefined;
     evaluationCostUsd?: number | undefined;
   } = {},
 ): {
@@ -407,12 +408,16 @@ function calculateCostMetrics(
   total_api_duration_ms: number;
   generation_cost_usd: number;
   execution_cost_usd: number;
+  plugin_load_cost_usd: number;
   evaluation_cost_usd: number;
 } {
   const executionCost = executions.reduce((sum, e) => sum + e.cost_usd, 0);
   const generationCost = options.generationCostUsd ?? 0;
+  const pluginLoadCost = options.pluginLoadCostUsd ?? 0;
   const evaluationCost = options.evaluationCostUsd ?? 0;
-  const totalCost = executionCost + generationCost + evaluationCost;
+  // Plugin load cost is part of execution, so add it to the total
+  const totalCost =
+    executionCost + pluginLoadCost + generationCost + evaluationCost;
   const totalDuration = executions.reduce(
     (sum, e) => sum + e.api_duration_ms,
     0,
@@ -423,7 +428,8 @@ function calculateCostMetrics(
       executions.length > 0 ? totalCost / executions.length : 0,
     total_api_duration_ms: totalDuration,
     generation_cost_usd: generationCost,
-    execution_cost_usd: executionCost,
+    execution_cost_usd: executionCost + pluginLoadCost,
+    plugin_load_cost_usd: pluginLoadCost,
     evaluation_cost_usd: evaluationCost,
   };
 }
@@ -469,6 +475,7 @@ export function calculateEvalMetrics(
       | undefined;
     flakyScenarios?: string[] | undefined;
     generationCostUsd?: number | undefined;
+    pluginLoadCostUsd?: number | undefined;
     evaluationCostUsd?: number | undefined;
   } = {},
 ): EvalMetrics {
@@ -478,6 +485,7 @@ export function calculateEvalMetrics(
   const conflictMetrics = calculateConflictMetrics(evalResults);
   const costMetrics = calculateCostMetrics(executions, {
     generationCostUsd: options.generationCostUsd,
+    pluginLoadCostUsd: options.pluginLoadCostUsd,
     evaluationCostUsd: options.evaluationCostUsd,
   });
   const allErrors: TranscriptErrorEvent[] = executions.flatMap((e) => e.errors);
@@ -537,6 +545,7 @@ export function formatMetrics(metrics: EvalMetrics): string {
     `Total Cost:         $${metrics.total_cost_usd.toFixed(4)}`,
     `  Generation:       $${metrics.generation_cost_usd.toFixed(4)}`,
     `  Execution:        $${metrics.execution_cost_usd.toFixed(4)}`,
+    `    Plugin Load:    $${metrics.plugin_load_cost_usd.toFixed(4)}`,
     `  Evaluation:       $${metrics.evaluation_cost_usd.toFixed(4)}`,
     `Avg Cost/Scenario:  $${metrics.avg_cost_per_scenario.toFixed(6)}`,
     `Total Duration:     ${String(Math.round(metrics.total_api_duration_ms / 1000))}s`,
@@ -631,6 +640,7 @@ export function createEmptyMetrics(): EvalMetrics {
 
     generation_cost_usd: 0,
     execution_cost_usd: 0,
+    plugin_load_cost_usd: 0,
     evaluation_cost_usd: 0,
 
     error_count: 0,

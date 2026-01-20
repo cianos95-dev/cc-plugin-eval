@@ -172,12 +172,13 @@ describeE2E("E2E: User Workflows", () => {
       config,
       progress: consoleProgress,
       generationCostUsd: generation.generation_cost_usd,
+      pluginLoadCostUsd: execution.plugin_load_cost_usd,
     });
 
     // Track per-stage costs
     totalGenerationCost += evaluation.metrics.generation_cost_usd;
     totalExecutionCost += evaluation.metrics.execution_cost_usd;
-    totalPluginLoadCost += execution.plugin_load_cost_usd;
+    totalPluginLoadCost += evaluation.metrics.plugin_load_cost_usd;
     totalEvaluationCost += evaluation.metrics.evaluation_cost_usd;
     totalE2ECost += evaluation.metrics.total_cost_usd;
 
@@ -275,11 +276,12 @@ describeE2E("E2E: User Workflows", () => {
       executions: execution.results,
       config,
       progress: consoleProgress,
+      pluginLoadCostUsd: execution.plugin_load_cost_usd,
     });
 
     // Track per-stage costs (no generation stage in this test)
     totalExecutionCost += evaluation.metrics.execution_cost_usd;
-    totalPluginLoadCost += execution.plugin_load_cost_usd;
+    totalPluginLoadCost += evaluation.metrics.plugin_load_cost_usd;
     totalEvaluationCost += evaluation.metrics.evaluation_cost_usd;
     totalE2ECost += evaluation.metrics.total_cost_usd;
 
@@ -455,6 +457,7 @@ describeMcp("E2E: MCP Server Pipeline", () => {
       config,
       progress: consoleProgress,
       generationCostUsd: generation.generation_cost_usd,
+      pluginLoadCostUsd: execution.plugin_load_cost_usd,
     });
 
     expect(evaluation.metrics).toBeDefined();

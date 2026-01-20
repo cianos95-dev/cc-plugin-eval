@@ -228,6 +228,8 @@ export interface EvalMetrics {
   /** Per-stage cost breakdown */
   generation_cost_usd: number;
   execution_cost_usd: number;
+  /** Cost of plugin load verification API call (subset of execution) */
+  plugin_load_cost_usd: number;
   evaluation_cost_usd: number;
 
   /** Error tracking */

@@ -136,6 +136,8 @@ interface CalculateAndSaveMetricsOptions {
   sampleData: SampleDataEntry[];
   /** Cost from Stage 2 generation */
   generationCostUsd?: number | undefined;
+  /** Cost from Stage 3 plugin load verification */
+  pluginLoadCostUsd?: number | undefined;
   /** Cost from Stage 4 evaluation LLM calls */
   evaluationCostUsd?: number | undefined;
 }
@@ -156,6 +158,8 @@ export interface RunEvaluationOptions {
   progress?: ProgressCallbacks | undefined;
   /** Cost from Stage 2 generation */
   generationCostUsd?: number | undefined;
+  /** Cost from Stage 3 plugin load verification */
+  pluginLoadCostUsd?: number | undefined;
 }
 
 /**
@@ -450,6 +454,7 @@ async function calculateAndSaveMetrics(
     config,
     sampleData,
     generationCostUsd,
+    pluginLoadCostUsd,
     evaluationCostUsd,
   } = options;
 
@@ -460,12 +465,14 @@ async function calculateAndSaveMetrics(
     sampleData?: typeof sampleData | undefined;
     flakyScenarios?: string[] | undefined;
     generationCostUsd?: number | undefined;
+    pluginLoadCostUsd?: number | undefined;
     evaluationCostUsd?: number | undefined;
   } = {
     numSamples: config.evaluation.num_samples,
     numReps: config.execution.num_reps,
     flakyScenarios: [],
     generationCostUsd,
+    pluginLoadCostUsd,
     evaluationCostUsd,
   };
 
@@ -509,6 +516,7 @@ export async function runEvaluation(
     config,
     progress = {},
     generationCostUsd,
+    pluginLoadCostUsd,
   } = options;
 
   logger.stageHeader("Stage 4: Evaluation", executions.length);
@@ -639,6 +647,7 @@ export async function runEvaluation(
     config,
     sampleData,
     generationCostUsd,
+    pluginLoadCostUsd,
     evaluationCostUsd: evaluationCost,
   });
 
