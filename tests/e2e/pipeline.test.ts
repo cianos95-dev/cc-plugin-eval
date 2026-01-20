@@ -362,7 +362,8 @@ describeE2E("E2E: User Workflows", () => {
     const gen2 = await runGeneration(sharedAnalysis, config);
 
     // Track costs (template-based generation, should be $0 but track anyway)
-    const genCost = (gen1.generation_cost_usd ?? 0) + (gen2.generation_cost_usd ?? 0);
+    const genCost =
+      (gen1.generation_cost_usd ?? 0) + (gen2.generation_cost_usd ?? 0);
     totalGenerationCost += genCost;
     totalE2ECost += genCost;
     e2eTestCount++;
