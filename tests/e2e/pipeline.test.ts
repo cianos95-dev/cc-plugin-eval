@@ -44,6 +44,9 @@ const describeMcp = shouldRunE2EMcp() ? describe : describe.skip;
 
 // Track metrics across all tests for performance monitoring
 let totalE2ECost = 0;
+let totalGenerationCost = 0;
+let totalExecutionCost = 0;
+let totalEvaluationCost = 0;
 let e2eStartTime = 0;
 let e2eTestCount = 0;
 
@@ -85,6 +88,9 @@ describeE2E("E2E: User Workflows", () => {
     console.log("E2E Performance Metrics");
     console.log("========================================");
     console.log(`Total Cost:       $${totalE2ECost.toFixed(4)}`);
+    console.log(`  Generation:     $${totalGenerationCost.toFixed(4)}`);
+    console.log(`  Execution:      $${totalExecutionCost.toFixed(4)}`);
+    console.log(`  Evaluation:     $${totalEvaluationCost.toFixed(4)}`);
     console.log(`Total Duration:   ${totalDurationSec.toFixed(1)}s`);
     console.log(`Tests Executed:   ${e2eTestCount}`);
     if (totalDurationSec > 0 && e2eTestCount > 0) {
@@ -142,7 +148,6 @@ describeE2E("E2E: User Workflows", () => {
       progress: consoleProgress,
     });
 
-    totalE2ECost += execution.total_cost_usd;
     e2eTestCount++;
 
     expect(execution.results.length).toBe(generation.scenarios.length);
@@ -164,7 +169,14 @@ describeE2E("E2E: User Workflows", () => {
       executions: execution.results,
       config,
       progress: consoleProgress,
+      generationCostUsd: generation.generation_cost_usd,
     });
+
+    // Track per-stage costs
+    totalGenerationCost += evaluation.metrics.generation_cost_usd;
+    totalExecutionCost += evaluation.metrics.execution_cost_usd;
+    totalEvaluationCost += evaluation.metrics.evaluation_cost_usd;
+    totalE2ECost += evaluation.metrics.total_cost_usd;
 
     // Verify evaluation metrics
     expect(evaluation.metrics).toBeDefined();
@@ -251,7 +263,6 @@ describeE2E("E2E: User Workflows", () => {
       progress: consoleProgress,
     });
 
-    totalE2ECost += execution.total_cost_usd;
     e2eTestCount++;
 
     // Evaluate
@@ -262,6 +273,11 @@ describeE2E("E2E: User Workflows", () => {
       config,
       progress: consoleProgress,
     });
+
+    // Track per-stage costs (no generation stage in this test)
+    totalExecutionCost += evaluation.metrics.execution_cost_usd;
+    totalEvaluationCost += evaluation.metrics.evaluation_cost_usd;
+    totalE2ECost += evaluation.metrics.total_cost_usd;
 
     // All negative scenarios should NOT trigger
     for (const result of evaluation.results) {
@@ -313,6 +329,13 @@ describeE2E("E2E: User Workflows", () => {
       progress: consoleProgress,
     });
 
+    // Track costs (no evaluation stage in this test)
+    const genCost = generation.generation_cost_usd ?? 0;
+    totalGenerationCost += genCost;
+    totalExecutionCost += execution.total_cost_usd;
+    totalE2ECost += genCost + execution.total_cost_usd;
+    e2eTestCount++;
+
     // Verify execution completed (may have partial/no results due to budget)
     expect(execution).toBeDefined();
     expect(execution.results).toBeDefined();
@@ -337,6 +360,12 @@ describeE2E("E2E: User Workflows", () => {
     // Run generation twice
     const gen1 = await runGeneration(sharedAnalysis, config);
     const gen2 = await runGeneration(sharedAnalysis, config);
+
+    // Track costs (template-based generation, should be $0 but track anyway)
+    const genCost = (gen1.generation_cost_usd ?? 0) + (gen2.generation_cost_usd ?? 0);
+    totalGenerationCost += genCost;
+    totalE2ECost += genCost;
+    e2eTestCount++;
 
     // Should produce identical scenario counts
     expect(gen1.scenarios.length).toBe(gen2.scenarios.length);
@@ -419,6 +448,7 @@ describeMcp("E2E: MCP Server Pipeline", () => {
       executions: execution.results,
       config,
       progress: consoleProgress,
+      generationCostUsd: generation.generation_cost_usd,
     });
 
     expect(evaluation.metrics).toBeDefined();
