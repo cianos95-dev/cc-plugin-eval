@@ -49,6 +49,8 @@ export interface GenerationOutput {
     total_with_variations: number;
     diversity_ratio: number;
   };
+  /** Actual cost of LLM calls during generation (in USD) */
+  generation_cost_usd?: number;
 }
 
 /**
@@ -85,10 +87,10 @@ interface LLMComponentGenerationOptions<T> {
   componentType: "skills" | "agents";
   /** Components to generate scenarios for */
   components: T[];
-  /** LLM-based generator function */
+  /** LLM-based generator function returning scenarios and cost */
   generator: (
     onProgress: (completed: number, total: number, current?: string) => void,
-  ) => Promise<TestScenario[]>;
+  ) => Promise<{ scenarios: TestScenario[]; cost_usd: number }>;
   /** Fallback generator for when LLM fails */
   createFallback: (component: T) => TestScenario[];
   /** Progress callback */
@@ -103,11 +105,11 @@ interface LLMComponentGenerationOptions<T> {
  * 2. Falling back to deterministic scenarios on failure or empty results
  *
  * @param options - Generation options
- * @returns Generated scenarios
+ * @returns Object with scenarios array and cost in USD
  */
 async function generateLLMComponentScenarios<T>(
   options: LLMComponentGenerationOptions<T>,
-): Promise<TestScenario[]> {
+): Promise<{ scenarios: TestScenario[]; cost_usd: number }> {
   const { componentType, components, generator, createFallback, onProgress } =
     options;
 
@@ -116,26 +118,26 @@ async function generateLLMComponentScenarios<T>(
   );
 
   try {
-    const scenarios = await generator((completed, total, current) => {
+    const result = await generator((completed, total, current) => {
       onProgress?.(componentType, completed, total, current);
     });
 
-    if (scenarios.length > 0) {
+    if (result.scenarios.length > 0) {
       logger.success(
-        `Generated ${String(scenarios.length)} ${componentType} scenarios`,
+        `Generated ${String(result.scenarios.length)} ${componentType} scenarios`,
       );
-      return scenarios;
+      return result;
     }
 
     // Fall back to deterministic scenarios
     logger.warn("LLM generation failed, using fallback scenarios");
-    return components.flatMap(createFallback);
+    return { scenarios: components.flatMap(createFallback), cost_usd: 0 };
   } catch (error) {
     logger.error(
       `${componentType.charAt(0).toUpperCase() + componentType.slice(1)} generation failed: ${String(error)}`,
     );
     // Fall back to deterministic scenarios
-    return components.flatMap(createFallback);
+    return { scenarios: components.flatMap(createFallback), cost_usd: 0 };
   }
 }
 
@@ -188,49 +190,55 @@ export async function runGeneration(
         total_with_variations: 0,
         diversity_ratio: 0,
       },
+      generation_cost_usd: 0,
     };
   }
 
   const allScenarios: TestScenario[] = [];
+  let totalGenerationCost = 0;
   // Use injected client or create a new one
   const client = injectedClient ?? createAnthropicClient();
 
   // Generate skill scenarios (LLM-based)
   if (config.scope.skills && analysis.components.skills.length > 0) {
-    const skillScenarios = await generateLLMComponentScenarios({
-      componentType: "skills",
-      components: analysis.components.skills,
-      generator: async (onProgress) =>
-        generateAllSkillScenarios({
-          client,
-          skills: analysis.components.skills,
-          config: config.generation,
-          onProgress,
-          maxConcurrent: config.max_concurrent,
-        }),
-      createFallback: createFallbackSkillScenarios,
-      onProgress,
-    });
+    const { scenarios: skillScenarios, cost_usd: skillCost } =
+      await generateLLMComponentScenarios({
+        componentType: "skills",
+        components: analysis.components.skills,
+        generator: async (onProgress) =>
+          generateAllSkillScenarios({
+            client,
+            skills: analysis.components.skills,
+            config: config.generation,
+            onProgress,
+            maxConcurrent: config.max_concurrent,
+          }),
+        createFallback: createFallbackSkillScenarios,
+        onProgress,
+      });
     allScenarios.push(...skillScenarios);
+    totalGenerationCost += skillCost;
   }
 
   // Generate agent scenarios (LLM-based)
   if (config.scope.agents && analysis.components.agents.length > 0) {
-    const agentScenarios = await generateLLMComponentScenarios({
-      componentType: "agents",
-      components: analysis.components.agents,
-      generator: async (onProgress) =>
-        generateAllAgentScenarios({
-          client,
-          agents: analysis.components.agents,
-          config: config.generation,
-          onProgress,
-          maxConcurrent: config.max_concurrent,
-        }),
-      createFallback: createFallbackAgentScenarios,
-      onProgress,
-    });
+    const { scenarios: agentScenarios, cost_usd: agentCost } =
+      await generateLLMComponentScenarios({
+        componentType: "agents",
+        components: analysis.components.agents,
+        generator: async (onProgress) =>
+          generateAllAgentScenarios({
+            client,
+            agents: analysis.components.agents,
+            config: config.generation,
+            onProgress,
+            maxConcurrent: config.max_concurrent,
+          }),
+        createFallback: createFallbackAgentScenarios,
+        onProgress,
+      });
     allScenarios.push(...agentScenarios);
+    totalGenerationCost += agentCost;
   }
 
   // Generate command scenarios (deterministic - no LLM)
@@ -272,6 +280,10 @@ export async function runGeneration(
   logger.info(`  Proactive: ${String(metrics.by_type.proactive)}`);
   logger.info(`  Semantic: ${String(metrics.by_type.semantic)}`);
 
+  if (totalGenerationCost > 0) {
+    logger.info(`  Generation cost: $${totalGenerationCost.toFixed(4)}`);
+  }
+
   return {
     plugin_name: analysis.plugin_name,
     scenarios: allScenarios,
@@ -283,6 +295,7 @@ export async function runGeneration(
       total_with_variations: metrics.variations,
       diversity_ratio: metrics.diversity_ratio,
     },
+    generation_cost_usd: totalGenerationCost,
   };
 }
 
@@ -312,6 +325,8 @@ export interface GenerationMetadata {
   scenario_count_by_component: Record<string, number>;
   diversity_metrics: GenerationOutput["diversity_metrics"];
   cost_estimate: PipelineCostEstimate;
+  /** Actual cost of LLM calls during generation (in USD) */
+  generation_cost_usd?: number;
 }
 
 /**
@@ -335,6 +350,9 @@ export function writeGenerationMetadata(
     scenario_count_by_component: generation.scenario_count_by_component,
     diversity_metrics: generation.diversity_metrics,
     cost_estimate: generation.cost_estimate,
+    ...(generation.generation_cost_usd !== undefined && {
+      generation_cost_usd: generation.generation_cost_usd,
+    }),
   };
   writeJson(`${resultsDir}/generation-metadata.json`, metadata);
 }

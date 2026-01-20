@@ -383,10 +383,11 @@ describe("generateSkillScenarios", () => {
           ]),
         },
       ],
+      usage: { input_tokens: 100, output_tokens: 50 },
     };
     mockClient.messages.create.mockResolvedValue(mockResponse);
 
-    const scenarios = await generateSkillScenarios(
+    const result = await generateSkillScenarios(
       mockClient as unknown as Anthropic,
       skill,
       config,
@@ -402,24 +403,29 @@ describe("generateSkillScenarios", () => {
       }),
       expect.objectContaining({ timeout: 60000 }),
     );
-    expect(scenarios).toHaveLength(2);
-    expect(scenarios[0].user_prompt).toBe("create a hook for validation");
-    expect(scenarios[0].component_type).toBe("skill");
+    expect(result.scenarios).toHaveLength(2);
+    expect(result.scenarios[0].user_prompt).toBe(
+      "create a hook for validation",
+    );
+    expect(result.scenarios[0].component_type).toBe("skill");
+    expect(result.cost_usd).toBeGreaterThan(0);
   });
 
   it("should handle empty response gracefully", async () => {
     const mockResponse = {
       content: [{ type: "text", text: "[]" }],
+      usage: { input_tokens: 50, output_tokens: 10 },
     };
     mockClient.messages.create.mockResolvedValue(mockResponse);
 
-    const scenarios = await generateSkillScenarios(
+    const result = await generateSkillScenarios(
       mockClient as unknown as Anthropic,
       skill,
       config,
     );
 
-    expect(scenarios).toEqual([]);
+    expect(result.scenarios).toEqual([]);
+    expect(result.cost_usd).toBeGreaterThan(0);
   });
 
   it("should handle markdown-wrapped JSON response", async () => {
@@ -430,22 +436,24 @@ describe("generateSkillScenarios", () => {
           text: '```json\n[{"user_prompt": "test", "scenario_type": "direct", "expected_trigger": true, "reasoning": "test"}]\n```',
         },
       ],
+      usage: { input_tokens: 100, output_tokens: 50 },
     };
     mockClient.messages.create.mockResolvedValue(mockResponse);
 
-    const scenarios = await generateSkillScenarios(
+    const result = await generateSkillScenarios(
       mockClient as unknown as Anthropic,
       skill,
       config,
     );
 
-    expect(scenarios).toHaveLength(1);
-    expect(scenarios[0].user_prompt).toBe("test");
+    expect(result.scenarios).toHaveLength(1);
+    expect(result.scenarios[0].user_prompt).toBe("test");
   });
 
   it("should throw when no text content in response", async () => {
     const mockResponse = {
       content: [{ type: "image", source: {} }],
+      usage: { input_tokens: 50, output_tokens: 0 },
     };
     mockClient.messages.create.mockResolvedValue(mockResponse);
 
@@ -457,6 +465,7 @@ describe("generateSkillScenarios", () => {
   it("should use correct model from config", async () => {
     const mockResponse = {
       content: [{ type: "text", text: "[]" }],
+      usage: { input_tokens: 50, output_tokens: 10 },
     };
     mockClient.messages.create.mockResolvedValue(mockResponse);
 
@@ -478,6 +487,7 @@ describe("generateSkillScenarios", () => {
   it("should use max_tokens from config", async () => {
     const mockResponse = {
       content: [{ type: "text", text: "[]" }],
+      usage: { input_tokens: 50, output_tokens: 10 },
     };
     mockClient.messages.create.mockResolvedValue(mockResponse);
 
@@ -494,6 +504,24 @@ describe("generateSkillScenarios", () => {
       }),
       expect.objectContaining({ timeout: 60000 }),
     );
+  });
+
+  it("should return cost based on token usage", async () => {
+    const mockResponse = {
+      content: [{ type: "text", text: "[]" }],
+      usage: { input_tokens: 1000, output_tokens: 500 },
+    };
+    mockClient.messages.create.mockResolvedValue(mockResponse);
+
+    const result = await generateSkillScenarios(
+      mockClient as unknown as Anthropic,
+      skill,
+      config,
+    );
+
+    // Haiku 4.5: $1/1M input, $5/1M output
+    // Expected: (1000/1M * 1) + (500/1M * 5) = 0.001 + 0.0025 = 0.0035
+    expect(result.cost_usd).toBeCloseTo(0.0035, 6);
   });
 });
 
@@ -548,6 +576,7 @@ describe("generateAllSkillScenarios", () => {
             ]),
           },
         ],
+        usage: { input_tokens: 100, output_tokens: 50 },
       })
       .mockResolvedValueOnce({
         content: [
@@ -563,23 +592,26 @@ describe("generateAllSkillScenarios", () => {
             ]),
           },
         ],
+        usage: { input_tokens: 100, output_tokens: 50 },
       });
 
-    const scenarios = await generateAllSkillScenarios({
+    const result = await generateAllSkillScenarios({
       client: mockClient as unknown as Anthropic,
       skills,
       config,
     });
 
     expect(mockClient.messages.create).toHaveBeenCalledTimes(2);
-    expect(scenarios).toHaveLength(2);
-    expect(scenarios[0].component_ref).toBe("skill-one");
-    expect(scenarios[1].component_ref).toBe("skill-two");
+    expect(result.scenarios).toHaveLength(2);
+    expect(result.scenarios[0].component_ref).toBe("skill-one");
+    expect(result.scenarios[1].component_ref).toBe("skill-two");
+    expect(result.cost_usd).toBeGreaterThan(0);
   });
 
   it("should call progress callback", async () => {
     mockClient.messages.create.mockResolvedValue({
       content: [{ type: "text", text: "[]" }],
+      usage: { input_tokens: 50, output_tokens: 10 },
     });
 
     const progressCallback = vi.fn();
@@ -596,18 +628,19 @@ describe("generateAllSkillScenarios", () => {
     expect(progressCallback).toHaveBeenCalledWith(2, 2, "skill-two");
   });
 
-  it("should return empty array for empty skills list", async () => {
-    const scenarios = await generateAllSkillScenarios({
+  it("should return empty result for empty skills list", async () => {
+    const result = await generateAllSkillScenarios({
       client: mockClient as unknown as Anthropic,
       skills: [],
       config,
     });
 
-    expect(scenarios).toEqual([]);
+    expect(result.scenarios).toEqual([]);
+    expect(result.cost_usd).toBe(0);
     expect(mockClient.messages.create).not.toHaveBeenCalled();
   });
 
-  it("should aggregate scenarios from all skills", async () => {
+  it("should aggregate scenarios and costs from all skills", async () => {
     mockClient.messages.create
       .mockResolvedValueOnce({
         content: [
@@ -629,6 +662,7 @@ describe("generateAllSkillScenarios", () => {
             ]),
           },
         ],
+        usage: { input_tokens: 100, output_tokens: 50 },
       })
       .mockResolvedValueOnce({
         content: [
@@ -644,14 +678,17 @@ describe("generateAllSkillScenarios", () => {
             ]),
           },
         ],
+        usage: { input_tokens: 100, output_tokens: 50 },
       });
 
-    const scenarios = await generateAllSkillScenarios({
+    const result = await generateAllSkillScenarios({
       client: mockClient as unknown as Anthropic,
       skills,
       config,
     });
 
-    expect(scenarios).toHaveLength(3);
+    expect(result.scenarios).toHaveLength(3);
+    // Cost should be accumulated from both calls
+    expect(result.cost_usd).toBeGreaterThan(0);
   });
 });

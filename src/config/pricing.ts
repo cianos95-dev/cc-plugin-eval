@@ -4,6 +4,8 @@
  * Last updated: 2026-01-16
  */
 
+import { resolveModelId } from "./models.js";
+
 import type { ModelPricing } from "../types/index.js";
 
 /**
@@ -129,7 +131,9 @@ export function calculateCostFromUsage(
   },
   modelId: string,
 ): number {
-  const pricing = getModelPricing(modelId);
+  // Resolve model alias to full model ID before looking up pricing
+  const resolvedModelId = resolveModelId(modelId);
+  const pricing = getModelPricing(resolvedModelId);
 
   // Regular tokens
   const inputCost = (usage.input_tokens / 1_000_000) * pricing.input;

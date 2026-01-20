@@ -13,7 +13,7 @@
  */
 
 import { parallel } from "../../utils/concurrency.js";
-import { callLLMForText } from "../../utils/llm.js";
+import { callLLMForTextWithCost } from "../../utils/llm.js";
 import { logger } from "../../utils/logging.js";
 
 import { distributeScenarioTypes } from "./diversity-manager.js";
@@ -167,20 +167,20 @@ export function parseSkillScenarioResponse(
  * @param client - Anthropic client
  * @param skill - Skill component
  * @param config - Generation config
- * @returns Array of test scenarios
+ * @returns Object with scenarios array and cost in USD
  */
 export async function generateSkillScenarios(
   client: Anthropic,
   skill: SkillComponent,
   config: GenerationConfig,
-): Promise<TestScenario[]> {
+): Promise<{ scenarios: TestScenario[]; cost_usd: number }> {
   const userPrompt = buildSkillPrompt(
     skill,
     config.scenarios_per_component,
     config.semantic_variations,
   );
 
-  const response = await callLLMForText(client, {
+  const { text, cost_usd } = await callLLMForTextWithCost(client, {
     model: config.model,
     maxTokens: config.max_tokens,
     temperature: config.temperature,
@@ -189,7 +189,7 @@ export async function generateSkillScenarios(
     timeoutMs: config.api_timeout_ms,
   });
 
-  return parseSkillScenarioResponse(response, skill);
+  return { scenarios: parseSkillScenarioResponse(text, skill), cost_usd };
 }
 
 /**
@@ -214,34 +214,38 @@ export interface GenerateAllSkillScenariosOptions {
  * Uses parallel execution with optional rate limiting.
  *
  * @param options - Generate all skill scenarios options
- * @returns Array of all test scenarios
+ * @returns Object with scenarios array and total cost in USD
  */
 export async function generateAllSkillScenarios(
   options: GenerateAllSkillScenariosOptions,
-): Promise<TestScenario[]> {
+): Promise<{ scenarios: TestScenario[]; cost_usd: number }> {
   const { client, skills, config, onProgress, maxConcurrent = 10 } = options;
 
   // Create rate limiter if configured
   const rateLimiter = setupRateLimiter(config);
 
   let completedCount = 0;
+  let totalCost = 0;
   const result = await parallel({
     items: skills,
     concurrency: maxConcurrent,
     fn: async (skill) => {
-      const generateFn = async (): Promise<TestScenario[]> =>
-        generateSkillScenarios(client, skill, config);
+      const generateFn = async (): Promise<{
+        scenarios: TestScenario[];
+        cost_usd: number;
+      }> => generateSkillScenarios(client, skill, config);
 
       return rateLimiter ? rateLimiter(generateFn) : generateFn();
     },
-    onComplete: (scenarios, _index, _total) => {
+    onComplete: (result, _index, _total) => {
       completedCount++;
+      totalCost += result.cost_usd;
       const skillName = skills[_index]?.name ?? "unknown";
       onProgress?.(completedCount, skills.length, skillName);
       logger.progress(
         completedCount,
         skills.length,
-        `Generated ${String(scenarios.length)} scenarios for ${skillName}`,
+        `Generated ${String(result.scenarios.length)} scenarios for ${skillName}`,
       );
     },
     onError: (error, skill) => {
@@ -252,7 +256,10 @@ export async function generateAllSkillScenarios(
     },
   });
 
-  return result.results.flat();
+  return {
+    scenarios: result.results.flatMap((r) => r.scenarios),
+    cost_usd: totalCost,
+  };
 }
 
 /**

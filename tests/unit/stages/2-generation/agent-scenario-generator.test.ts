@@ -451,10 +451,11 @@ describe("generateAgentScenarios", () => {
           ]),
         },
       ],
+      usage: { input_tokens: 100, output_tokens: 50 },
     };
     mockClient.messages.create.mockResolvedValue(mockResponse);
 
-    const scenarios = await generateAgentScenarios(
+    const result = await generateAgentScenarios(
       mockClient as unknown as Anthropic,
       agent,
       config,
@@ -470,9 +471,10 @@ describe("generateAgentScenarios", () => {
       }),
       expect.objectContaining({ timeout: 60000 }),
     );
-    expect(scenarios).toHaveLength(2);
-    expect(scenarios[0].user_prompt).toBe("review my code please");
-    expect(scenarios[0].component_type).toBe("agent");
+    expect(result.scenarios).toHaveLength(2);
+    expect(result.scenarios[0].user_prompt).toBe("review my code please");
+    expect(result.scenarios[0].component_type).toBe("agent");
+    expect(result.cost_usd).toBeGreaterThan(0);
   });
 
   it("should handle proactive scenarios with setup_messages", async () => {
@@ -497,34 +499,37 @@ describe("generateAgentScenarios", () => {
           ]),
         },
       ],
+      usage: { input_tokens: 100, output_tokens: 50 },
     };
     mockClient.messages.create.mockResolvedValue(mockResponse);
 
-    const scenarios = await generateAgentScenarios(
+    const result = await generateAgentScenarios(
       mockClient as unknown as Anthropic,
       agent,
       config,
     );
 
-    expect(scenarios).toHaveLength(1);
-    expect(scenarios[0].scenario_type).toBe("proactive");
-    expect(scenarios[0].setup_messages).toHaveLength(2);
-    expect(scenarios[0].setup_messages?.[0].role).toBe("user");
+    expect(result.scenarios).toHaveLength(1);
+    expect(result.scenarios[0].scenario_type).toBe("proactive");
+    expect(result.scenarios[0].setup_messages).toHaveLength(2);
+    expect(result.scenarios[0].setup_messages?.[0].role).toBe("user");
   });
 
   it("should handle empty response gracefully", async () => {
     const mockResponse = {
       content: [{ type: "text", text: "[]" }],
+      usage: { input_tokens: 50, output_tokens: 10 },
     };
     mockClient.messages.create.mockResolvedValue(mockResponse);
 
-    const scenarios = await generateAgentScenarios(
+    const result = await generateAgentScenarios(
       mockClient as unknown as Anthropic,
       agent,
       config,
     );
 
-    expect(scenarios).toEqual([]);
+    expect(result.scenarios).toEqual([]);
+    expect(result.cost_usd).toBeGreaterThan(0);
   });
 
   it("should handle markdown-wrapped JSON response", async () => {
@@ -535,22 +540,24 @@ describe("generateAgentScenarios", () => {
           text: '```json\n[{"user_prompt": "test", "scenario_type": "direct", "expected_trigger": true, "reasoning": "test"}]\n```',
         },
       ],
+      usage: { input_tokens: 100, output_tokens: 50 },
     };
     mockClient.messages.create.mockResolvedValue(mockResponse);
 
-    const scenarios = await generateAgentScenarios(
+    const result = await generateAgentScenarios(
       mockClient as unknown as Anthropic,
       agent,
       config,
     );
 
-    expect(scenarios).toHaveLength(1);
-    expect(scenarios[0].user_prompt).toBe("test");
+    expect(result.scenarios).toHaveLength(1);
+    expect(result.scenarios[0].user_prompt).toBe("test");
   });
 
   it("should throw when no text content in response", async () => {
     const mockResponse = {
       content: [{ type: "tool_use", id: "123", name: "test", input: {} }],
+      usage: { input_tokens: 50, output_tokens: 0 },
     };
     mockClient.messages.create.mockResolvedValue(mockResponse);
 
@@ -562,6 +569,7 @@ describe("generateAgentScenarios", () => {
   it("should use correct model from config", async () => {
     const mockResponse = {
       content: [{ type: "text", text: "[]" }],
+      usage: { input_tokens: 50, output_tokens: 10 },
     };
     mockClient.messages.create.mockResolvedValue(mockResponse);
 
@@ -578,6 +586,24 @@ describe("generateAgentScenarios", () => {
       }),
       expect.objectContaining({ timeout: 60000 }),
     );
+  });
+
+  it("should return cost based on token usage", async () => {
+    const mockResponse = {
+      content: [{ type: "text", text: "[]" }],
+      usage: { input_tokens: 1000, output_tokens: 500 },
+    };
+    mockClient.messages.create.mockResolvedValue(mockResponse);
+
+    const result = await generateAgentScenarios(
+      mockClient as unknown as Anthropic,
+      agent,
+      config,
+    );
+
+    // Haiku 4.5: $1/1M input, $5/1M output
+    // Expected: (1000/1M * 1) + (500/1M * 5) = 0.001 + 0.0025 = 0.0035
+    expect(result.cost_usd).toBeCloseTo(0.0035, 6);
   });
 });
 
@@ -632,6 +658,7 @@ describe("generateAllAgentScenarios", () => {
             ]),
           },
         ],
+        usage: { input_tokens: 100, output_tokens: 50 },
       })
       .mockResolvedValueOnce({
         content: [
@@ -647,23 +674,26 @@ describe("generateAllAgentScenarios", () => {
             ]),
           },
         ],
+        usage: { input_tokens: 100, output_tokens: 50 },
       });
 
-    const scenarios = await generateAllAgentScenarios({
+    const result = await generateAllAgentScenarios({
       client: mockClient as unknown as Anthropic,
       agents,
       config,
     });
 
     expect(mockClient.messages.create).toHaveBeenCalledTimes(2);
-    expect(scenarios).toHaveLength(2);
-    expect(scenarios[0].component_ref).toBe("agent-one");
-    expect(scenarios[1].component_ref).toBe("agent-two");
+    expect(result.scenarios).toHaveLength(2);
+    expect(result.scenarios[0].component_ref).toBe("agent-one");
+    expect(result.scenarios[1].component_ref).toBe("agent-two");
+    expect(result.cost_usd).toBeGreaterThan(0);
   });
 
   it("should call progress callback", async () => {
     mockClient.messages.create.mockResolvedValue({
       content: [{ type: "text", text: "[]" }],
+      usage: { input_tokens: 50, output_tokens: 10 },
     });
 
     const progressCallback = vi.fn();
@@ -680,18 +710,19 @@ describe("generateAllAgentScenarios", () => {
     expect(progressCallback).toHaveBeenCalledWith(2, 2, "agent-two");
   });
 
-  it("should return empty array for empty agents list", async () => {
-    const scenarios = await generateAllAgentScenarios({
+  it("should return empty result for empty agents list", async () => {
+    const result = await generateAllAgentScenarios({
       client: mockClient as unknown as Anthropic,
       agents: [],
       config,
     });
 
-    expect(scenarios).toEqual([]);
+    expect(result.scenarios).toEqual([]);
+    expect(result.cost_usd).toBe(0);
     expect(mockClient.messages.create).not.toHaveBeenCalled();
   });
 
-  it("should aggregate scenarios from all agents", async () => {
+  it("should aggregate scenarios and costs from all agents", async () => {
     mockClient.messages.create
       .mockResolvedValueOnce({
         content: [
@@ -714,6 +745,7 @@ describe("generateAllAgentScenarios", () => {
             ]),
           },
         ],
+        usage: { input_tokens: 100, output_tokens: 50 },
       })
       .mockResolvedValueOnce({
         content: [
@@ -729,15 +761,17 @@ describe("generateAllAgentScenarios", () => {
             ]),
           },
         ],
+        usage: { input_tokens: 100, output_tokens: 50 },
       });
 
-    const scenarios = await generateAllAgentScenarios({
+    const result = await generateAllAgentScenarios({
       client: mockClient as unknown as Anthropic,
       agents,
       config,
     });
 
-    expect(scenarios).toHaveLength(3);
-    expect(scenarios[1].setup_messages).toBeDefined();
+    expect(result.scenarios).toHaveLength(3);
+    // Cost should be accumulated from both calls
+    expect(result.cost_usd).toBeGreaterThan(0);
   });
 });

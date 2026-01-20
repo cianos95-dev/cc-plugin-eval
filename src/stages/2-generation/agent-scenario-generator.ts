@@ -15,7 +15,7 @@
  */
 
 import { parallel } from "../../utils/concurrency.js";
-import { callLLMForText } from "../../utils/llm.js";
+import { callLLMForTextWithCost } from "../../utils/llm.js";
 import { logger } from "../../utils/logging.js";
 
 import { distributeScenarioTypes } from "./diversity-manager.js";
@@ -285,16 +285,16 @@ export function parseAgentScenarioResponse(
  * @param client - Anthropic client
  * @param agent - Agent component
  * @param config - Generation config
- * @returns Array of test scenarios
+ * @returns Object with scenarios array and cost in USD
  */
 export async function generateAgentScenarios(
   client: Anthropic,
   agent: AgentComponent,
   config: GenerationConfig,
-): Promise<TestScenario[]> {
+): Promise<{ scenarios: TestScenario[]; cost_usd: number }> {
   const userPrompt = buildAgentPrompt(agent, config.scenarios_per_component);
 
-  const response = await callLLMForText(client, {
+  const { text, cost_usd } = await callLLMForTextWithCost(client, {
     model: config.model,
     maxTokens: config.max_tokens,
     temperature: config.temperature,
@@ -303,7 +303,7 @@ export async function generateAgentScenarios(
     timeoutMs: config.api_timeout_ms,
   });
 
-  return parseAgentScenarioResponse(response, agent);
+  return { scenarios: parseAgentScenarioResponse(text, agent), cost_usd };
 }
 
 /**
@@ -328,34 +328,38 @@ export interface GenerateAllAgentScenariosOptions {
  * Uses parallel execution with optional rate limiting.
  *
  * @param options - Generate all agent scenarios options
- * @returns Array of all test scenarios
+ * @returns Object with scenarios array and total cost in USD
  */
 export async function generateAllAgentScenarios(
   options: GenerateAllAgentScenariosOptions,
-): Promise<TestScenario[]> {
+): Promise<{ scenarios: TestScenario[]; cost_usd: number }> {
   const { client, agents, config, onProgress, maxConcurrent = 10 } = options;
 
   // Create rate limiter if configured
   const rateLimiter = setupRateLimiter(config);
 
   let completedCount = 0;
+  let totalCost = 0;
   const result = await parallel({
     items: agents,
     concurrency: maxConcurrent,
     fn: async (agent) => {
-      const generateFn = async (): Promise<TestScenario[]> =>
-        generateAgentScenarios(client, agent, config);
+      const generateFn = async (): Promise<{
+        scenarios: TestScenario[];
+        cost_usd: number;
+      }> => generateAgentScenarios(client, agent, config);
 
       return rateLimiter ? rateLimiter(generateFn) : generateFn();
     },
-    onComplete: (scenarios, _index, _total) => {
+    onComplete: (result, _index, _total) => {
       completedCount++;
+      totalCost += result.cost_usd;
       const agentName = agents[_index]?.name ?? "unknown";
       onProgress?.(completedCount, agents.length, agentName);
       logger.progress(
         completedCount,
         agents.length,
-        `Generated ${String(scenarios.length)} scenarios for ${agentName}`,
+        `Generated ${String(result.scenarios.length)} scenarios for ${agentName}`,
       );
     },
     onError: (error, agent) => {
@@ -366,7 +370,10 @@ export async function generateAllAgentScenarios(
     },
   });
 
-  return result.results.flat();
+  return {
+    scenarios: result.results.flatMap((r) => r.scenarios),
+    cost_usd: totalCost,
+  };
 }
 
 /**

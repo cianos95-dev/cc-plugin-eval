@@ -231,8 +231,14 @@ describe("runGeneration", () => {
     (createAnthropicClient as Mock).mockReturnValue({
       messages: { create: vi.fn() },
     });
-    (generateAllSkillScenarios as Mock).mockResolvedValue([createScenario()]);
-    (generateAllAgentScenarios as Mock).mockResolvedValue([]);
+    (generateAllSkillScenarios as Mock).mockResolvedValue({
+      scenarios: [createScenario()],
+      cost_usd: 0.001,
+    });
+    (generateAllAgentScenarios as Mock).mockResolvedValue({
+      scenarios: [],
+      cost_usd: 0,
+    });
     (generateAllCommandScenarios as Mock).mockReturnValue([]);
     (generateAllHookScenarios as Mock).mockReturnValue([]);
     (generateAllMcpScenarios as Mock).mockReturnValue([]);
@@ -373,7 +379,10 @@ describe("runGeneration", () => {
       const mockScenarios = [
         createScenario({ id: "skill-1", component_ref: "commit-skill" }),
       ];
-      (generateAllSkillScenarios as Mock).mockResolvedValue(mockScenarios);
+      (generateAllSkillScenarios as Mock).mockResolvedValue({
+        scenarios: mockScenarios,
+        cost_usd: 0.001,
+      });
 
       const result = await runGeneration(analysis, config);
 
@@ -410,7 +419,10 @@ describe("runGeneration", () => {
           component_ref: "test-agent",
         }),
       ];
-      (generateAllAgentScenarios as Mock).mockResolvedValue(mockScenarios);
+      (generateAllAgentScenarios as Mock).mockResolvedValue({
+        scenarios: mockScenarios,
+        cost_usd: 0.001,
+      });
 
       const result = await runGeneration(analysis, config);
 
@@ -718,9 +730,10 @@ describe("runGeneration", () => {
         },
       });
 
-      (generateAllSkillScenarios as Mock).mockResolvedValue([
-        createScenario({ id: "skill-1" }),
-      ]);
+      (generateAllSkillScenarios as Mock).mockResolvedValue({
+        scenarios: [createScenario({ id: "skill-1" })],
+        cost_usd: 0.001,
+      });
       (generateAllCommandScenarios as Mock).mockReturnValue([
         createScenario({ id: "cmd-1", component_type: "command" }),
       ]);
