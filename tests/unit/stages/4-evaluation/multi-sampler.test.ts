@@ -384,14 +384,29 @@ function createJudgeResponse(
   };
 }
 
+/**
+ * Create a mock JudgeResponseWithCost.
+ */
+function createJudgeResponseWithCost(
+  overrides: Partial<JudgeResponse> = {},
+  cost_usd = 0.001,
+): { response: JudgeResponse; cost_usd: number } {
+  return {
+    response: createJudgeResponse(overrides),
+    cost_usd,
+  };
+}
+
 describe("evaluateSingleSample", () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
   it("should return result with single sample data", async () => {
-    const mockResponse = createJudgeResponse({ quality_score: 8 });
-    (evaluateWithFallback as Mock).mockResolvedValue(mockResponse);
+    const mockResponseWithCost = createJudgeResponseWithCost({
+      quality_score: 8,
+    });
+    (evaluateWithFallback as Mock).mockResolvedValue(mockResponseWithCost);
 
     const client = createMockClient();
     const scenario = createScenario();
@@ -412,15 +427,18 @@ describe("evaluateSingleSample", () => {
     expect(result.score_variance).toBe(0);
     expect(result.consensus_trigger_accuracy).toBe("correct");
     expect(result.all_issues).toEqual([]);
-    expect(result.representative_response).toEqual(mockResponse);
+    expect(result.representative_response).toEqual(
+      mockResponseWithCost.response,
+    );
+    expect(result.total_cost_usd).toBe(0.001);
   });
 
   it("should pass through issues from judge response", async () => {
-    const mockResponse = createJudgeResponse({
+    const mockResponseWithCost = createJudgeResponseWithCost({
       quality_score: 6,
       issues: ["Minor formatting issue", "Could be more detailed"],
     });
-    (evaluateWithFallback as Mock).mockResolvedValue(mockResponse);
+    (evaluateWithFallback as Mock).mockResolvedValue(mockResponseWithCost);
 
     const result = await evaluateSingleSample({
       client: createMockClient(),
@@ -437,8 +455,8 @@ describe("evaluateSingleSample", () => {
   });
 
   it("should call evaluateWithFallback with correct parameters", async () => {
-    const mockResponse = createJudgeResponse();
-    (evaluateWithFallback as Mock).mockResolvedValue(mockResponse);
+    const mockResponseWithCost = createJudgeResponseWithCost();
+    (evaluateWithFallback as Mock).mockResolvedValue(mockResponseWithCost);
 
     const client = createMockClient();
     const scenario = createScenario();
@@ -465,8 +483,10 @@ describe("evaluateSingleSample", () => {
   });
 
   it("should always set is_unanimous to true (single sample is trivially unanimous)", async () => {
-    const mockResponse = createJudgeResponse({ trigger_accuracy: "correct" });
-    (evaluateWithFallback as Mock).mockResolvedValue(mockResponse);
+    const mockResponseWithCost = createJudgeResponseWithCost({
+      trigger_accuracy: "correct",
+    });
+    (evaluateWithFallback as Mock).mockResolvedValue(mockResponseWithCost);
 
     const result = await evaluateSingleSample({
       client: createMockClient(),
@@ -486,8 +506,10 @@ describe("evaluateWithMultiSampling", () => {
   });
 
   it("should run judge multiple times based on num_samples", async () => {
-    const mockResponse = createJudgeResponse({ quality_score: 8 });
-    (evaluateWithFallback as Mock).mockResolvedValue(mockResponse);
+    const mockResponseWithCost = createJudgeResponseWithCost({
+      quality_score: 8,
+    });
+    (evaluateWithFallback as Mock).mockResolvedValue(mockResponseWithCost);
 
     const config = createConfig({ num_samples: 3 });
 
@@ -503,14 +525,14 @@ describe("evaluateWithMultiSampling", () => {
   });
 
   it("should aggregate scores using average method", async () => {
-    const responses = [
-      createJudgeResponse({ quality_score: 7, response_relevance: 6 }),
-      createJudgeResponse({ quality_score: 8, response_relevance: 8 }),
-      createJudgeResponse({ quality_score: 9, response_relevance: 10 }),
+    const responsesWithCost = [
+      createJudgeResponseWithCost({ quality_score: 7, response_relevance: 6 }),
+      createJudgeResponseWithCost({ quality_score: 8, response_relevance: 8 }),
+      createJudgeResponseWithCost({ quality_score: 9, response_relevance: 10 }),
     ];
     let callIndex = 0;
     (evaluateWithFallback as Mock).mockImplementation(() => {
-      return Promise.resolve(responses[callIndex++]);
+      return Promise.resolve(responsesWithCost[callIndex++]);
     });
 
     const config = createConfig({
@@ -529,17 +551,18 @@ describe("evaluateWithMultiSampling", () => {
     expect(result.individual_scores).toEqual([7, 8, 9]);
     expect(result.aggregated_score).toBe(8); // (7+8+9)/3
     expect(result.score_variance).toBeCloseTo(2 / 3);
+    expect(result.total_cost_usd).toBe(0.003); // 3 samples × 0.001
   });
 
   it("should aggregate scores using median method", async () => {
-    const responses = [
-      createJudgeResponse({ quality_score: 5 }),
-      createJudgeResponse({ quality_score: 8 }),
-      createJudgeResponse({ quality_score: 10 }),
+    const responsesWithCost = [
+      createJudgeResponseWithCost({ quality_score: 5 }),
+      createJudgeResponseWithCost({ quality_score: 8 }),
+      createJudgeResponseWithCost({ quality_score: 10 }),
     ];
     let callIndex = 0;
     (evaluateWithFallback as Mock).mockImplementation(() => {
-      return Promise.resolve(responses[callIndex++]);
+      return Promise.resolve(responsesWithCost[callIndex++]);
     });
 
     const config = createConfig({ num_samples: 3, aggregate_method: "median" });
@@ -556,14 +579,14 @@ describe("evaluateWithMultiSampling", () => {
   });
 
   it("should use majority vote for trigger accuracy", async () => {
-    const responses = [
-      createJudgeResponse({ trigger_accuracy: "correct" }),
-      createJudgeResponse({ trigger_accuracy: "correct" }),
-      createJudgeResponse({ trigger_accuracy: "incorrect" }),
+    const responsesWithCost = [
+      createJudgeResponseWithCost({ trigger_accuracy: "correct" }),
+      createJudgeResponseWithCost({ trigger_accuracy: "correct" }),
+      createJudgeResponseWithCost({ trigger_accuracy: "incorrect" }),
     ];
     let callIndex = 0;
     (evaluateWithFallback as Mock).mockImplementation(() => {
-      return Promise.resolve(responses[callIndex++]);
+      return Promise.resolve(responsesWithCost[callIndex++]);
     });
 
     const config = createConfig({ num_samples: 3 });
@@ -580,14 +603,14 @@ describe("evaluateWithMultiSampling", () => {
   });
 
   it("should set is_unanimous to true when all samples agree on trigger_accuracy", async () => {
-    const responses = [
-      createJudgeResponse({ trigger_accuracy: "correct" }),
-      createJudgeResponse({ trigger_accuracy: "correct" }),
-      createJudgeResponse({ trigger_accuracy: "correct" }),
+    const responsesWithCost = [
+      createJudgeResponseWithCost({ trigger_accuracy: "correct" }),
+      createJudgeResponseWithCost({ trigger_accuracy: "correct" }),
+      createJudgeResponseWithCost({ trigger_accuracy: "correct" }),
     ];
     let callIndex = 0;
     (evaluateWithFallback as Mock).mockImplementation(() => {
-      return Promise.resolve(responses[callIndex++]);
+      return Promise.resolve(responsesWithCost[callIndex++]);
     });
 
     const config = createConfig({ num_samples: 3 });
@@ -605,14 +628,14 @@ describe("evaluateWithMultiSampling", () => {
   });
 
   it("should set is_unanimous to false when samples disagree on trigger_accuracy", async () => {
-    const responses = [
-      createJudgeResponse({ trigger_accuracy: "correct" }),
-      createJudgeResponse({ trigger_accuracy: "correct" }),
-      createJudgeResponse({ trigger_accuracy: "incorrect" }),
+    const responsesWithCost = [
+      createJudgeResponseWithCost({ trigger_accuracy: "correct" }),
+      createJudgeResponseWithCost({ trigger_accuracy: "correct" }),
+      createJudgeResponseWithCost({ trigger_accuracy: "incorrect" }),
     ];
     let callIndex = 0;
     (evaluateWithFallback as Mock).mockImplementation(() => {
-      return Promise.resolve(responses[callIndex++]);
+      return Promise.resolve(responsesWithCost[callIndex++]);
     });
 
     const config = createConfig({ num_samples: 3 });
@@ -631,14 +654,14 @@ describe("evaluateWithMultiSampling", () => {
   });
 
   it("should collect unique issues from all samples", async () => {
-    const responses = [
-      createJudgeResponse({ issues: ["Issue A", "Issue B"] }),
-      createJudgeResponse({ issues: ["Issue B", "Issue C"] }),
-      createJudgeResponse({ issues: ["Issue A"] }),
+    const responsesWithCost = [
+      createJudgeResponseWithCost({ issues: ["Issue A", "Issue B"] }),
+      createJudgeResponseWithCost({ issues: ["Issue B", "Issue C"] }),
+      createJudgeResponseWithCost({ issues: ["Issue A"] }),
     ];
     let callIndex = 0;
     (evaluateWithFallback as Mock).mockImplementation(() => {
-      return Promise.resolve(responses[callIndex++]);
+      return Promise.resolve(responsesWithCost[callIndex++]);
     });
 
     const config = createConfig({ num_samples: 3 });
@@ -658,14 +681,14 @@ describe("evaluateWithMultiSampling", () => {
   });
 
   it("should include representative response with aggregated values", async () => {
-    const responses = [
-      createJudgeResponse({
+    const responsesWithCost = [
+      createJudgeResponseWithCost({
         quality_score: 7,
         response_relevance: 6,
         trigger_accuracy: "correct",
         summary: "First response",
       }),
-      createJudgeResponse({
+      createJudgeResponseWithCost({
         quality_score: 9,
         response_relevance: 8,
         trigger_accuracy: "correct",
@@ -674,7 +697,7 @@ describe("evaluateWithMultiSampling", () => {
     ];
     let callIndex = 0;
     (evaluateWithFallback as Mock).mockImplementation(() => {
-      return Promise.resolve(responses[callIndex++]);
+      return Promise.resolve(responsesWithCost[callIndex++]);
     });
 
     const config = createConfig({
@@ -699,8 +722,10 @@ describe("evaluateWithMultiSampling", () => {
   });
 
   it("should handle single sample gracefully", async () => {
-    const mockResponse = createJudgeResponse({ quality_score: 7 });
-    (evaluateWithFallback as Mock).mockResolvedValue(mockResponse);
+    const mockResponseWithCost = createJudgeResponseWithCost({
+      quality_score: 7,
+    });
+    (evaluateWithFallback as Mock).mockResolvedValue(mockResponseWithCost);
 
     const config = createConfig({ num_samples: 1 });
 
@@ -719,9 +744,9 @@ describe("evaluateWithMultiSampling", () => {
 
   it("should fail fast if any judge evaluation fails", async () => {
     (evaluateWithFallback as Mock)
-      .mockResolvedValueOnce(createJudgeResponse({ quality_score: 8 }))
+      .mockResolvedValueOnce(createJudgeResponseWithCost({ quality_score: 8 }))
       .mockRejectedValueOnce(new Error("API error"))
-      .mockResolvedValueOnce(createJudgeResponse({ quality_score: 9 }));
+      .mockResolvedValueOnce(createJudgeResponseWithCost({ quality_score: 9 }));
 
     const config = createConfig({ num_samples: 3 });
 
@@ -743,8 +768,10 @@ describe("runJudgment", () => {
   });
 
   it("should use single sample when num_samples <= 1", async () => {
-    const mockResponse = createJudgeResponse({ quality_score: 8 });
-    (evaluateWithFallback as Mock).mockResolvedValue(mockResponse);
+    const mockResponseWithCost = createJudgeResponseWithCost({
+      quality_score: 8,
+    });
+    (evaluateWithFallback as Mock).mockResolvedValue(mockResponseWithCost);
 
     const config = createConfig({ num_samples: 1 });
 
@@ -762,8 +789,10 @@ describe("runJudgment", () => {
   });
 
   it("should use multi-sampling when num_samples > 1", async () => {
-    const mockResponse = createJudgeResponse({ quality_score: 8 });
-    (evaluateWithFallback as Mock).mockResolvedValue(mockResponse);
+    const mockResponseWithCost = createJudgeResponseWithCost({
+      quality_score: 8,
+    });
+    (evaluateWithFallback as Mock).mockResolvedValue(mockResponseWithCost);
 
     const config = createConfig({ num_samples: 3 });
 
@@ -780,8 +809,10 @@ describe("runJudgment", () => {
   });
 
   it("should handle zero num_samples as single sample", async () => {
-    const mockResponse = createJudgeResponse({ quality_score: 7 });
-    (evaluateWithFallback as Mock).mockResolvedValue(mockResponse);
+    const mockResponseWithCost = createJudgeResponseWithCost({
+      quality_score: 7,
+    });
+    (evaluateWithFallback as Mock).mockResolvedValue(mockResponseWithCost);
 
     const config = createConfig({ num_samples: 0 });
 

@@ -37,6 +37,12 @@ function createMockClient(responseText: string): Anthropic & {
 } {
   const mockResponse = {
     content: [{ type: "text", text: responseText }],
+    usage: {
+      input_tokens: 100,
+      output_tokens: 50,
+      cache_creation_input_tokens: 0,
+      cache_read_input_tokens: 0,
+    },
   };
   return {
     beta: {
@@ -411,11 +417,12 @@ describe("evaluateWithLLMJudge", () => {
       config,
     });
 
-    expect(result.quality_score).toBe(9);
-    expect(result.response_relevance).toBe(8);
-    expect(result.trigger_accuracy).toBe("correct");
-    expect(result.issues).toContain("Minor formatting issue");
-    expect(result.summary).toBe("Good response overall");
+    expect(result.response.quality_score).toBe(9);
+    expect(result.response.response_relevance).toBe(8);
+    expect(result.response.trigger_accuracy).toBe("correct");
+    expect(result.response.issues).toContain("Minor formatting issue");
+    expect(result.response.summary).toBe("Good response overall");
+    expect(result.cost_usd).toBeGreaterThan(0);
   });
 
   it("should transform highlights with citations", async () => {
@@ -444,13 +451,14 @@ describe("evaluateWithLLMJudge", () => {
       config,
     });
 
-    expect(result.highlights).toHaveLength(1);
-    expect(result.highlights?.[0]?.description).toBe("Good trigger");
-    expect(result.highlights?.[0]?.citation.message_id).toBe("msg-2");
-    expect(result.highlights?.[0]?.citation.quoted_text).toBe(
+    expect(result.response.highlights).toHaveLength(1);
+    expect(result.response.highlights?.[0]?.description).toBe("Good trigger");
+    expect(result.response.highlights?.[0]?.citation.message_id).toBe("msg-2");
+    expect(result.response.highlights?.[0]?.citation.quoted_text).toBe(
       "I'll help you commit",
     );
-    expect(result.highlights?.[0]?.citation.position).toEqual([0, 20]);
+    expect(result.response.highlights?.[0]?.citation.position).toEqual([0, 20]);
+    expect(result.cost_usd).toBeGreaterThan(0);
   });
 
   it("should handle response without highlights", async () => {
@@ -475,7 +483,8 @@ describe("evaluateWithLLMJudge", () => {
       config,
     });
 
-    expect(result.highlights).toBeUndefined();
+    expect(result.response.highlights).toBeUndefined();
+    expect(result.cost_usd).toBeGreaterThan(0);
   });
 
   it("should throw on invalid JSON response", async () => {
@@ -603,7 +612,8 @@ describe("evaluateWithFallback", () => {
       config,
     });
 
-    expect(result.quality_score).toBe(9);
+    expect(result.response.quality_score).toBe(9);
+    expect(result.cost_usd).toBeGreaterThan(0);
     expect(mockClient.beta.messages.create).toHaveBeenCalledTimes(1);
   });
 
@@ -615,6 +625,12 @@ describe("evaluateWithFallback", () => {
       .mockRejectedValue(new Error("Structured output not supported"));
     const messagesCreateMock = vi.fn().mockResolvedValue({
       content: [{ type: "text", text: responseJson }],
+      usage: {
+        input_tokens: 100,
+        output_tokens: 50,
+        cache_creation_input_tokens: 0,
+        cache_read_input_tokens: 0,
+      },
     });
     const mockClient = {
       beta: { messages: { create: betaCreateMock } },
@@ -633,7 +649,8 @@ describe("evaluateWithFallback", () => {
       config,
     });
 
-    expect(result.quality_score).toBe(7);
+    expect(result.response.quality_score).toBe(7);
+    expect(result.cost_usd).toBeGreaterThan(0);
     expect(betaCreateMock).toHaveBeenCalledTimes(1);
     expect(messagesCreateMock).toHaveBeenCalledTimes(1);
   });
@@ -646,6 +663,12 @@ describe("evaluateWithFallback", () => {
       .mockRejectedValue(new Error("Structured output error"));
     const messagesCreateMock = vi.fn().mockResolvedValue({
       content: [{ type: "text", text: wrappedResponse }],
+      usage: {
+        input_tokens: 100,
+        output_tokens: 50,
+        cache_creation_input_tokens: 0,
+        cache_read_input_tokens: 0,
+      },
     });
     const mockClient = {
       beta: { messages: { create: betaCreateMock } },
@@ -664,7 +687,8 @@ describe("evaluateWithFallback", () => {
       config,
     });
 
-    expect(result.quality_score).toBe(6);
+    expect(result.response.quality_score).toBe(6);
+    expect(result.cost_usd).toBeGreaterThan(0);
   });
 
   it("should return error response when both methods fail", async () => {
@@ -674,6 +698,12 @@ describe("evaluateWithFallback", () => {
     const messagesCreateMock = vi.fn().mockResolvedValue({
       // Fallback returns invalid JSON
       content: [{ type: "text", text: "This is not JSON at all" }],
+      usage: {
+        input_tokens: 100,
+        output_tokens: 50,
+        cache_creation_input_tokens: 0,
+        cache_read_input_tokens: 0,
+      },
     });
     const mockClient = {
       beta: { messages: { create: betaCreateMock } },
@@ -692,10 +722,13 @@ describe("evaluateWithFallback", () => {
       config,
     });
 
-    // Should return default error response
-    expect(result.quality_score).toBe(1);
-    expect(result.trigger_accuracy).toBe("incorrect");
-    expect(result.issues.some((i) => i.includes("Failed to parse"))).toBe(true);
-    expect(result.summary).toContain("parsing error");
+    // Should return default error response, but with cost tracked
+    expect(result.response.quality_score).toBe(1);
+    expect(result.response.trigger_accuracy).toBe("incorrect");
+    expect(
+      result.response.issues.some((i) => i.includes("Failed to parse")),
+    ).toBe(true);
+    expect(result.response.summary).toContain("parsing error");
+    expect(result.cost_usd).toBeGreaterThan(0); // Cost is still tracked for failed parses
   });
 });

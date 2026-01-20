@@ -67,5 +67,7 @@ export { parseStringOrArray } from "./parsing.js";
 export {
   callLLMForText,
   callLLMForMessage,
+  callLLMForTextWithCost,
   type LLMCallOptions,
+  type LLMTextWithCostResult,
 } from "./llm.js";

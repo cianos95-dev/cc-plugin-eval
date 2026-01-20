@@ -68,7 +68,7 @@ export function aggregateBatchResults(
       const errorResponse = createErrorJudgeResponse(
         "No batch results received",
       );
-      return buildFinalResult(pr, judgeResponseToMultiSample(errorResponse));
+      return buildFinalResult(pr, judgeResponseToMultiSample(errorResponse, 0));
     }
 
     // Aggregate samples
@@ -94,6 +94,8 @@ export function aggregateBatchResults(
         quality_score: aggregatedScore,
         trigger_accuracy: consensus,
       },
+      // Batch costs are tracked at the batch level, not per-scenario
+      total_cost_usd: 0,
     };
 
     // Track sample data

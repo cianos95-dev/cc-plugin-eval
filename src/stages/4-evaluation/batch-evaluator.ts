@@ -13,6 +13,7 @@
  */
 
 import { resolveModelId } from "../../config/models.js";
+import { calculateCostFromUsage } from "../../config/pricing.js";
 import { logger } from "../../utils/logging.js";
 import { sleep } from "../../utils/retry.js";
 
@@ -97,6 +98,16 @@ export interface BatchRequest {
     system?: { type: "text"; text: string }[];
     messages: { role: "user"; content: string }[];
   };
+}
+
+/**
+ * Result from collectBatchResults with accumulated cost.
+ */
+export interface BatchResultsWithCost {
+  /** Map of custom_id to parsed judge response */
+  results: Map<string, JudgeResponse>;
+  /** Total cost of all batch requests in USD */
+  total_cost_usd: number;
 }
 
 /**
@@ -369,8 +380,10 @@ function createErrorResponse(error: string): JudgeResponse {
 export async function collectBatchResults(
   client: Anthropic,
   batchId: string,
-): Promise<Map<string, JudgeResponse>> {
+  modelId: string,
+): Promise<BatchResultsWithCost> {
   const results = new Map<string, JudgeResponse>();
+  let totalCost = 0;
 
   const resultsIterator = await client.messages.batches.results(batchId);
 
@@ -379,6 +392,10 @@ export async function collectBatchResults(
 
     switch (item.result.type) {
       case "succeeded": {
+        // Calculate cost from usage data
+        const usage = item.result.message.usage;
+        totalCost += calculateCostFromUsage(usage, modelId);
+
         const textBlock = item.result.message.content.find(
           (block) => block.type === "text",
         );
@@ -432,5 +449,5 @@ export async function collectBatchResults(
     }
   }
 
-  return results;
+  return { results, total_cost_usd: totalCost };
 }

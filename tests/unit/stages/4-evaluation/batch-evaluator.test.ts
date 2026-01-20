@@ -737,6 +737,12 @@ describe("collectBatchResults", () => {
                 text: createJudgeResponseJson({ quality_score: 8 }),
               },
             ],
+            usage: {
+              input_tokens: 100,
+              output_tokens: 50,
+              cache_creation_input_tokens: 0,
+              cache_read_input_tokens: 0,
+            },
           },
         },
       },
@@ -751,6 +757,12 @@ describe("collectBatchResults", () => {
                 text: createJudgeResponseJson({ quality_score: 9 }),
               },
             ],
+            usage: {
+              input_tokens: 100,
+              output_tokens: 50,
+              cache_creation_input_tokens: 0,
+              cache_read_input_tokens: 0,
+            },
           },
         },
       },
@@ -765,11 +777,16 @@ describe("collectBatchResults", () => {
       },
     });
 
-    const results = await collectBatchResults(mockClient, "batch_abc123");
+    const { results, total_cost_usd } = await collectBatchResults(
+      mockClient,
+      "batch_abc123",
+      "haiku",
+    );
 
     expect(results.size).toBe(2);
     expect(results.get("scenario-0_sample-0")?.quality_score).toBe(8);
     expect(results.get("scenario-1_sample-0")?.quality_score).toBe(9);
+    expect(total_cost_usd).toBeGreaterThan(0);
   });
 
   it("should handle errored results", async () => {
@@ -792,13 +809,19 @@ describe("collectBatchResults", () => {
       },
     });
 
-    const results = await collectBatchResults(mockClient, "batch_abc123");
+    const { results, total_cost_usd } = await collectBatchResults(
+      mockClient,
+      "batch_abc123",
+      "haiku",
+    );
 
     expect(results.size).toBe(1);
     const errorResult = results.get("scenario-0_sample-0");
     expect(errorResult?.quality_score).toBe(0);
     expect(errorResult?.trigger_accuracy).toBe("incorrect");
     expect(errorResult?.issues).toContain("Batch request failed: api_error");
+    // No cost for errored requests
+    expect(total_cost_usd).toBe(0);
   });
 
   it("should handle canceled results", async () => {
@@ -818,12 +841,18 @@ describe("collectBatchResults", () => {
       },
     });
 
-    const results = await collectBatchResults(mockClient, "batch_abc123");
+    const { results, total_cost_usd } = await collectBatchResults(
+      mockClient,
+      "batch_abc123",
+      "haiku",
+    );
 
     expect(results.size).toBe(1);
     const canceledResult = results.get("scenario-0_sample-0");
     expect(canceledResult?.quality_score).toBe(0);
     expect(canceledResult?.issues).toContain("Batch request was canceled");
+    // No cost for canceled requests
+    expect(total_cost_usd).toBe(0);
   });
 
   it("should handle expired results", async () => {
@@ -843,12 +872,18 @@ describe("collectBatchResults", () => {
       },
     });
 
-    const results = await collectBatchResults(mockClient, "batch_abc123");
+    const { results, total_cost_usd } = await collectBatchResults(
+      mockClient,
+      "batch_abc123",
+      "haiku",
+    );
 
     expect(results.size).toBe(1);
     const expiredResult = results.get("scenario-0_sample-0");
     expect(expiredResult?.quality_score).toBe(0);
     expect(expiredResult?.issues).toContain("Batch request expired");
+    // No cost for expired requests
+    expect(total_cost_usd).toBe(0);
   });
 
   it("should handle malformed JSON in successful result", async () => {
@@ -860,6 +895,12 @@ describe("collectBatchResults", () => {
           type: "succeeded",
           message: {
             content: [{ type: "text", text: "not valid json" }],
+            usage: {
+              input_tokens: 100,
+              output_tokens: 50,
+              cache_creation_input_tokens: 0,
+              cache_read_input_tokens: 0,
+            },
           },
         },
       },
@@ -873,7 +914,11 @@ describe("collectBatchResults", () => {
       },
     });
 
-    const results = await collectBatchResults(mockClient, "batch_abc123");
+    const { results, total_cost_usd } = await collectBatchResults(
+      mockClient,
+      "batch_abc123",
+      "haiku",
+    );
 
     expect(results.size).toBe(1);
     const parseErrorResult = results.get("scenario-0_sample-0");
@@ -881,6 +926,8 @@ describe("collectBatchResults", () => {
     expect(
       parseErrorResult?.issues.some((i) => i.includes("Failed to parse")),
     ).toBe(true);
+    // Cost is still tracked even for malformed JSON (request was processed)
+    expect(total_cost_usd).toBeGreaterThan(0);
   });
 });
 

@@ -14,7 +14,10 @@ import { average, sum } from "../../utils/array.js";
 import { parallel } from "../../utils/concurrency.js";
 
 import { getMajorityVote } from "./judge-utils.js";
-import { evaluateWithFallback } from "./llm-judge.js";
+import {
+  evaluateWithFallback,
+  type JudgeResponseWithCost,
+} from "./llm-judge.js";
 
 import type {
   AggregateMethod,
@@ -210,7 +213,7 @@ export async function evaluateWithMultiSampling(
 
   // Run judge multiple times in parallel for improved performance
   // Use continueOnError: false to fail fast - partial results would invalidate statistics
-  const result = await parallel({
+  const result = await parallel<unknown, JudgeResponseWithCost>({
     items: Array.from({ length: numSamples }),
     concurrency: Math.min(numSamples, maxConcurrent),
     fn: async () =>
@@ -223,7 +226,11 @@ export async function evaluateWithMultiSampling(
       }),
     continueOnError: false,
   });
-  const responses = result.results;
+  const responsesWithCost = result.results;
+
+  // Extract responses and accumulate costs
+  const responses = responsesWithCost.map((r) => r.response);
+  const totalCost = sum(responsesWithCost.map((r) => r.cost_usd));
 
   // Aggregate results
   const qualityScores = responses.map((r) => r.quality_score);
@@ -270,6 +277,7 @@ export async function evaluateWithMultiSampling(
     is_unanimous: isUnanimous,
     all_issues: allIssues,
     representative_response: representative,
+    total_cost_usd: totalCost,
   };
 }
 
@@ -334,7 +342,7 @@ export async function evaluateSingleSample(
 ): Promise<MultiSampleResult> {
   const { client, scenario, transcript, programmaticResult, config } = options;
 
-  const response = await evaluateWithFallback({
+  const { response, cost_usd } = await evaluateWithFallback({
     client,
     scenario,
     transcript,
@@ -350,6 +358,7 @@ export async function evaluateSingleSample(
     is_unanimous: true, // Single sample is trivially unanimous
     all_issues: response.issues,
     representative_response: response,
+    total_cost_usd: cost_usd,
   };
 }
 

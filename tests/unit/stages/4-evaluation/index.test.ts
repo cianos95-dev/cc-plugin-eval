@@ -216,6 +216,7 @@ function createMultiSampleResult(
       issues: [],
       summary: "Component triggered correctly.",
     },
+    total_cost_usd: 0.001, // Mock cost for evaluation
     ...overrides,
   };
 }
@@ -741,9 +742,11 @@ describe("runEvaluation", () => {
         config,
       });
 
+      // metrics.total_cost_usd includes execution costs
       expect(output.metrics.total_cost_usd).toBe(0.08);
       expect(output.metrics.avg_cost_per_scenario).toBe(0.04);
-      expect(output.total_cost_usd).toBe(0.08);
+      // output.total_cost_usd is evaluation stage LLM costs (2 scenarios × 0.001 per judgment)
+      expect(output.total_cost_usd).toBe(0.002);
     });
 
     it("should track conflict counts", async () => {

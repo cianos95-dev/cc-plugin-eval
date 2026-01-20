@@ -137,6 +137,7 @@ export function buildFinalResult(
  */
 export function judgeResponseToMultiSample(
   response: JudgeResponse,
+  cost_usd = 0,
 ): MultiSampleResult {
   return {
     individual_scores: [response.quality_score],
@@ -146,5 +147,6 @@ export function judgeResponseToMultiSample(
     is_unanimous: true,
     all_issues: response.issues,
     representative_response: response,
+    total_cost_usd: cost_usd,
   };
 }

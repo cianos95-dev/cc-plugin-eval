@@ -118,6 +118,8 @@ export interface MultiSampleResult {
   is_unanimous: boolean;
   all_issues: string[];
   representative_response: JudgeResponse;
+  /** Total cost of all LLM judge calls for this evaluation in USD */
+  total_cost_usd: number;
 }
 
 /**

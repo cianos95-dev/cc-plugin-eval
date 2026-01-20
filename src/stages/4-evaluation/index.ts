@@ -16,6 +16,7 @@
  * Output: results/{plugin-name}/evaluation.json
  */
 
+import { resolveModelId } from "../../config/models.js";
 import { parallel } from "../../utils/concurrency.js";
 import {
   ensureDir,
@@ -77,6 +78,26 @@ interface SampleDataEntry {
   variance: number;
   numSamples: number;
   hasConsensus: boolean;
+}
+
+/**
+ * Result from runSynchronousEvaluation including cost tracking.
+ */
+interface SynchronousEvaluationResult {
+  /** Scenario evaluation results */
+  results: ScenarioEvaluationResult[];
+  /** Total cost of all LLM judge calls in USD */
+  total_cost_usd: number;
+}
+
+/**
+ * Result from runBatchedEvaluation including cost tracking.
+ */
+interface BatchedEvaluationResult {
+  /** Map of custom_id to JudgeResponse */
+  results: Map<string, JudgeResponse>;
+  /** Total cost of all batch requests in USD */
+  total_cost_usd: number;
 }
 
 /**
@@ -254,7 +275,7 @@ async function runBatchedEvaluation(
   programmaticResults: ProgrammaticResult[],
   config: EvalConfig,
   _progress: ProgressCallbacks,
-): Promise<Map<string, JudgeResponse>> {
+): Promise<BatchedEvaluationResult> {
   const { num_samples } = config.evaluation;
 
   // Collect all batch requests
@@ -275,7 +296,7 @@ async function runBatchedEvaluation(
   }
 
   if (batchRequests.length === 0) {
-    return new Map();
+    return { results: new Map(), total_cost_usd: 0 };
   }
 
   logger.info(
@@ -314,8 +335,9 @@ async function runBatchedEvaluation(
       `${String(batch.request_counts.errored)} errored`,
   );
 
-  // Collect results
-  return collectBatchResults(client, batchId);
+  // Collect results with cost tracking
+  const modelId = resolveModelId(config.evaluation.model);
+  return collectBatchResults(client, batchId, modelId);
 }
 
 /**
@@ -323,9 +345,12 @@ async function runBatchedEvaluation(
  */
 async function runSynchronousEvaluation(
   options: RunSynchronousEvaluationOptions,
-): Promise<ScenarioEvaluationResult[]> {
+): Promise<SynchronousEvaluationResult> {
   const { client, programmaticResults, config, progress, sampleData } = options;
   const evalConfig = config.evaluation;
+
+  // Track costs across all evaluations
+  let totalCost = 0;
 
   const parallelResult = await parallel<
     ProgrammaticResult,
@@ -345,6 +370,8 @@ async function runSynchronousEvaluation(
             programmaticResult: pr.uniqueDetections,
             config: evalConfig,
           });
+          // Accumulate cost from judgment
+          totalCost += judgment.total_cost_usd;
         } catch (err) {
           const errorResponse = createErrorJudgeResponse(
             formatErrorWithRequestId(err),
@@ -357,6 +384,7 @@ async function runSynchronousEvaluation(
             is_unanimous: true,
             all_issues: errorResponse.issues,
             representative_response: errorResponse,
+            total_cost_usd: 0, // No cost for error case
           };
         }
       }
@@ -390,9 +418,11 @@ async function runSynchronousEvaluation(
     continueOnError: true,
   });
 
-  return (
+  const results = (
     parallelResult.results as (ScenarioEvaluationResult | undefined)[]
   ).filter((r): r is ScenarioEvaluationResult => r !== undefined);
+
+  return { results, total_cost_usd: totalCost };
 }
 
 /**
@@ -519,6 +549,7 @@ export async function runEvaluation(
   const sampleData: SampleDataEntry[] = [];
 
   let evalResults: ScenarioEvaluationResult[];
+  let evaluationCost = 0;
 
   if (useBatching) {
     logger.info(
@@ -526,12 +557,10 @@ export async function runEvaluation(
     );
 
     // Phase 2a: Run batched LLM evaluation
-    const batchResults = await runBatchedEvaluation(
-      client,
-      programmaticResults,
-      config,
-      progress,
-    );
+    const { results: batchResults, total_cost_usd: batchCost } =
+      await runBatchedEvaluation(client, programmaticResults, config, progress);
+
+    evaluationCost = batchCost;
 
     // Phase 3a: Build final results using batch responses
     evalResults = aggregateBatchResults(
@@ -547,13 +576,17 @@ export async function runEvaluation(
     );
 
     // Phase 2b: Run synchronous LLM evaluation
-    evalResults = await runSynchronousEvaluation({
-      client,
-      programmaticResults,
-      config,
-      progress,
-      sampleData,
-    });
+    const { results: syncResults, total_cost_usd: syncCost } =
+      await runSynchronousEvaluation({
+        client,
+        programmaticResults,
+        config,
+        progress,
+        sampleData,
+      });
+
+    evaluationCost = syncCost;
+    evalResults = syncResults;
   }
 
   const results = evalResults.map((r) => r.result);
@@ -585,10 +618,13 @@ export async function runEvaluation(
     sampleData,
   });
 
+  // Use evaluation-specific cost (not metrics.total_cost_usd which may include execution costs)
+  const totalCost = evaluationCost;
+
   const totalDuration = Date.now() - startTime;
 
   logger.success(
-    `Evaluation complete: ${String(results.length)} scenarios evaluated`,
+    `Evaluation complete: ${String(results.length)} scenarios evaluated, cost: $${totalCost.toFixed(4)}`,
   );
   progress.onStageComplete?.("evaluation", totalDuration, results.length);
 
@@ -596,7 +632,7 @@ export async function runEvaluation(
     plugin_name: pluginName,
     results,
     metrics,
-    total_cost_usd: metrics.total_cost_usd,
+    total_cost_usd: totalCost,
     total_duration_ms: totalDuration,
   };
 }

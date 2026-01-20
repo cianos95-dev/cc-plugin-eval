@@ -9,7 +9,8 @@
 
 import { DEFAULT_TUNING } from "../../config/defaults.js";
 import { resolveModelId } from "../../config/models.js";
-import { callLLMForText } from "../../utils/llm.js";
+import { calculateCostFromUsage } from "../../config/pricing.js";
+import { callLLMForTextWithCost } from "../../utils/llm.js";
 import { withRetry } from "../../utils/retry.js";
 
 import { parseJudgeResponse } from "./judge-utils.js";
@@ -38,6 +39,16 @@ export interface EvaluateJudgeOptions {
   programmaticResult: ProgrammaticDetection[];
   /** Evaluation configuration */
   config: EvaluationConfig;
+}
+
+/**
+ * Judge response with cost tracking.
+ */
+export interface JudgeResponseWithCost {
+  /** The judge evaluation response */
+  response: JudgeResponse;
+  /** Cost of this LLM call in USD */
+  cost_usd: number;
 }
 
 /**
@@ -285,7 +296,7 @@ export function buildJudgePrompt(
  */
 export async function evaluateWithLLMJudge(
   options: EvaluateJudgeOptions,
-): Promise<JudgeResponse> {
+): Promise<JudgeResponseWithCost> {
   const { client, scenario, transcript, programmaticResult, config } = options;
 
   const userPrompt = buildJudgePrompt(
@@ -295,7 +306,7 @@ export async function evaluateWithLLMJudge(
     config,
   );
 
-  const response = await withRetry(async () => {
+  const { text: responseText, cost_usd } = await withRetry(async () => {
     // Use Anthropic's beta structured output API with prompt caching
     const result = await client.beta.messages.create(
       {
@@ -326,11 +337,14 @@ export async function evaluateWithLLMJudge(
       throw new Error("No text block in structured output response");
     }
 
-    return textBlock.text;
+    // Calculate cost from usage
+    const cost = calculateCostFromUsage(result.usage, config.model);
+
+    return { text: textBlock.text, cost_usd: cost };
   });
 
   try {
-    return parseJudgeResponse(response);
+    return { response: parseJudgeResponse(responseText), cost_usd };
   } catch (err) {
     throw new Error(`Failed to parse structured output: ${String(err)}`);
   }
@@ -351,7 +365,7 @@ export async function evaluateWithLLMJudge(
  */
 export async function evaluateWithFallback(
   options: EvaluateJudgeOptions,
-): Promise<JudgeResponse> {
+): Promise<JudgeResponseWithCost> {
   try {
     // Try structured output first
     return await evaluateWithLLMJudge(options);
@@ -394,7 +408,7 @@ No markdown, no explanation - just the JSON.`;
  */
 async function evaluateWithJsonFallback(
   options: EvaluateJudgeOptions,
-): Promise<JudgeResponse> {
+): Promise<JudgeResponseWithCost> {
   const { client, scenario, transcript, programmaticResult, config } = options;
 
   const userPrompt = buildJudgePrompt(
@@ -404,32 +418,42 @@ async function evaluateWithJsonFallback(
     config,
   );
 
-  const response = await callLLMForText(client, {
-    model: config.model,
-    maxTokens: config.max_tokens,
-    temperature: config.temperature,
-    systemPrompt: JUDGE_FALLBACK_SYSTEM_PROMPT,
-    userPrompt,
-    timeoutMs: config.api_timeout_ms,
-  });
+  const { text: responseText, cost_usd } = await callLLMForTextWithCost(
+    client,
+    {
+      model: config.model,
+      maxTokens: config.max_tokens,
+      temperature: config.temperature,
+      systemPrompt: JUDGE_FALLBACK_SYSTEM_PROMPT,
+      userPrompt,
+      timeoutMs: config.api_timeout_ms,
+    },
+  );
 
   // Extract JSON from response (handle markdown code blocks)
-  let jsonText = response.trim();
+  let jsonText = responseText.trim();
   const jsonMatch = /```(?:json)?\s*([\s\S]*?)```/.exec(jsonText);
   if (jsonMatch?.[1]) {
     jsonText = jsonMatch[1].trim();
   }
 
   try {
-    return parseJudgeResponse(jsonText);
+    return { response: parseJudgeResponse(jsonText), cost_usd };
   } catch (err) {
     // Return a default error response if parsing fails
+    // Cost is still tracked even for parse failures
     return {
-      quality_score: 1,
-      response_relevance: 1,
-      trigger_accuracy: "incorrect",
-      issues: [`Failed to parse judge response: ${String(err)}`, response],
-      summary: "Evaluation failed due to parsing error",
+      response: {
+        quality_score: 1,
+        response_relevance: 1,
+        trigger_accuracy: "incorrect",
+        issues: [
+          `Failed to parse judge response: ${String(err)}`,
+          responseText,
+        ],
+        summary: "Evaluation failed due to parsing error",
+      },
+      cost_usd,
     };
   }
 }
