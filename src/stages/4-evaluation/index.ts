@@ -134,6 +134,10 @@ interface CalculateAndSaveMetricsOptions {
   config: EvalConfig;
   /** Sample data for multi-sampling metrics */
   sampleData: SampleDataEntry[];
+  /** Cost from Stage 2 generation */
+  generationCostUsd?: number | undefined;
+  /** Cost from Stage 4 evaluation LLM calls */
+  evaluationCostUsd?: number | undefined;
 }
 
 /**
@@ -149,7 +153,9 @@ export interface RunEvaluationOptions {
   /** Evaluation configuration */
   config: EvalConfig;
   /** Progress callbacks */
-  progress?: ProgressCallbacks;
+  progress?: ProgressCallbacks | undefined;
+  /** Cost from Stage 2 generation */
+  generationCostUsd?: number | undefined;
 }
 
 /**
@@ -159,7 +165,8 @@ export interface EvaluationOutput {
   plugin_name: string;
   results: EvaluationResult[];
   metrics: EvalMetrics;
-  total_cost_usd: number;
+  /** Cost from Stage 4 evaluation LLM calls only */
+  evaluation_cost_usd: number;
   total_duration_ms: number;
 }
 
@@ -438,19 +445,30 @@ async function runSynchronousEvaluation(
 async function calculateAndSaveMetrics(
   options: CalculateAndSaveMetricsOptions,
 ): Promise<EvalMetrics> {
-  const { pluginName, resultsWithContext, executions, config, sampleData } =
-    options;
+  const {
+    pluginName,
+    resultsWithContext,
+    executions,
+    config,
+    sampleData,
+    generationCostUsd,
+    evaluationCostUsd,
+  } = options;
 
   // Build metrics options
   const metricsOptions: {
-    numSamples?: number;
-    numReps?: number;
-    sampleData?: typeof sampleData;
-    flakyScenarios?: string[];
+    numSamples?: number | undefined;
+    numReps?: number | undefined;
+    sampleData?: typeof sampleData | undefined;
+    flakyScenarios?: string[] | undefined;
+    generationCostUsd?: number | undefined;
+    evaluationCostUsd?: number | undefined;
   } = {
     numSamples: config.evaluation.num_samples,
     numReps: config.execution.num_reps,
     flakyScenarios: [],
+    generationCostUsd,
+    evaluationCostUsd,
   };
 
   if (sampleData.length > 0) {
@@ -486,7 +504,14 @@ async function calculateAndSaveMetrics(
 export async function runEvaluation(
   options: RunEvaluationOptions,
 ): Promise<EvaluationOutput> {
-  const { pluginName, scenarios, executions, config, progress = {} } = options;
+  const {
+    pluginName,
+    scenarios,
+    executions,
+    config,
+    progress = {},
+    generationCostUsd,
+  } = options;
 
   logger.stageHeader("Stage 4: Evaluation", executions.length);
 
@@ -499,7 +524,7 @@ export async function runEvaluation(
       plugin_name: pluginName,
       results: [],
       metrics: createEmptyMetrics(),
-      total_cost_usd: 0,
+      evaluation_cost_usd: 0,
       total_duration_ms: Date.now() - startTime,
     };
   }
@@ -616,15 +641,14 @@ export async function runEvaluation(
     executions,
     config,
     sampleData,
+    generationCostUsd,
+    evaluationCostUsd: evaluationCost,
   });
-
-  // Use evaluation-specific cost (not metrics.total_cost_usd which may include execution costs)
-  const totalCost = evaluationCost;
 
   const totalDuration = Date.now() - startTime;
 
   logger.success(
-    `Evaluation complete: ${String(results.length)} scenarios evaluated, cost: $${totalCost.toFixed(4)}`,
+    `Evaluation complete: ${String(results.length)} scenarios evaluated, cost: $${evaluationCost.toFixed(4)}`,
   );
   progress.onStageComplete?.("evaluation", totalDuration, results.length);
 
@@ -632,7 +656,7 @@ export async function runEvaluation(
     plugin_name: pluginName,
     results,
     metrics,
-    total_cost_usd: totalCost,
+    evaluation_cost_usd: evaluationCost,
     total_duration_ms: totalDuration,
   };
 }

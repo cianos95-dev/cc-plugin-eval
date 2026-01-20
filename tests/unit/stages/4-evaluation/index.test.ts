@@ -742,11 +742,15 @@ describe("runEvaluation", () => {
         config,
       });
 
-      // metrics.total_cost_usd includes execution costs
-      expect(output.metrics.total_cost_usd).toBe(0.08);
-      expect(output.metrics.avg_cost_per_scenario).toBe(0.04);
-      // output.total_cost_usd is evaluation stage LLM costs (2 scenarios × 0.001 per judgment)
-      expect(output.total_cost_usd).toBe(0.002);
+      // metrics.total_cost_usd includes all stage costs (execution + evaluation)
+      // execution: 0.08, evaluation: 0.002 (2 scenarios × 0.001 per judgment)
+      expect(output.metrics.total_cost_usd).toBe(0.082);
+      expect(output.metrics.execution_cost_usd).toBe(0.08);
+      expect(output.metrics.evaluation_cost_usd).toBe(0.002);
+      expect(output.metrics.generation_cost_usd).toBe(0);
+      expect(output.metrics.avg_cost_per_scenario).toBe(0.041); // 0.082 / 2
+      // output.evaluation_cost_usd is evaluation stage LLM costs only
+      expect(output.evaluation_cost_usd).toBe(0.002);
     });
 
     it("should track conflict counts", async () => {

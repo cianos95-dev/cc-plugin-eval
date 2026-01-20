@@ -178,6 +178,7 @@ Examples:
           executions: execution.results,
           config,
           progress: consoleProgress,
+          generationCostUsd: generation.generation_cost_usd,
         });
         state = updateStateAfterEvaluation(state, evaluation.results);
         await saveState(state);

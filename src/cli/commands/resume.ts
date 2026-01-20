@@ -71,6 +71,7 @@ async function resumeFromAnalysis(
     executions: execution.results,
     config,
     progress: consoleProgress,
+    generationCostUsd: generation.generation_cost_usd,
   });
 
   // Chain state updates
@@ -120,6 +121,7 @@ async function resumeFromGeneration(
     executions: execution.results,
     config,
     progress: consoleProgress,
+    generationCostUsd: generation.generation_cost_usd,
   });
 
   // Chain state updates

@@ -395,12 +395,24 @@ function calculateConflictMetrics(evalResults: EvaluationResult[]): {
 }
 
 /** Calculate cost and duration metrics from executions */
-function calculateCostMetrics(executions: ExecutionResult[]): {
+function calculateCostMetrics(
+  executions: ExecutionResult[],
+  options: {
+    generationCostUsd?: number | undefined;
+    evaluationCostUsd?: number | undefined;
+  } = {},
+): {
   total_cost_usd: number;
   avg_cost_per_scenario: number;
   total_api_duration_ms: number;
+  generation_cost_usd: number;
+  execution_cost_usd: number;
+  evaluation_cost_usd: number;
 } {
-  const totalCost = executions.reduce((sum, e) => sum + e.cost_usd, 0);
+  const executionCost = executions.reduce((sum, e) => sum + e.cost_usd, 0);
+  const generationCost = options.generationCostUsd ?? 0;
+  const evaluationCost = options.evaluationCostUsd ?? 0;
+  const totalCost = executionCost + generationCost + evaluationCost;
   const totalDuration = executions.reduce(
     (sum, e) => sum + e.api_duration_ms,
     0,
@@ -410,6 +422,9 @@ function calculateCostMetrics(executions: ExecutionResult[]): {
     avg_cost_per_scenario:
       executions.length > 0 ? totalCost / executions.length : 0,
     total_api_duration_ms: totalDuration,
+    generation_cost_usd: generationCost,
+    execution_cost_usd: executionCost,
+    evaluation_cost_usd: evaluationCost,
   };
 }
 
@@ -441,23 +456,30 @@ export function calculateEvalMetrics(
   results: ResultWithContext[],
   executions: ExecutionResult[],
   options: {
-    numSamples?: number;
-    numReps?: number;
-    sampleData?: {
-      scenarioId: string;
-      variance: number;
-      numSamples: number;
-      /** Whether all samples agreed on trigger_accuracy */
-      hasConsensus: boolean;
-    }[];
-    flakyScenarios?: string[];
+    numSamples?: number | undefined;
+    numReps?: number | undefined;
+    sampleData?:
+      | {
+          scenarioId: string;
+          variance: number;
+          numSamples: number;
+          /** Whether all samples agreed on trigger_accuracy */
+          hasConsensus: boolean;
+        }[]
+      | undefined;
+    flakyScenarios?: string[] | undefined;
+    generationCostUsd?: number | undefined;
+    evaluationCostUsd?: number | undefined;
   } = {},
 ): EvalMetrics {
   const evalResults = results.map((c) => c.result);
 
   // Calculate all metric components
   const conflictMetrics = calculateConflictMetrics(evalResults);
-  const costMetrics = calculateCostMetrics(executions);
+  const costMetrics = calculateCostMetrics(executions, {
+    generationCostUsd: options.generationCostUsd,
+    evaluationCostUsd: options.evaluationCostUsd,
+  });
   const allErrors: TranscriptErrorEvent[] = executions.flatMap((e) => e.errors);
 
   // Build core result
@@ -513,6 +535,9 @@ export function formatMetrics(metrics: EvalMetrics): string {
     `Conflicts:          ${String(metrics.conflict_count)} (${String(metrics.major_conflicts)} major, ${String(metrics.minor_conflicts)} minor)`,
     "",
     `Total Cost:         $${metrics.total_cost_usd.toFixed(4)}`,
+    `  Generation:       $${metrics.generation_cost_usd.toFixed(4)}`,
+    `  Execution:        $${metrics.execution_cost_usd.toFixed(4)}`,
+    `  Evaluation:       $${metrics.evaluation_cost_usd.toFixed(4)}`,
     `Avg Cost/Scenario:  $${metrics.avg_cost_per_scenario.toFixed(6)}`,
     `Total Duration:     ${String(Math.round(metrics.total_api_duration_ms / 1000))}s`,
     "",
@@ -603,6 +628,10 @@ export function createEmptyMetrics(): EvalMetrics {
     total_cost_usd: 0,
     avg_cost_per_scenario: 0,
     total_api_duration_ms: 0,
+
+    generation_cost_usd: 0,
+    execution_cost_usd: 0,
+    evaluation_cost_usd: 0,
 
     error_count: 0,
     errors_by_type: {

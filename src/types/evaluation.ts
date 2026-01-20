@@ -220,10 +220,15 @@ export interface EvalMetrics {
   major_conflicts: number;
   minor_conflicts: number;
 
-  /** Cost tracking */
+  /** Cost tracking - aggregate total across all stages */
   total_cost_usd: number;
   avg_cost_per_scenario: number;
   total_api_duration_ms: number;
+
+  /** Per-stage cost breakdown */
+  generation_cost_usd: number;
+  execution_cost_usd: number;
+  evaluation_cost_usd: number;
 
   /** Error tracking */
   error_count: number;
