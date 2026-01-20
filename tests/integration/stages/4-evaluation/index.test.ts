@@ -547,7 +547,7 @@ describe("Stage 4: Evaluation Integration", () => {
       expect(output.results).toHaveLength(0);
       expect(output.metrics.total_scenarios).toBe(0);
       expect(output.metrics.accuracy).toBe(0);
-      expect(output.evaluation_cost_usd).toBe(0);
+      expect(output.metrics.evaluation_cost_usd).toBe(0);
     });
 
     it("processes scenarios with programmatic detection only", async () => {

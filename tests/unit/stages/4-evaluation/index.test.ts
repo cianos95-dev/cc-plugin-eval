@@ -267,10 +267,10 @@ describe("runEvaluation", () => {
       expect(logger.warn).toHaveBeenCalledWith("No executions to evaluate");
 
       // All cost fields should be zero for empty executions
-      expect(output.total_cost_usd).toBe(0);
-      expect(output.generation_cost_usd).toBe(0);
-      expect(output.execution_cost_usd).toBe(0);
-      expect(output.evaluation_cost_usd).toBe(0);
+      expect(output.metrics.total_cost_usd).toBe(0);
+      expect(output.metrics.generation_cost_usd).toBe(0);
+      expect(output.metrics.execution_cost_usd).toBe(0);
+      expect(output.metrics.evaluation_cost_usd).toBe(0);
     });
 
     it("should save results to disk", async () => {
@@ -290,11 +290,6 @@ describe("runEvaluation", () => {
         "/mock/results/test-plugin/evaluation.json",
         expect.objectContaining({
           plugin_name: "test-plugin",
-          // Stage cost breakdown at top level
-          total_cost_usd: expect.any(Number),
-          generation_cost_usd: expect.any(Number),
-          execution_cost_usd: expect.any(Number),
-          evaluation_cost_usd: expect.any(Number),
           results: expect.any(Array),
           metrics: expect.objectContaining({
             total_cost_usd: expect.any(Number),
@@ -765,12 +760,6 @@ describe("runEvaluation", () => {
       expect(output.metrics.evaluation_cost_usd).toBe(0.002);
       expect(output.metrics.generation_cost_usd).toBe(0);
       expect(output.metrics.avg_cost_per_scenario).toBe(0.041); // 0.082 / 2
-
-      // Top-level output fields mirror metrics for convenience
-      expect(output.total_cost_usd).toBe(0.082);
-      expect(output.execution_cost_usd).toBe(0.08);
-      expect(output.evaluation_cost_usd).toBe(0.002);
-      expect(output.generation_cost_usd).toBe(0);
     });
 
     it("should include generation cost when provided", async () => {
@@ -793,12 +782,6 @@ describe("runEvaluation", () => {
       expect(output.metrics.generation_cost_usd).toBe(0.01);
       expect(output.metrics.execution_cost_usd).toBe(0.05);
       expect(output.metrics.evaluation_cost_usd).toBe(0.001);
-
-      // Top-level output fields mirror metrics
-      expect(output.total_cost_usd).toBeCloseTo(0.061);
-      expect(output.generation_cost_usd).toBe(0.01);
-      expect(output.execution_cost_usd).toBe(0.05);
-      expect(output.evaluation_cost_usd).toBe(0.001);
     });
 
     it("should track conflict counts", async () => {
