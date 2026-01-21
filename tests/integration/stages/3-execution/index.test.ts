@@ -452,6 +452,16 @@ describe("Stage 3: Execution Integration", () => {
       expect(cost6).toBeCloseTo(cost3 * 2, 5);
     });
 
+    it("scales with num_reps", () => {
+      const config1Rep = createMockExecutionConfig({ num_reps: 1 });
+      const config3Reps = createMockExecutionConfig({ num_reps: 3 });
+
+      const cost1Rep = estimateExecutionCost(10, config1Rep);
+      const cost3Reps = estimateExecutionCost(10, config3Reps);
+
+      expect(cost3Reps).toBeCloseTo(cost1Rep * 3, 5);
+    });
+
     it("returns 0 for 0 scenarios", () => {
       const config = createMockExecutionConfig();
       const cost = estimateExecutionCost(0, config);

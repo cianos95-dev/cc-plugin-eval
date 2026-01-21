@@ -35,7 +35,7 @@ vi.mock("@anthropic-ai/sdk", () => {
 
 describe("estimateExecutionCost", () => {
   it("should calculate positive cost", () => {
-    const result = estimateExecutionCost(50, "haiku");
+    const result = estimateExecutionCost(50, "haiku", 1, 3);
 
     expect(result.stage).toBe("execution");
     expect(result.input_tokens).toBeGreaterThan(0);
@@ -44,24 +44,34 @@ describe("estimateExecutionCost", () => {
   });
 
   it("should scale with scenario count", () => {
-    const small = estimateExecutionCost(10, "haiku");
-    const large = estimateExecutionCost(100, "haiku");
+    const small = estimateExecutionCost(10, "haiku", 1, 3);
+    const large = estimateExecutionCost(100, "haiku", 1, 3);
 
     expect(large.estimated_cost_usd).toBeGreaterThan(small.estimated_cost_usd);
   });
 
   it("should be zero for zero scenarios", () => {
-    const result = estimateExecutionCost(0, "haiku");
+    const result = estimateExecutionCost(0, "haiku", 1, 3);
 
     expect(result.estimated_cost_usd).toBe(0);
   });
 
   it("should scale with repetitions", () => {
-    const oneRep = estimateExecutionCost(10, "haiku", 1);
-    const threeReps = estimateExecutionCost(10, "haiku", 3);
+    const oneRep = estimateExecutionCost(10, "haiku", 1, 3);
+    const threeReps = estimateExecutionCost(10, "haiku", 3, 3);
 
     expect(threeReps.estimated_cost_usd).toBeGreaterThan(
       oneRep.estimated_cost_usd,
+    );
+  });
+
+  it("should scale with max_turns", () => {
+    const threeTurns = estimateExecutionCost(10, "haiku", 1, 3);
+    const sixTurns = estimateExecutionCost(10, "haiku", 1, 6);
+
+    expect(sixTurns.estimated_cost_usd).toBeCloseTo(
+      threeTurns.estimated_cost_usd * 2,
+      5,
     );
   });
 });

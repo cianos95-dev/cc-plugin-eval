@@ -600,8 +600,9 @@ export function estimateExecutionCost(
   // Get pricing from centralized config
   const pricing = getModelPricing(config.model);
 
-  const totalInputTokens = inputTokensPerScenario * scenarioCount;
-  const totalOutputTokens = outputTokensPerScenario * scenarioCount;
+  const totalExecutions = scenarioCount * config.num_reps;
+  const totalInputTokens = inputTokensPerScenario * totalExecutions;
+  const totalOutputTokens = outputTokensPerScenario * totalExecutions;
 
   const inputCost = (totalInputTokens / 1_000_000) * pricing.input;
   const outputCost = (totalOutputTokens / 1_000_000) * pricing.output;

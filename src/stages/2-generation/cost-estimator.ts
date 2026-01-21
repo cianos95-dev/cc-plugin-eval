@@ -202,9 +202,10 @@ export async function estimateGenerationCost(
 export function estimateExecutionCost(
   scenarioCount: number,
   model: string,
-  numReps = 1,
+  numReps: number,
+  maxTurns: number,
 ): TokenEstimate {
-  const totalExecutions = scenarioCount * numReps;
+  const totalExecutions = scenarioCount * numReps * maxTurns;
 
   // Token estimates from tuning config
   const inputTokens =
@@ -391,6 +392,7 @@ export function estimatePipelineCost(
       scenarioCount,
       config.execution.model,
       config.execution.num_reps,
+      config.execution.max_turns,
     ),
   );
 

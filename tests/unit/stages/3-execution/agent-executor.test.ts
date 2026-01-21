@@ -50,6 +50,7 @@ describe("estimateExecutionCost", () => {
     max_turns: 3,
     timeout_ms: 60000,
     max_budget_usd: 10.0,
+    num_reps: 1,
   };
 
   beforeEach(() => {
@@ -72,8 +73,9 @@ describe("estimateExecutionCost", () => {
       DEFAULT_TUNING.token_estimates.output_per_turn * baseConfig.max_turns;
 
     const scenarioCount = 10;
-    const totalInputTokens = inputTokensPerScenario * scenarioCount;
-    const totalOutputTokens = outputTokensPerScenario * scenarioCount;
+    const totalExecutions = scenarioCount * baseConfig.num_reps;
+    const totalInputTokens = inputTokensPerScenario * totalExecutions;
+    const totalOutputTokens = outputTokensPerScenario * totalExecutions;
 
     const expectedCost =
       (totalInputTokens / 1_000_000) * pricingData.input +
@@ -101,6 +103,16 @@ describe("estimateExecutionCost", () => {
     expect(cost6Turns).toBe(cost3Turns * 2);
   });
 
+  it("should calculate cost proportionally to num_reps", () => {
+    const configWith1Rep = { ...baseConfig, num_reps: 1 };
+    const configWith3Reps = { ...baseConfig, num_reps: 3 };
+
+    const cost1Rep = estimateExecutionCost(10, configWith1Rep);
+    const cost3Reps = estimateExecutionCost(10, configWith3Reps);
+
+    expect(cost3Reps).toBe(cost1Rep * 3);
+  });
+
   it("should return 0 for 0 scenarios", () => {
     const cost = estimateExecutionCost(0, baseConfig);
     expect(cost).toBe(0);
@@ -114,6 +126,7 @@ describe("wouldExceedBudget", () => {
       max_turns: 10,
       timeout_ms: 60000,
       max_budget_usd: 0.001, // Very low budget
+      num_reps: 1,
     };
 
     const result = wouldExceedBudget(100, config);
@@ -126,6 +139,7 @@ describe("wouldExceedBudget", () => {
       max_turns: 1,
       timeout_ms: 60000,
       max_budget_usd: 100.0, // High budget
+      num_reps: 1,
     };
 
     const result = wouldExceedBudget(1, config);
