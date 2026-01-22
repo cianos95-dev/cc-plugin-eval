@@ -7,6 +7,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-01-22
+
+### Added
+
+- **Query Termination**: `Query.close()` method for forceful query termination (#340)
+- **Comprehensive Cost Tracking**: Stage-level cost breakdown in EvaluationOutput (#326)
+- **Total Cost Aggregation**: All stage costs aggregated into total_cost_usd metric (#325)
+- **Evaluation Stage Costs**: LLM costs tracked for both sync and batch modes (#324)
+- **Generation Stage Costs**: LLM costs tracked during scenario generation (#323)
+- **Cost Utility**: `calculateCostFromUsage` utility for SDK message responses (#322)
+- **CLI Documentation**: Added CLI reference and improved help output (#315)
+
+### Changed
+
+- Updated Anthropic tooling versions
+- Removed redundant top-level cost fields from EvaluationOutput (#328)
+- Upgraded Claude Code Action workflows to Opus 4.5
+
+### Fixed
+
+- YAML null values normalized to undefined before config validation (#339)
+- Execution cost estimation formula corrected (#332)
+- Plugin load costs included in evaluation metrics total
+- Plugin load API costs tracked in execution metrics (#331)
+- All stage costs tracked in E2E tests
+- Config files aligned with schema model defaults
+
 ## [0.3.0] - 2026-01-19
 
 ### Added
@@ -128,7 +155,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Variance propagation from runJudgment to metrics (#30)
 - Centralized logger and pricing utilities (#43)
 
-[Unreleased]: https://github.com/sjnims/cc-plugin-eval/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/sjnims/cc-plugin-eval/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/sjnims/cc-plugin-eval/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/sjnims/cc-plugin-eval/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/sjnims/cc-plugin-eval/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/sjnims/cc-plugin-eval/releases/tag/v0.1.0
