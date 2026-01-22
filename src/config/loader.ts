@@ -41,6 +41,30 @@ export class ConfigValidationError extends Error {
 }
 
 /**
+ * Recursively converts null values to undefined.
+ *
+ * YAML parsers represent unset values as `null`, but Zod's `.optional()`
+ * only accepts `undefined`. This normalizes config objects before validation.
+ *
+ * @param value - Value to process
+ * @returns Value with null converted to undefined
+ */
+function stripNullValues<T>(value: T): T {
+  if (value === null) {
+    return undefined as T;
+  }
+  if (Array.isArray(value)) {
+    return value.map(stripNullValues) as T;
+  }
+  if (typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value as object).map(([k, v]) => [k, stripNullValues(v)]),
+    ) as T;
+  }
+  return value;
+}
+
+/**
  * Load configuration from YAML or JSON file.
  *
  * @param configPath - Path to configuration file
@@ -92,7 +116,9 @@ export function loadConfig(configPath: string): EvalConfig {
  * @throws ConfigValidationError if validation fails
  */
 export function validateConfig(rawConfig: unknown): EvalConfig {
-  const result = EvalConfigSchema.safeParse(rawConfig);
+  // Normalize null → undefined for YAML compatibility
+  const normalizedConfig = stripNullValues(rawConfig);
+  const result = EvalConfigSchema.safeParse(normalizedConfig);
 
   if (!result.success) {
     const issues = result.error.issues

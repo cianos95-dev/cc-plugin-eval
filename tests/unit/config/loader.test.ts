@@ -37,6 +37,27 @@ describe("validateConfig", () => {
     expect(config.plugin.path).toBe("./my-plugin");
   });
 
+  it("accepts null values for optional fields (YAML compatibility)", () => {
+    // YAML parsers convert unset values to null, but Zod's .optional()
+    // only accepts undefined. The config loader must normalize nulls.
+    const raw = {
+      plugin: { path: "./my-plugin", name: null },
+      marketplace: { path: null, evaluate_all: false },
+      execution: { allowed_tools: null },
+      resume: { run_id: null, from_stage: null },
+      fast_mode: { enabled: false, failed_run_id: null },
+    };
+
+    const config = validateConfig(raw);
+    expect(config.plugin.path).toBe("./my-plugin");
+    expect(config.plugin.name).toBeUndefined();
+    expect(config.marketplace.path).toBeUndefined();
+    expect(config.execution.allowed_tools).toBeUndefined();
+    expect(config.resume.run_id).toBeUndefined();
+    expect(config.resume.from_stage).toBeUndefined();
+    expect(config.fast_mode.failed_run_id).toBeUndefined();
+  });
+
   it("throws ConfigValidationError on invalid config", () => {
     const raw = {
       plugin: { path: "" }, // Empty path should fail
