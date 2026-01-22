@@ -228,6 +228,18 @@ export interface QueryObject extends AsyncIterable<SDKMessage> {
    * Get account info.
    */
   accountInfo?(): Promise<{ tier: string }>;
+
+  /**
+   * Close the query and terminate the underlying process.
+   * This forcefully ends the query, cleaning up all resources including
+   * pending requests, MCP transports, and the CLI subprocess.
+   *
+   * Use this when you need to abort a query that is still running.
+   * After calling close(), no further messages will be received.
+   *
+   * @since SDK v0.2.15
+   */
+  close?(): void;
 }
 
 /**

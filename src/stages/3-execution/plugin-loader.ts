@@ -255,6 +255,9 @@ export async function verifyPluginLoad(
 
   const settingSources: SettingSource[] = enableMcpDiscovery ? ["project"] : [];
 
+  // Keep reference for cleanup
+  let queryObject: QueryObject | undefined;
+
   try {
     const queryInput = buildPluginQueryInput({
       pluginPath,
@@ -264,11 +267,14 @@ export async function verifyPluginLoad(
       startTime,
     });
     const q = queryFn ? queryFn(queryInput) : executeQuery(queryInput);
+    queryObject = q;
 
     return await processQueryMessages(q, pluginPath, timings);
   } catch (err) {
     return handlePluginLoadError(err, pluginPath, timeoutMs, timings);
   } finally {
+    // Ensure query cleanup on timeout or error
+    queryObject?.close?.();
     clearTimeout(timeout);
   }
 }

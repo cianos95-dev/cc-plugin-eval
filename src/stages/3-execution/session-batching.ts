@@ -23,6 +23,7 @@ import {
   isResultMessage,
   type PluginReference,
   type QueryInput,
+  type QueryObject,
   type SDKMessage,
   type SettingSource,
 } from "./sdk-client.js";
@@ -383,8 +384,8 @@ async function executeScenarioWithRetry(
   });
 
   // Execute with retry for transient errors
-  // Keep reference to query object for rewindFiles
-  let queryObject: Awaited<ReturnType<typeof executeQuery>> | undefined;
+  // Keep reference to query object for rewindFiles and cleanup
+  let queryObject: QueryObject | undefined;
 
   // Wrap execution in rate limiter if provided
   const executeWithRateLimit = async (): Promise<void> => {
@@ -392,43 +393,48 @@ async function executeScenarioWithRetry(
       const q = queryFn ? queryFn(queryInput) : executeQuery(queryInput);
       queryObject = q;
 
-      for await (const message of q) {
-        scenarioMessages.push(message);
-        hookCollector.processMessage(message);
+      try {
+        for await (const message of q) {
+          scenarioMessages.push(message);
+          hookCollector.processMessage(message);
 
-        // Capture the FIRST user message ID for file checkpointing.
-        // We only need the first because we want to rewind to the state
-        // before the scenario prompt, not any follow-up messages.
-        // Note: /clear commands are sent via a separate query object
-        // (sendClearCommand), so they don't appear in this iteration.
-        if (message.type === "user" && !userMessageId) {
-          const msgId = getMessageId(message);
-          if (msgId) {
-            userMessageId = msgId;
+          // Capture the FIRST user message ID for file checkpointing.
+          // We only need the first because we want to rewind to the state
+          // before the scenario prompt, not any follow-up messages.
+          // Note: /clear commands are sent via a separate query object
+          // (sendClearCommand), so they don't appear in this iteration.
+          if (message.type === "user" && !userMessageId) {
+            const msgId = getMessageId(message);
+            if (msgId) {
+              userMessageId = msgId;
+            }
+          }
+
+          // Capture errors
+          // Note: SDK may send error messages not in its TypeScript union
+          const errorText = getErrorFromMessage(message);
+          if (errorText !== undefined) {
+            scenarioErrors.push({
+              type: "error",
+              error_type: "api_error",
+              message: errorText,
+              timestamp: Date.now(),
+              recoverable: false,
+            });
           }
         }
 
-        // Capture errors
-        // Note: SDK may send error messages not in its TypeScript union
-        const errorText = getErrorFromMessage(message);
-        if (errorText !== undefined) {
-          scenarioErrors.push({
-            type: "error",
-            error_type: "api_error",
-            message: errorText,
-            timestamp: Date.now(),
-            recoverable: false,
-          });
+        // Rewind file changes after scenario execution if checkpointing is enabled.
+        // This works with persistSession: true because the SDK maintains file
+        // checkpoints per message ID, independent of session state. The rewind
+        // happens BEFORE /clear is sent, ensuring filesystem is reset while
+        // keeping the session alive for the next scenario.
+        if (useCheckpointing && userMessageId) {
+          await rewindFileChanges(queryObject, userMessageId, scenario.id);
         }
-      }
-
-      // Rewind file changes after scenario execution if checkpointing is enabled.
-      // This works with persistSession: true because the SDK maintains file
-      // checkpoints per message ID, independent of session state. The rewind
-      // happens BEFORE /clear is sent, ensuring filesystem is reset while
-      // keeping the session alive for the next scenario.
-      if (useCheckpointing && userMessageId) {
-        await rewindFileChanges(queryObject, userMessageId, scenario.id);
+      } finally {
+        // Ensure query cleanup on abort or error
+        q.close?.();
       }
     });
   };

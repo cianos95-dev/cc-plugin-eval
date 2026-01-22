@@ -460,6 +460,9 @@ export async function executeScenario(
     ctx.subagentCaptures,
   );
 
+  // Keep reference to query for cleanup
+  let queryObject: QueryObject | undefined;
+
   try {
     // Build query input
     const queryInput = buildQueryInput({
@@ -476,24 +479,32 @@ export async function executeScenario(
     await withRetry(async () => {
       // Use provided query function or real SDK
       const q = queryFn ? queryFn(queryInput) : executeQuery(queryInput);
+      queryObject = q;
 
-      for await (const message of q) {
-        ctx.messages.push(message);
+      try {
+        for await (const message of q) {
+          ctx.messages.push(message);
 
-        // Process message for hook responses
-        ctx.hookCollector.processMessage(message);
+          // Process message for hook responses
+          ctx.hookCollector.processMessage(message);
 
-        // Capture errors for transcript
-        // Note: SDK may send error messages not in its TypeScript union
-        const errorText = getErrorFromMessage(message);
-        if (errorText !== undefined) {
-          ctx.errors.push(createApiError(errorText));
+          // Capture errors for transcript
+          // Note: SDK may send error messages not in its TypeScript union
+          const errorText = getErrorFromMessage(message);
+          if (errorText !== undefined) {
+            ctx.errors.push(createApiError(errorText));
+          }
         }
+      } finally {
+        // Ensure query cleanup on abort or error
+        q.close?.();
       }
     });
   } catch (err) {
     const isTimeout = err instanceof Error && err.name === "AbortError";
     ctx.errors.push(createErrorEvent(err, isTimeout));
+    // Ensure cleanup if error occurred outside the retry wrapper
+    queryObject?.close?.();
   } finally {
     clearTimeout(ctx.timeout);
   }
@@ -534,6 +545,9 @@ export async function executeScenarioWithCheckpoint(
     ctx.subagentCaptures,
   );
 
+  // Keep reference to query for cleanup
+  let queryObject: QueryObject | undefined;
+
   try {
     // Build query input with file checkpointing enabled
     const queryInput = buildQueryInput({
@@ -550,29 +564,37 @@ export async function executeScenarioWithCheckpoint(
     // Execute with retry
     await withRetry(async () => {
       const q = queryFn ? queryFn(queryInput) : executeQuery(queryInput);
+      queryObject = q;
 
-      for await (const message of q) {
-        ctx.messages.push(message);
-        ctx.hookCollector.processMessage(message);
+      try {
+        for await (const message of q) {
+          ctx.messages.push(message);
+          ctx.hookCollector.processMessage(message);
 
-        // Capture user message ID for potential rewind
-        if (isUserMessage(message)) {
-          userMessageId = getMessageId(message) ?? userMessageId;
+          // Capture user message ID for potential rewind
+          if (isUserMessage(message)) {
+            userMessageId = getMessageId(message) ?? userMessageId;
+          }
+
+          // Capture errors from SDK messages
+          const errorText = getErrorFromMessage(message);
+          if (errorText !== undefined) {
+            ctx.errors.push(createApiError(errorText));
+          }
         }
 
-        // Capture errors from SDK messages
-        const errorText = getErrorFromMessage(message);
-        if (errorText !== undefined) {
-          ctx.errors.push(createApiError(errorText));
-        }
+        // Rewind file changes after execution
+        await rewindFileChangesIfPossible(q, userMessageId, scenario.id);
+      } finally {
+        // Ensure query cleanup on abort or error
+        q.close?.();
       }
-
-      // Rewind file changes after execution
-      await rewindFileChangesIfPossible(q, userMessageId, scenario.id);
     });
   } catch (err) {
     const isTimeout = err instanceof Error && err.name === "AbortError";
     ctx.errors.push(createErrorEvent(err, isTimeout));
+    // Ensure cleanup if error occurred outside the retry wrapper
+    queryObject?.close?.();
   } finally {
     clearTimeout(ctx.timeout);
   }
