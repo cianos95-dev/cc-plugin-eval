@@ -58,6 +58,6 @@ cc-plugin-eval resume -r <run-id>        # Resume run
 
 ## Key Patterns
 
-- **Detection**: Programmatic (100%) → transcript patterns (80%) → LLM judge (60%)
-- **Sessions**: Default `per_scenario`
+- **Detection**: Programmatic (100%) → LLM judge (quality assessment fallback)
+- **Sessions**: Default `batched_by_component` (scenarios sharing a component reuse session with `/clear`)
 - **State migration**: Update `migrateState()` in `src/state/operations.ts` for new component types

@@ -21,15 +21,15 @@ cc-plugin-eval <command> --help
 
 ## Commands Overview
 
-| Command   | Description                                           |
-| --------- | ----------------------------------------------------- |
-| `run`     | Run full evaluation pipeline (all 4 stages)           |
-| `resume`  | Resume from saved state                               |
-| `report`  | Generate report from existing results                 |
-| `list`    | List previous runs                                    |
-| `analyze` | Run Stage 1 only: Plugin Analysis                     |
-| `generate`| Run Stages 1-2: Analysis and Scenario Generation      |
-| `execute` | Run Stages 1-3: Analysis, Generation, and Execution   |
+| Command    | Description                                         |
+| ---------- | --------------------------------------------------- |
+| `run`      | Run full evaluation pipeline (all 4 stages)         |
+| `resume`   | Resume from saved state                             |
+| `report`   | Generate report from existing results               |
+| `list`     | List previous runs                                  |
+| `analyze`  | Run Stage 1 only: Plugin Analysis                   |
+| `generate` | Run Stages 1-2: Analysis and Scenario Generation    |
+| `execute`  | Run Stages 1-3: Analysis, Generation, and Execution |
 
 ## Command Reference
 
@@ -43,39 +43,39 @@ cc-plugin-eval run [options]
 
 **Input Options:**
 
-| Option                  | Description                              |
-| ----------------------- | ---------------------------------------- |
-| `-p, --plugin <path>`   | Path to plugin directory                 |
-| `-c, --config <path>`   | Path to config file (default: config.yaml) |
-| `--marketplace <path>`  | Evaluate all plugins in marketplace      |
+| Option                 | Description                                |
+| ---------------------- | ------------------------------------------ |
+| `-p, --plugin <path>`  | Path to plugin directory                   |
+| `-c, --config <path>`  | Path to config file (default: config.yaml) |
+| `--marketplace <path>` | Evaluate all plugins in marketplace        |
 
 **Execution Mode:**
 
-| Option                  | Description                                      |
-| ----------------------- | ------------------------------------------------ |
-| `--dry-run, --dr`       | Generate scenarios without execution             |
-| `--fast`                | Only run previously failed scenarios             |
-| `--failed-run <id>`     | Run ID to get failed scenarios from              |
-| `--no-batch`            | Force synchronous execution                      |
-| `--rewind`              | Undo file changes after each scenario            |
-| `--estimate, --est`     | Show cost estimate before execution              |
+| Option              | Description                           |
+| ------------------- | ------------------------------------- |
+| `--dry-run, --dr`   | Generate scenarios without execution  |
+| `--fast`            | Only run previously failed scenarios  |
+| `--failed-run <id>` | Run ID to get failed scenarios from   |
+| `--no-batch`        | Force synchronous execution           |
+| `--rewind`          | Undo file changes after each scenario |
+| `--estimate, --est` | Show cost estimate before execution   |
 
 **Output Options:**
 
-| Option                  | Description                              |
-| ----------------------- | ---------------------------------------- |
+| Option                  | Description                               |
+| ----------------------- | ----------------------------------------- |
 | `-o, --output <format>` | Output format: json\|yaml\|junit-xml\|tap |
-| `-v, --verbose`         | Detailed progress output                 |
-| `--debug`               | Enable debug output                      |
+| `-v, --verbose`         | Detailed progress output                  |
+| `--debug`               | Enable debug output                       |
 
 **Testing Options:**
 
-| Option                   | Description                                        |
-| ------------------------ | -------------------------------------------------- |
+| Option                   | Description                                               |
+| ------------------------ | --------------------------------------------------------- |
 | `--with-plugins <paths>` | Additional plugins for conflict testing (comma-separated) |
-| `--semantic`             | Generate prompt variations to test robustness      |
-| `--samples <n>`          | Multi-sample judgment count (improves confidence)  |
-| `--reps <n>`             | Repeat each scenario N times (measures variance)   |
+| `--semantic`             | Generate prompt variations to test robustness             |
+| `--samples <n>`          | Multi-sample judgment count (improves confidence)         |
+| `--reps <n>`             | Repeat each scenario N times (measures variance)          |
 
 **Examples:**
 
@@ -111,10 +111,10 @@ cc-plugin-eval resume [options]
 
 **Identification Options:**
 
-| Option                     | Description                                          |
-| -------------------------- | ---------------------------------------------------- |
-| `-r, --run-id <id>`        | Run ID to resume                                     |
-| `-p, --plugin <name>`      | Plugin name (finds latest run)                       |
+| Option                     | Description                                                       |
+| -------------------------- | ----------------------------------------------------------------- |
+| `-r, --run-id <id>`        | Run ID to resume                                                  |
+| `-p, --plugin <name>`      | Plugin name (finds latest run)                                    |
 | `-s, --from-stage <stage>` | Stage to resume from: analysis\|generation\|execution\|evaluation |
 
 **Examples:**
@@ -142,17 +142,17 @@ cc-plugin-eval report [options]
 
 **Identification Options:**
 
-| Option               | Description                |
-| -------------------- | -------------------------- |
-| `-r, --run-id <id>`  | Run ID to report on        |
-| `-p, --plugin <name>`| Plugin name                |
+| Option                | Description         |
+| --------------------- | ------------------- |
+| `-r, --run-id <id>`   | Run ID to report on |
+| `-p, --plugin <name>` | Plugin name         |
 
 **Output Options:**
 
-| Option                  | Description                              |
-| ----------------------- | ---------------------------------------- |
+| Option                  | Description                               |
+| ----------------------- | ----------------------------------------- |
 | `-o, --output <format>` | Output format: json\|yaml\|junit-xml\|tap |
-| `--cli`                 | Output CLI summary                       |
+| `--cli`                 | Output CLI summary                        |
 
 **Examples:**
 
@@ -185,9 +185,9 @@ cc-plugin-eval list [options]
 
 **Filter Options:**
 
-| Option               | Description                              |
-| -------------------- | ---------------------------------------- |
-| `-p, --plugin <name>`| Filter by plugin name                    |
+| Option                | Description           |
+| --------------------- | --------------------- |
+| `-p, --plugin <name>` | Filter by plugin name |
 
 **Examples:**
 
@@ -211,10 +211,10 @@ cc-plugin-eval analyze [options]
 
 **Input Options:**
 
-| Option               | Description                               |
-| -------------------- | ----------------------------------------- |
-| `-p, --plugin <path>`| Path to plugin directory                  |
-| `-c, --config <path>`| Path to config file (default: config.yaml)|
+| Option                | Description                                |
+| --------------------- | ------------------------------------------ |
+| `-p, --plugin <path>` | Path to plugin directory                   |
+| `-c, --config <path>` | Path to config file (default: config.yaml) |
 
 **Examples:**
 
@@ -238,10 +238,10 @@ cc-plugin-eval generate [options]
 
 **Input Options:**
 
-| Option               | Description                               |
-| -------------------- | ----------------------------------------- |
-| `-p, --plugin <path>`| Path to plugin directory                  |
-| `-c, --config <path>`| Path to config file (default: config.yaml)|
+| Option                | Description                                |
+| --------------------- | ------------------------------------------ |
+| `-p, --plugin <path>` | Path to plugin directory                   |
+| `-c, --config <path>` | Path to config file (default: config.yaml) |
 
 **Testing Options:**
 
@@ -272,10 +272,10 @@ cc-plugin-eval execute [options]
 
 **Input Options:**
 
-| Option               | Description                               |
-| -------------------- | ----------------------------------------- |
-| `-p, --plugin <path>`| Path to plugin directory                  |
-| `-c, --config <path>`| Path to config file (default: config.yaml)|
+| Option                | Description                                |
+| --------------------- | ------------------------------------------ |
+| `-p, --plugin <path>` | Path to plugin directory                   |
+| `-c, --config <path>` | Path to config file (default: config.yaml) |
 
 **Output Options:**
 
@@ -372,23 +372,25 @@ CLI options override values in `config.yaml`. Precedence (highest to lowest):
 
 ### Environment Variables
 
-| Variable           | Description              |
-| ------------------ | ------------------------ |
-| `ANTHROPIC_API_KEY`| Anthropic API key        |
+| Variable            | Description       |
+| ------------------- | ----------------- |
+| `ANTHROPIC_API_KEY` | Anthropic API key |
 
 ### Config File
 
 Create `config.yaml` in your project root:
 
 ```yaml
-plugin_path: ./plugins/my-plugin
+plugin:
+  path: ./plugins/my-plugin
 verbose: true
 dry_run: false
-semantic:
-  enabled: false
+generation:
+  semantic_variations: true
 evaluation:
-  samples: 1
-  reps: 1
+  num_samples: 1
+execution:
+  num_reps: 1
 ```
 
 ---
