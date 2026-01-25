@@ -31,4 +31,4 @@ jobs:
           persist-credentials: false
 
       - name: Run markdownlint
-        run: npx markdownlint-cli2@0.17.2 "**/*.md" "#node_modules"
+        run: npx markdownlint-cli2@0.20.0 "**/*.md" "#node_modules"

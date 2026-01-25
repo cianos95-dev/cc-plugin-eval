@@ -11,6 +11,8 @@ on:
   pull_request_review:
     types: [submitted]
 
+# Group by issue/PR number AND actor to prevent bot comments from canceling user runs
+# Bot runs will be in separate groups and get skipped by job-level `if` conditions
 concurrency:
   group: >-
     ${{ github.workflow }}-${{
@@ -23,6 +25,8 @@ concurrency:
 
 jobs:
   claude:
+    # Only allow repo collaborators (OWNER, MEMBER, COLLABORATOR) to trigger @claude
+    # Exclude bots to prevent Claude's own comments from triggering/canceling runs
     if: |
       github.actor != 'dependabot[bot]' &&
       github.actor != 'claude[bot]' &&
@@ -43,10 +47,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
-      contents: write
+      contents: write # Write access for pushing branches
       pull-requests: write
       issues: write
-      actions: read
+      actions: read # Required by claude-code-action to access workflow run data
       id-token: write
     steps:
       - name: Checkout repository
