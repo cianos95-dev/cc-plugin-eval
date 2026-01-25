@@ -147,6 +147,9 @@ evaluation.json
 .cache/
 .plugin-cache/
 
+# Calibration corpus (cloned repos tracked via manifest)
+calibration-corpus/
+
 # Dead code analysis artifacts
 knip-raw-results.json
 

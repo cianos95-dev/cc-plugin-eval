@@ -1,0 +1,305 @@
+# Calibration Corpus Manifest
+# Auto-generated: 2026-01-24
+# Source documentation: docs/calibration/corpus.md
+#
+# Tier mapping: polished=1, functional=2, rough=3, experimental=4
+
+version: "1.0"
+created: "2026-01-24"
+source_documentation: "docs/calibration/corpus.md"
+
+repositories:
+  # =============================================================================
+  # anthropics-claude-code (11 plugins from monorepo)
+  # =============================================================================
+  - name: anthropics-claude-code
+    url: https://github.com/anthropics/claude-code.git
+    commit: e9a9efc1211bbd0a50ac0128c84526e3e355255a
+    plugins:
+      # POLISHED (Tier 1)
+      - path: calibration-corpus/anthropics-claude-code/plugins/code-review
+        maturity: polished
+        tier: 1
+        components: "Command, 5 Agents"
+        notes: "Production PR review with confidence scoring"
+      - path: calibration-corpus/anthropics-claude-code/plugins/plugin-dev
+        maturity: polished
+        tier: 1
+        components: "Command, 3 Agents, 7 Skills"
+        notes: "8-phase guided workflow for creating plugins"
+      - path: calibration-corpus/anthropics-claude-code/plugins/feature-dev
+        maturity: polished
+        tier: 1
+        components: "Command, 3 Agents"
+        notes: "7-phase structured development workflow"
+      # FUNCTIONAL (Tier 2)
+      - path: calibration-corpus/anthropics-claude-code/plugins/commit-commands
+        maturity: functional
+        tier: 2
+        components: "3 Commands"
+        notes: "Git workflow automation"
+      - path: calibration-corpus/anthropics-claude-code/plugins/security-guidance
+        maturity: functional
+        tier: 2
+        components: "PreToolUse Hook"
+        notes: "9 security pattern monitors"
+      - path: calibration-corpus/anthropics-claude-code/plugins/hookify
+        maturity: functional
+        tier: 2
+        components: "4 Commands, Agent, Skill"
+        notes: "Create custom hooks from conversation patterns"
+      - path: calibration-corpus/anthropics-claude-code/plugins/ralph-wiggum
+        maturity: functional
+        tier: 2
+        components: "2 Commands, Stop Hook"
+        notes: "Autonomous iteration loops"
+      - path: calibration-corpus/anthropics-claude-code/plugins/pr-review-toolkit
+        maturity: functional
+        tier: 2
+        components: "Command, 6 Agents"
+        notes: "Specialized reviewers (comments, tests, errors, types)"
+      # ROUGH (Tier 3)
+      - path: calibration-corpus/anthropics-claude-code/plugins/frontend-design
+        maturity: rough
+        tier: 3
+        components: "Skill only"
+        notes: "Auto-invoked for frontend work"
+      - path: calibration-corpus/anthropics-claude-code/plugins/explanatory-output-style
+        maturity: rough
+        tier: 3
+        components: "SessionStart Hook only"
+        notes: "Injects educational context"
+      - path: calibration-corpus/anthropics-claude-code/plugins/learning-output-style
+        maturity: rough
+        tier: 3
+        components: "SessionStart Hook only"
+        notes: "Requests user code contributions"
+
+  # =============================================================================
+  # POLISHED repositories (Tier 1)
+  # =============================================================================
+  - name: anthropics-skills
+    url: https://github.com/anthropics/skills.git
+    commit: 69c0b1a0674149f27b61b2635f935524b6add202
+    plugins:
+      - path: calibration-corpus/anthropics-skills
+        maturity: polished
+        tier: 1
+        components: "Skills, document-skills"
+        notes: "40.2k stars; production skills powering Claude.ai (PDF, DOCX, XLSX)"
+
+  - name: trailofbits-skills
+    url: https://github.com/trailofbits/skills.git
+    commit: aa9dd931dd7e9bd6b60981c0bd9419cb649476e7
+    plugins:
+      - path: calibration-corpus/trailofbits-skills
+        maturity: polished
+        tier: 1
+        components: "16+ Skills"
+        notes: "Security-focused: semgrep, variant-analysis, secure-contracts"
+
+  - name: gmickel-claude-marketplace
+    url: https://github.com/gmickel/gmickel-claude-marketplace.git
+    commit: 8ca9cf3ded473c64b05f86bcace74ab4790a9b87
+    plugins:
+      - path: calibration-corpus/gmickel-claude-marketplace
+        maturity: polished
+        tier: 1
+        components: "6 Commands, Hooks"
+        notes: "v0.14.2, 409 stars, re-anchoring to prevent drift"
+
+  - name: wshobson-agents
+    url: https://github.com/wshobson/agents.git
+    commit: 1135ac606247648d9e4724f027280d4114282858
+    plugins:
+      - path: calibration-corpus/wshobson-agents
+        maturity: polished
+        tier: 1
+        components: "72 plugins, 108 Agents, 129 Skills"
+        notes: "Three-tier model strategy (Opus/Sonnet/Haiku)"
+
+  # =============================================================================
+  # FUNCTIONAL repositories (Tier 2)
+  # =============================================================================
+  - name: matsengrp-plugins
+    url: https://github.com/matsengrp/plugins.git
+    commit: f6cd4d17f0cb8f4591e81cc3889bca40a3d9da51
+    plugins:
+      - path: calibration-corpus/matsengrp-plugins
+        maturity: functional
+        tier: 2
+        components: "12 Agents, Command, Hook"
+        notes: "Scientific writing, LaTeX, code smell detection"
+
+  - name: jarrodwatts-claude-hud
+    url: https://github.com/jarrodwatts/claude-hud.git
+    commit: f851ecc7454cf84354e2601d8a5b78ef431d3434
+    plugins:
+      - path: calibration-corpus/jarrodwatts-claude-hud
+        maturity: functional
+        tier: 2
+        components: "Commands, TypeScript"
+        notes: "2.7k stars; context usage, active tools, running agents"
+
+  - name: affaan-m-everything-claude-code
+    url: https://github.com/affaan-m/everything-claude-code.git
+    commit: 660e0d3badd31d5081b0e28206a2f027ba5a08e9
+    plugins:
+      - path: calibration-corpus/affaan-m-everything-claude-code
+        maturity: functional
+        tier: 2
+        components: "6+ Skills, 9+ Commands, Hooks, 9 Agents, MCP"
+        notes: "Anthropic hackathon winner"
+
+  - name: secondsky-claude-skills
+    url: https://github.com/secondsky/claude-skills.git
+    commit: 00430d3d9eff1cefc4ce9a1ea8eadc65f5ccccf9
+    plugins:
+      - path: calibration-corpus/secondsky-claude-skills
+        maturity: functional
+        tier: 2
+        components: "174 Skills, Commands"
+        notes: "Largest single-skill collection; YAML frontmatter"
+
+  - name: cased-claude-code-plugins
+    url: https://github.com/cased/claude-code-plugins.git
+    commit: a026516978c0fcf8bdb14305ffc642009a05ff1a
+    plugins:
+      - path: calibration-corpus/cased-claude-code-plugins
+        maturity: functional
+        tier: 2
+        components: "Skills (kit-cli, piglet)"
+        notes: "CLI tools, PostHog integration"
+
+  - name: sjnims-plugin-dev
+    url: https://github.com/sjnims/plugin-dev.git
+    commit: 41fd5b903d6f965586bdaffcc51ff6fe96632e7d
+    plugins:
+      - path: calibration-corpus/sjnims-plugin-dev
+        maturity: functional
+        tier: 2
+        components: "8 Skills, Marketplace"
+        notes: "Meta-plugin for plugin development; hooks, MCP, agents"
+
+  - name: sjnims-requirements-expert
+    url: https://github.com/sjnims/requirements-expert.git
+    commit: c75df725874a6293624318526ba5b03c1d5d4274
+    plugins:
+      - path: calibration-corpus/sjnims-requirements-expert
+        maturity: functional
+        tier: 2
+        components: "Skills, Commands, Marketplace"
+        notes: "Full lifecycle: vision -> epics -> stories -> tasks"
+
+  # =============================================================================
+  # ROUGH repositories (Tier 3)
+  # =============================================================================
+  - name: kenryu42-claude-code-safety-net
+    url: https://github.com/kenryu42/claude-code-safety-net.git
+    commit: 562bd80d6d86dc63c081ab38ec2a417c56b837e4
+    plugins:
+      - path: calibration-corpus/kenryu42-claude-code-safety-net
+        maturity: rough
+        tier: 3
+        components: "Hooks (pre-command)"
+        notes: "Known bypasses documented: tmp.sh, awk system(), Makefile editing"
+
+  - name: GiladShoham-awesome-claude-plugins
+    url: https://github.com/GiladShoham/awesome-claude-plugins.git
+    commit: 838081f683ebc6600ac3e37058f5dfd64a62ec7f
+    plugins:
+      - path: calibration-corpus/GiladShoham-awesome-claude-plugins
+        maturity: rough
+        tier: 3
+        components: "Example plugins (calculator, weather, translator)"
+        notes: "48 stars, template-style, validation script"
+
+  - name: cbrake-claude-plugins
+    url: https://github.com/cbrake/claude-plugins.git
+    commit: 85b5bb2b3528b561855719aa180a24e4f0389969
+    plugins:
+      - path: calibration-corpus/cbrake-claude-plugins
+        maturity: rough
+        tier: 3
+        components: "Commands"
+        notes: "v1.0.9, 71 commits, doc-driven-development"
+
+  - name: davepoon-buildwithclaude
+    url: https://github.com/davepoon/buildwithclaude.git
+    commit: 61faf2ea8021236bffa76fee9551ac6161f41bad
+    plugins:
+      - path: calibration-corpus/davepoon-buildwithclaude
+        maturity: rough
+        tier: 3
+        components: "Agents (117), Commands (175), Hooks (28), Skills (26)"
+        notes: "Claims 20k+ plugins index; aggregator hub"
+
+  # =============================================================================
+  # EXPERIMENTAL repositories (Tier 4)
+  # =============================================================================
+  - name: obra-superpowers-lab
+    url: https://github.com/obra/superpowers-lab.git
+    commit: 344b07930e43610723f071b18972253b4d7e65e9
+    plugins:
+      - path: calibration-corpus/obra-superpowers-lab
+        maturity: experimental
+        tier: 4
+        components: "3 Skills"
+        notes: "Tmux control, duplicate detection, MCP CLI"
+      - path: calibration-corpus/obra-superpowers-lab
+        alias: "finding-duplicate-functions"
+        maturity: experimental
+        tier: 4
+        components: "Skill (part of superpowers-lab)"
+        notes: "Two-phase LLM: Haiku categorization -> Opus analysis"
+
+  - name: zscole-adversarial-spec
+    url: https://github.com/zscole/adversarial-spec.git
+    commit: f90cf0c36c3999b8dc272c9c06dee9846076f369
+    plugins:
+      - path: calibration-corpus/zscole-adversarial-spec
+        maturity: experimental
+        tier: 4
+        components: "Skills"
+        notes: "Multi-LLM debate until consensus; iterative refinement"
+
+  - name: humanplane-homunculus
+    url: https://github.com/humanplane/homunculus.git
+    commit: 59b6520f3b31fc5c31e57f7ffa3e7fee28a365c4
+    plugins:
+      - path: calibration-corpus/humanplane-homunculus
+        maturity: experimental
+        tier: 4
+        components: "Commands, Skills, Subagents, Hooks"
+        notes: "Self-rewriting plugin; probabilistic skills (50-80% trigger)"
+
+  - name: browserbase-claude-code-plugin
+    url: https://github.com/browserbase/claude-code-plugin.git
+    commit: b399af34a1b1cc365d1e1c0089823c4fa5e10ea5
+    plugins:
+      - path: calibration-corpus/browserbase-claude-code-plugin
+        maturity: experimental
+        tier: 4
+        components: "Hooks"
+        notes: "Cloud browser control via DevTools Protocol"
+
+  - name: sjnims-gen-alpha-output-style
+    url: https://github.com/sjnims/gen-alpha-output-style.git
+    commit: 2caf6bed3513b3a4b5c41586d5db1f5425edbe6a
+    plugins:
+      - path: calibration-corpus/sjnims-gen-alpha-output-style
+        maturity: experimental
+        tier: 4
+        components: "SessionStart Hook"
+        notes: "Transforms output to Gen Alpha/brainrot slang; 5 stars"
+
+# Summary
+# -------
+# Total repositories: 21
+# Total plugins: 32
+#
+# By maturity:
+#   polished (tier 1): 7
+#   functional (tier 2): 12
+#   rough (tier 3): 7
+#   experimental (tier 4): 6
