@@ -12,7 +12,7 @@ Anthropic's Bloom framework achieved a Spearman correlation of ρ = 0.86 with hu
 
 | Document                                             | Purpose                                                                          |
 | ---------------------------------------------------- | -------------------------------------------------------------------------------- |
-| [corpus.md](corpus.md)                               | The 29-plugin calibration corpus spanning polished → experimental quality levels |
+| [corpus.md](corpus.md)                               | The 32-plugin calibration corpus spanning polished → experimental quality levels |
 | [human-evaluation.md](human-evaluation.md)           | Procedures for human labeling, blind evaluation protocol, CLI tool specification |
 | [llm-judge-calibration.md](llm-judge-calibration.md) | Judge prompt versioning, sampling strategy, temperature settings                 |
 
@@ -24,15 +24,15 @@ Anthropic's Bloom framework achieved a Spearman correlation of ρ = 0.86 with hu
 └─────────────────────────────────────────────────────────────────────────────┘
 
 1. CORPUS ASSEMBLY (corpus.md)
-   └── 29 plugins across 4 maturity levels
+   └── 32 plugins across 4 maturity levels
        ├── Polished (7)     → Gold standard references
-       ├── Functional (10)  → Working with varying docs
+       ├── Functional (12)  → Working with varying docs
        ├── Rough (7)        → Known issues, discrimination testing
-       └── Experimental (5) → Edge cases, unconventional patterns
+       └── Experimental (6) → Edge cases, unconventional patterns
 
 2. SCENARIO GENERATION
    └── Run cc-plugin-eval stages 1-2 on each corpus plugin
-       └── ~5-10 scenarios per plugin = 145-290 total scenarios
+       └── ~5-10 scenarios per plugin = 160-320 total scenarios
 
 3. HUMAN LABELING (human-evaluation.md)
    └── Blind evaluation of scenario subsets
@@ -64,7 +64,7 @@ Anthropic's Bloom framework achieved a Spearman correlation of ρ = 0.86 with hu
 
 | Milestone            | Status         | Notes                              |
 | -------------------- | -------------- | ---------------------------------- |
-| Corpus assembly      | ✅ Complete    | 29 plugins documented in corpus.md |
+| Corpus assembly      | ✅ Complete    | 32 plugins documented in corpus.md |
 | Scenario generation  | 🔲 Not started | Pending corpus cloning             |
 | Human labeling tool  | 🔲 Not started | CLI spec in human-evaluation.md    |
 | Initial labeling     | 🔲 Not started | Start with trigger accuracy        |

@@ -187,7 +187,7 @@ Following Bloom's methodology (40 transcripts for ρ = 0.86), we target:
 | -------- | -------------------- | ------------- | --------------- | ----------------- |
 | Initial  | 5                    | 10 (Tier 1+2) | 50              | All 50            |
 | Expanded | 5                    | 20            | 100             | All 100           |
-| Full     | 5-10                 | 29            | 145-290         | 100-150 (sampled) |
+| Full     | 5-10                 | 32            | 160-320         | 100-150 (sampled) |
 
 For full corpus, use stratified sampling to ensure representation across:
 
