@@ -55,7 +55,7 @@ cc-plugin-eval run -p ./plugin --fast    # Re-run failed scenarios only
 ## Additional Linters
 
 ```bash
-markdownlint "*.md"                                  # Markdown linting
+markdownlint-cli2 "**/*.md" "#node_modules"           # Markdown linting
 uvx yamllint -c .yamllint.yml config.yaml .yamllint.yml  # YAML linting
 actionlint .github/workflows/*.yml                   # GitHub Actions validation
 ```

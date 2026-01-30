@@ -49,7 +49,7 @@ When completing a task in this project, run the following checks:
 2. **Markdown Lint** (if editing markdown)
 
    ```bash
-   markdownlint "*.md"
+   markdownlint-cli2 "**/*.md" "#node_modules"
    ```
 
 3. **YAML Lint** (if editing YAML files)
