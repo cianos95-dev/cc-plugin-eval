@@ -11,6 +11,7 @@ import {
   getFailedMcpServers,
   formatPluginLoadResult,
   verifyPluginLoad,
+  inspectQueryCapabilities,
   type QueryFunction,
 } from "../../../../src/stages/3-execution/plugin-loader.js";
 import type {
@@ -22,7 +23,9 @@ import type {
   SDKSystemMessage,
   SDKResultMessage,
   QueryInput,
+  SDKMcpServerStatus,
 } from "../../../../src/stages/3-execution/sdk-client.js";
+import { buildMockQuery } from "../../../mocks/sdk-mock.js";
 
 describe("getRecoveryHint", () => {
   it("should return hint for known error types", () => {
@@ -370,19 +373,15 @@ describe("verifyPluginLoad timing", () => {
     return (_input: QueryInput) => {
       let index = 0;
 
-      return {
-        async *[Symbol.asyncIterator]() {
-          for (const message of messages) {
-            if (delays[index]) {
-              await new Promise((resolve) =>
-                setTimeout(resolve, delays[index]),
-              );
-            }
-            index++;
-            yield message;
+      return buildMockQuery(async function* () {
+        for (const message of messages) {
+          if (delays[index]) {
+            await new Promise((resolve) => setTimeout(resolve, delays[index]));
           }
-        },
-      };
+          index++;
+          yield message;
+        }
+      }) as ReturnType<QueryFunction>;
     };
   }
 
@@ -496,13 +495,11 @@ describe("verifyPluginLoad cost extraction", () => {
    */
   function createMockQueryFn(messages: SDKMessage[]): QueryFunction {
     return (_input: QueryInput) => {
-      return {
-        async *[Symbol.asyncIterator]() {
-          for (const message of messages) {
-            yield message;
-          }
-        },
-      };
+      return buildMockQuery(async function* () {
+        for (const message of messages) {
+          yield message;
+        }
+      }) as ReturnType<QueryFunction>;
     };
   }
 
@@ -641,11 +638,9 @@ describe("verifyPluginLoad MCP discovery configuration", () => {
         mcp_servers: [],
       };
 
-      return {
-        async *[Symbol.asyncIterator]() {
-          yield initMessage;
-        },
-      };
+      return buildMockQuery(async function* () {
+        yield initMessage;
+      }) as ReturnType<QueryFunction>;
     };
   }
 
@@ -776,12 +771,20 @@ describe("verifyPluginLoad real-time MCP status validation", () => {
     liveStatus: Record<string, { status: string; tools: string[] }>,
   ): QueryFunction {
     return (_input: QueryInput) => {
-      return {
-        async *[Symbol.asyncIterator]() {
+      return buildMockQuery(
+        async function* () {
           yield initMessage;
         },
-        mcpServerStatus: async () => liveStatus,
-      };
+        {
+          mcpServerStatus: async () =>
+            // Convert Record to array to match SDK return type
+            Object.entries(liveStatus).map(([name, data]) => ({
+              name,
+              status: data.status as SDKMcpServerStatus["status"],
+              tools: data.tools.map((t) => ({ name: t })),
+            })),
+        },
+      ) as ReturnType<QueryFunction>;
     };
   }
 
@@ -929,14 +932,16 @@ describe("verifyPluginLoad real-time MCP status validation", () => {
     };
 
     const mockQueryFn: QueryFunction = (_input: QueryInput) => {
-      return {
-        async *[Symbol.asyncIterator]() {
+      return buildMockQuery(
+        async function* () {
           yield initMessage;
         },
-        mcpServerStatus: async () => {
-          throw new Error("Network error");
+        {
+          mcpServerStatus: async () => {
+            throw new Error("Network error");
+          },
         },
-      };
+      ) as ReturnType<QueryFunction>;
     };
 
     const result = await verifyPluginLoad({
@@ -964,15 +969,17 @@ describe("verifyPluginLoad real-time MCP status validation", () => {
     };
 
     const mockQueryFn: QueryFunction = (_input: QueryInput) => {
-      return {
-        async *[Symbol.asyncIterator]() {
+      return buildMockQuery(
+        async function* () {
           yield initMessage;
         },
-        mcpServerStatus: async () => {
-          mcpStatusCalled = true;
-          return {};
+        {
+          mcpServerStatus: async () => {
+            mcpStatusCalled = true;
+            return [];
+          },
         },
-      };
+      ) as ReturnType<QueryFunction>;
     };
 
     const result = await verifyPluginLoad({
@@ -1025,5 +1032,41 @@ describe("verifyPluginLoad real-time MCP status validation", () => {
       "mcp__github__create_issue",
       "mcp__github__new_tool",
     ]);
+  });
+});
+
+describe("inspectQueryCapabilities error propagation", () => {
+  it("should propagate error when supportedCommands() throws", async () => {
+    const queryObject = buildMockQuery(
+      async function* () {
+        // empty
+      },
+      {
+        supportedCommands: async () => {
+          throw new Error("Commands unavailable");
+        },
+      },
+    );
+
+    await expect(
+      inspectQueryCapabilities(queryObject, "test-plugin"),
+    ).rejects.toThrow("Commands unavailable");
+  });
+
+  it("should propagate error when mcpServerStatus() throws", async () => {
+    const queryObject = buildMockQuery(
+      async function* () {
+        // empty
+      },
+      {
+        mcpServerStatus: async () => {
+          throw new Error("MCP status unavailable");
+        },
+      },
+    );
+
+    await expect(
+      inspectQueryCapabilities(queryObject, "test-plugin"),
+    ).rejects.toThrow("MCP status unavailable");
   });
 });

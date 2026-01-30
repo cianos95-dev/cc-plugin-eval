@@ -23,7 +23,7 @@ import {
   isResultMessage,
   type PluginReference,
   type QueryInput,
-  type QueryObject,
+  type Query,
   type SDKMessage,
   type SettingSource,
 } from "./sdk-client.js";
@@ -384,14 +384,10 @@ async function executeScenarioWithRetry(
   });
 
   // Execute with retry for transient errors
-  // Keep reference to query object for rewindFiles and cleanup
-  let queryObject: QueryObject | undefined;
-
   // Wrap execution in rate limiter if provided
   const executeWithRateLimit = async (): Promise<void> => {
     await withRetry(async () => {
       const q = queryFn ? queryFn(queryInput) : executeQuery(queryInput);
-      queryObject = q;
 
       try {
         for await (const message of q) {
@@ -430,11 +426,11 @@ async function executeScenarioWithRetry(
         // happens BEFORE /clear is sent, ensuring filesystem is reset while
         // keeping the session alive for the next scenario.
         if (useCheckpointing && userMessageId) {
-          await rewindFileChanges(queryObject, userMessageId, scenario.id);
+          await rewindFileChanges(q, userMessageId, scenario.id);
         }
       } finally {
         // Ensure query cleanup on abort or error
-        q.close?.();
+        q.close();
       }
     });
   };
@@ -615,20 +611,22 @@ async function sendClearCommand(
  * @param scenarioId - The scenario ID for logging
  */
 async function rewindFileChanges(
-  queryObject: { rewindFiles?: (messageId: string) => Promise<void> },
+  queryObject: Query,
   userMessageId: string,
   scenarioId: string,
 ): Promise<void> {
-  if (typeof queryObject.rewindFiles !== "function") {
-    logger.debug(
-      `Batch: rewindFiles not available for ${scenarioId}, skipping checkpoint`,
-    );
-    return;
-  }
-
   try {
-    await queryObject.rewindFiles(userMessageId);
-    logger.debug(`Batch: reverted file changes for scenario: ${scenarioId}`);
+    const result = await queryObject.rewindFiles(userMessageId);
+    if (!result.canRewind) {
+      logger.warn(
+        `Batch: cannot rewind files for ${scenarioId}: ${result.error ?? "unknown reason"}`,
+      );
+      return;
+    }
+    const changedCount = result.filesChanged?.length ?? 0;
+    logger.debug(
+      `Batch: reverted file changes for scenario: ${scenarioId} (${String(changedCount)} files changed)`,
+    );
   } catch (rewindErr) {
     logger.warn(
       `Batch: failed to rewind files for ${scenarioId}: ${rewindErr instanceof Error ? rewindErr.message : String(rewindErr)}`,

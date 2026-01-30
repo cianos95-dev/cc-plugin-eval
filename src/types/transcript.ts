@@ -70,12 +70,16 @@ export interface HookResponseCapture {
   hookName: string;
   /** Event type (PreToolUse, PostToolUse, Stop, etc.) */
   hookEvent: string;
+  /** Hook ID for correlation */
+  hookId?: string | undefined;
   /** Hook stdout output */
   stdout: string;
   /** Hook stderr output */
   stderr: string;
   /** Exit code for command hooks */
   exitCode?: number | undefined;
+  /** Outcome of hook execution */
+  outcome?: "success" | "error" | "cancelled" | undefined;
   /** Capture timestamp */
   timestamp: number;
 }

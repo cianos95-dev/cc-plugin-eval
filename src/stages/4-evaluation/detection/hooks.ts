@@ -14,7 +14,8 @@ import type {
  * Detect hooks from hook response captures.
  *
  * Hook responses are captured via SDKHookResponseMessage during execution.
- * This provides 100% confidence detection for hook activation.
+ * Only hooks with a 'success' outcome (or undefined outcome for backward
+ * compatibility) are counted as triggered.
  *
  * @param hookResponses - Hook response captures from execution
  * @returns Array of programmatic detections for hooks
@@ -31,6 +32,13 @@ export function detectFromHookResponses(
   const detections: ProgrammaticDetection[] = [];
 
   for (const response of hookResponses) {
+    // Only count hooks with 'success' outcome as triggered.
+    // Undefined outcome is accepted for backward compatibility with captures
+    // that predate the outcome field.
+    if (response.outcome !== undefined && response.outcome !== "success") {
+      continue;
+    }
+
     // Create unique component name from event type and hook name
     const componentName = response.hookName || `${response.hookEvent}:unknown`;
 
@@ -40,6 +48,8 @@ export function detectFromHookResponses(
       confidence: 100,
       tool_name: response.hookEvent,
       evidence: `Hook response: ${response.hookEvent} hook "${response.hookName}" fired${
+        response.outcome !== undefined ? ` (outcome: ${response.outcome})` : ""
+      }${
         response.exitCode !== undefined
           ? ` (exit code: ${String(response.exitCode)})`
           : ""

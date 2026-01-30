@@ -842,6 +842,77 @@ describe("detectFromHookResponses", () => {
     expect(detections[0]?.evidence).toContain("Hook response:");
     expect(detections[0]?.evidence).toContain("exit code:");
   });
+
+  it("should count hooks with outcome 'success'", () => {
+    const responses: HookResponseCapture[] = [
+      {
+        hookName: "PreToolUse::Bash",
+        hookEvent: "PreToolUse",
+        stdout: "approved",
+        stderr: "",
+        outcome: "success",
+        timestamp: Date.now(),
+      },
+    ];
+
+    const detections = detectFromHookResponses(responses);
+
+    expect(detections).toHaveLength(1);
+    expect(detections[0]?.evidence).toContain("outcome: success");
+  });
+
+  it("should skip hooks with outcome 'error'", () => {
+    const responses: HookResponseCapture[] = [
+      {
+        hookName: "PreToolUse::Bash",
+        hookEvent: "PreToolUse",
+        stdout: "",
+        stderr: "hook crashed",
+        outcome: "error",
+        timestamp: Date.now(),
+      },
+    ];
+
+    const detections = detectFromHookResponses(responses);
+
+    expect(detections).toHaveLength(0);
+  });
+
+  it("should skip hooks with outcome 'cancelled'", () => {
+    const responses: HookResponseCapture[] = [
+      {
+        hookName: "PreToolUse::Bash",
+        hookEvent: "PreToolUse",
+        stdout: "",
+        stderr: "",
+        outcome: "cancelled",
+        timestamp: Date.now(),
+      },
+    ];
+
+    const detections = detectFromHookResponses(responses);
+
+    expect(detections).toHaveLength(0);
+  });
+
+  it("should count hooks with undefined outcome (backward compat)", () => {
+    const responses: HookResponseCapture[] = [
+      {
+        hookName: "PreToolUse::Bash",
+        hookEvent: "PreToolUse",
+        stdout: "old capture",
+        stderr: "",
+        // outcome intentionally omitted
+        timestamp: Date.now(),
+      },
+    ];
+
+    const detections = detectFromHookResponses(responses);
+
+    expect(detections).toHaveLength(1);
+    // No outcome annotation in evidence when undefined
+    expect(detections[0]?.evidence).not.toContain("outcome:");
+  });
 });
 
 describe("wasExpectedHookTriggered", () => {

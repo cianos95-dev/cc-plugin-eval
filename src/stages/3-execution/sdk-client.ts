@@ -7,8 +7,11 @@
 
 import {
   query,
+  type Query,
+  type Options as SDKOptions,
   type HookCallback as SDKHookCallback,
   type HookCallbackMatcher,
+  type HookJSONOutput,
   type PreToolUseHookInput as SDKPreToolUseHookInput,
   type PostToolUseHookInput as SDKPostToolUseHookInput,
   type PostToolUseFailureHookInput as SDKPostToolUseFailureHookInput,
@@ -25,13 +28,29 @@ import {
   type SDKResultError,
   type SDKSystemMessage as SDKSystemMessageType,
   type SDKPermissionDenial,
+  type SDKHookResponseMessage,
+  type SlashCommand,
+  type AccountInfo,
+  type RewindFilesResult,
+  type McpServerStatus as SDKMcpServerStatus,
 } from "@anthropic-ai/claude-agent-sdk";
 
 // Import types from the types layer
 import type { ModelUsage } from "../../types/transcript.js";
 
 // Re-export types for use in other modules
-export type { PermissionMode, SettingSource, ModelUsage };
+export type {
+  PermissionMode,
+  SettingSource,
+  ModelUsage,
+  Query,
+  HookJSONOutput,
+  SlashCommand,
+  AccountInfo,
+  RewindFilesResult,
+  SDKHookResponseMessage,
+};
+export type { SDKMcpServerStatus };
 
 // Re-export the query function for use throughout Stage 3
 export { query };
@@ -99,14 +118,6 @@ export type SubagentStartHookInput = SDKSubagentStartHookInput;
 export type SubagentStopHookInput = SDKSubagentStopHookInput;
 
 /**
- * Hook JSON output - return value from hooks.
- */
-export interface HookJSONOutput {
-  decision?: "allow" | "deny";
-  reason?: string;
-}
-
-/**
  * Hook callback signature matching Agent SDK.
  * Re-exported for use in other modules.
  */
@@ -151,47 +162,37 @@ export interface PluginReference {
 }
 
 /**
- * System prompt configuration type.
- * Can be a raw string or a preset configuration object.
- */
-export type SystemPromptConfig =
-  | string
-  | {
-      type: "preset";
-      preset: "claude_code";
-      append?: string;
-    };
-
-/**
  * Query options for the Agent SDK.
+ * Derived from SDK's Options type with the subset we use.
  */
-export interface QueryOptions {
+export type QueryOptions = Pick<
+  SDKOptions,
+  | "allowedTools"
+  | "disallowedTools"
+  | "model"
+  | "systemPrompt"
+  | "maxTurns"
+  | "persistSession"
+  | "continue"
+  | "maxBudgetUsd"
+  | "abortController"
+  | "permissionMode"
+  | "allowDangerouslySkipPermissions"
+  | "enableFileCheckpointing"
+  | "maxThinkingTokens"
+  | "hooks"
+  | "settingSources"
+  | "stderr"
+  | "forkSession"
+  | "fallbackModel"
+  | "sandbox"
+  | "env"
+  | "cwd"
+  | "additionalDirectories"
+  | "betas"
+> & {
   plugins?: PluginReference[];
-  settingSources?: SettingSource[];
-  allowedTools?: string[];
-  disallowedTools?: string[];
-  model?: string;
-  /** System prompt configuration. Use Claude Code preset for plugin evaluation. */
-  systemPrompt?: SystemPromptConfig;
-  maxTurns?: number;
-  persistSession?: boolean;
-  continue?: boolean;
-  maxBudgetUsd?: number;
-  abortController?: AbortController;
-  permissionMode?: PermissionMode;
-  allowDangerouslySkipPermissions?: boolean;
-  enableFileCheckpointing?: boolean;
-  /** Limit extended thinking tokens to reduce cost. */
-  maxThinkingTokens?: number;
-  hooks?: {
-    PreToolUse?: HookCallbackMatcher[];
-    PostToolUse?: HookCallbackMatcher[];
-    PostToolUseFailure?: HookCallbackMatcher[];
-    SubagentStart?: HookCallbackMatcher[];
-    SubagentStop?: HookCallbackMatcher[];
-  };
-  stderr?: (data: string) => void;
-}
+};
 
 /**
  * Query input for the SDK.
@@ -199,47 +200,6 @@ export interface QueryOptions {
 export interface QueryInput {
   prompt: string | AsyncIterable<SDKUserMessage>;
   options?: QueryOptions;
-}
-
-/**
- * The Query object returned by query() - provides iteration and methods.
- * This is an async iterable that also has methods like rewindFiles().
- */
-export interface QueryObject extends AsyncIterable<SDKMessage> {
-  /**
-   * Rewind files to state before a given message.
-   * Only available when enableFileCheckpointing is true.
-   */
-  rewindFiles?(messageId: string): Promise<void>;
-
-  /**
-   * Get supported slash commands.
-   */
-  supportedCommands?(): Promise<string[]>;
-
-  /**
-   * Get MCP server status.
-   */
-  mcpServerStatus?(): Promise<
-    Record<string, { status: string; tools: string[] }>
-  >;
-
-  /**
-   * Get account info.
-   */
-  accountInfo?(): Promise<{ tier: string }>;
-
-  /**
-   * Close the query and terminate the underlying process.
-   * This forcefully ends the query, cleaning up all resources including
-   * pending requests, MCP transports, and the CLI subprocess.
-   *
-   * Use this when you need to abort a query that is still running.
-   * After calling close(), no further messages will be received.
-   *
-   * @since SDK v0.2.15
-   */
-  close?(): void;
 }
 
 /**
@@ -325,20 +285,15 @@ export function getErrorFromMessage(msg: SDKMessage): string | undefined {
 /**
  * Extract message ID from an SDK message.
  *
- * The SDK uses different property names for message IDs ('id' or 'uuid')
- * and these properties may not be in the SDKMessage TypeScript definition.
- * This helper encapsulates the type assertion needed to safely extract
- * the message ID.
+ * All SDK message types now have `uuid: UUID` (required on most,
+ * optional on `SDKUserMessage`). We read `uuid` directly.
  *
  * @param msg - SDK message to check
  * @returns Message ID if present, undefined otherwise
  */
 export function getMessageId(msg: SDKMessage): string | undefined {
-  // Type assertion needed: SDK message ID properties not in SDKMessage union
+  // SDK messages use uuid field
   const msgRecord = msg as Record<string, unknown>;
-  if (typeof msgRecord["id"] === "string") {
-    return msgRecord["id"];
-  }
   if (typeof msgRecord["uuid"] === "string") {
     return msgRecord["uuid"];
   }
@@ -351,17 +306,11 @@ export function getMessageId(msg: SDKMessage): string | undefined {
  * This is a thin wrapper around the SDK's query function that returns
  * the Query object for both iteration and method access.
  *
- * Note: The SDK's query() return type doesn't include optional methods like
- * rewindFiles() that are available when enableFileCheckpointing is true.
- * We use QueryObject interface to expose these methods with proper typing.
- * The cast is unavoidable until the SDK exports a complete type definition.
- *
  * @param input - Query input with prompt and options
  * @returns Query object for async iteration and methods
  */
-export function executeQuery(input: QueryInput): QueryObject {
-  // Type assertion: SDK's query() doesn't expose optional methods in its type
-  return query(input) as unknown as QueryObject;
+export function executeQuery(input: QueryInput): Query {
+  return query(input);
 }
 
 /**

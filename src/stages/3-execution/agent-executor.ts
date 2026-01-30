@@ -26,7 +26,7 @@ import {
   type SDKMessage,
   type SDKPermissionDenial,
   type QueryInput,
-  type QueryObject,
+  type Query,
   type PluginReference,
   type SettingSource,
   type ModelUsage,
@@ -50,7 +50,7 @@ import type {
 /**
  * Query function type for dependency injection in tests.
  */
-export type QueryFunction = (input: QueryInput) => QueryObject;
+export type QueryFunction = (input: QueryInput) => Query;
 
 /** Create an API error event from error text */
 function createApiError(errorText: string): TranscriptErrorEvent {
@@ -65,17 +65,26 @@ function createApiError(errorText: string): TranscriptErrorEvent {
 
 /** Attempt to rewind file changes if the query object supports it */
 async function rewindFileChangesIfPossible(
-  q: QueryObject,
+  q: Query,
   userMessageId: string | undefined,
   scenarioId: string,
 ): Promise<void> {
-  if (!userMessageId || typeof q.rewindFiles !== "function") {
+  if (!userMessageId) {
     return;
   }
 
   try {
-    await q.rewindFiles(userMessageId);
-    logger.debug(`Reverted file changes for scenario: ${scenarioId}`);
+    const result = await q.rewindFiles(userMessageId);
+    if (!result.canRewind) {
+      logger.warn(
+        `Cannot rewind files for ${scenarioId}: ${result.error ?? "unknown reason"}`,
+      );
+      return;
+    }
+    const changedCount = result.filesChanged?.length ?? 0;
+    logger.debug(
+      `Reverted file changes for scenario: ${scenarioId} (${String(changedCount)} files changed)`,
+    );
   } catch (rewindErr) {
     logger.warn(
       `Failed to rewind files for ${scenarioId}: ${rewindErr instanceof Error ? rewindErr.message : String(rewindErr)}`,
@@ -461,7 +470,7 @@ export async function executeScenario(
   );
 
   // Keep reference to query for cleanup
-  let queryObject: QueryObject | undefined;
+  let queryObject: Query | undefined;
 
   try {
     // Build query input
@@ -497,14 +506,14 @@ export async function executeScenario(
         }
       } finally {
         // Ensure query cleanup on abort or error
-        q.close?.();
+        q.close();
       }
     });
   } catch (err) {
     const isTimeout = err instanceof Error && err.name === "AbortError";
     ctx.errors.push(createErrorEvent(err, isTimeout));
     // Ensure cleanup if error occurred outside the retry wrapper
-    queryObject?.close?.();
+    queryObject?.close();
   } finally {
     clearTimeout(ctx.timeout);
   }
@@ -546,7 +555,7 @@ export async function executeScenarioWithCheckpoint(
   );
 
   // Keep reference to query for cleanup
-  let queryObject: QueryObject | undefined;
+  let queryObject: Query | undefined;
 
   try {
     // Build query input with file checkpointing enabled
@@ -587,14 +596,14 @@ export async function executeScenarioWithCheckpoint(
         await rewindFileChangesIfPossible(q, userMessageId, scenario.id);
       } finally {
         // Ensure query cleanup on abort or error
-        q.close?.();
+        q.close();
       }
     });
   } catch (err) {
     const isTimeout = err instanceof Error && err.name === "AbortError";
     ctx.errors.push(createErrorEvent(err, isTimeout));
     // Ensure cleanup if error occurred outside the retry wrapper
-    queryObject?.close?.();
+    queryObject?.close();
   } finally {
     clearTimeout(ctx.timeout);
   }

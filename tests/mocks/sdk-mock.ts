@@ -15,11 +15,15 @@ import type {
   SDKErrorMessage,
   SDKToolResultMessage,
   SDKPermissionDenial,
-  QueryObject,
+  Query,
   QueryInput,
   PreToolUseHookConfig,
   SubagentStartHookConfig,
   SubagentStopHookConfig,
+  SlashCommand,
+  AccountInfo,
+  RewindFilesResult,
+  SDKMcpServerStatus,
 } from "../../src/stages/3-execution/sdk-client.js";
 import type { ExecutionConfig } from "../../src/types/index.js";
 
@@ -148,8 +152,76 @@ const MOCK_DEFAULTS: Required<
  * });
  * ```
  */
+/**
+ * Build a minimal Query mock from an async generator function and optional method overrides.
+ *
+ * All 14 Query interface methods are stubbed with safe defaults.
+ * Pass `overrides` to replace any method (e.g. `mcpServerStatus`, `supportedCommands`).
+ *
+ * @param genFn - Factory that creates the async generator yielding SDK messages.
+ * @param overrides - Partial map of Query methods to override defaults.
+ * @returns A Query-compatible mock object.
+ */
+export function buildMockQuery(
+  genFn: () => AsyncGenerator<SDKMessage, void>,
+  overrides: Partial<{
+    rewindFiles: Query["rewindFiles"];
+    supportedCommands: Query["supportedCommands"];
+    mcpServerStatus: Query["mcpServerStatus"];
+    accountInfo: Query["accountInfo"];
+    interrupt: Query["interrupt"];
+    setPermissionMode: Query["setPermissionMode"];
+    setModel: Query["setModel"];
+    setMaxThinkingTokens: Query["setMaxThinkingTokens"];
+    supportedModels: Query["supportedModels"];
+    reconnectMcpServer: Query["reconnectMcpServer"];
+    toggleMcpServer: Query["toggleMcpServer"];
+    setMcpServers: Query["setMcpServers"];
+    streamInput: Query["streamInput"];
+    close: Query["close"];
+  }> = {},
+): Query {
+  const gen = genFn();
+
+  return Object.assign(gen, {
+    async rewindFiles(): Promise<RewindFilesResult> {
+      return { canRewind: false };
+    },
+    async supportedCommands(): Promise<SlashCommand[]> {
+      return [];
+    },
+    async mcpServerStatus(): Promise<SDKMcpServerStatus[]> {
+      return [];
+    },
+    async accountInfo(): Promise<AccountInfo> {
+      return { subscriptionType: "free" };
+    },
+    async interrupt(): Promise<void> {},
+    async setPermissionMode(): Promise<void> {},
+    async setModel(): Promise<void> {},
+    async setMaxThinkingTokens(): Promise<void> {},
+    async supportedModels(): Promise<
+      { value: string; displayName: string; description: string }[]
+    > {
+      return [];
+    },
+    async reconnectMcpServer(): Promise<void> {},
+    async toggleMcpServer(): Promise<void> {},
+    async setMcpServers(): Promise<{
+      added: string[];
+      removed: string[];
+      errors: Record<string, string>;
+    }> {
+      return { added: [], removed: [], errors: {} };
+    },
+    async streamInput(): Promise<void> {},
+    close(): void {},
+    ...overrides,
+  }) as unknown as Query;
+}
+
 export function createMockQueryFn(config: MockQueryConfig = {}): QueryFunction {
-  return (input: QueryInput): QueryObject => {
+  return (input: QueryInput): Query => {
     const messages: SDKMessage[] = [];
     let toolCallCounter = 0;
 
@@ -191,11 +263,15 @@ export function createMockQueryFn(config: MockQueryConfig = {}): QueryFunction {
     // 2. User message
     const userMsg: SDKUserMessage = {
       type: "user",
-      id: config.userMessageId ?? `user-msg-${String(Date.now())}`,
+      uuid: (config.userMessageId ??
+        `user-msg-${String(Date.now())}`) as `${string}-${string}-${string}-${string}-${string}`,
       message: {
         role: "user",
-        content: input.prompt,
+        content:
+          typeof input.prompt === "string" ? input.prompt : "async input",
       },
+      parent_tool_use_id: null,
+      session_id: config.sessionId ?? MOCK_DEFAULTS.sessionId,
     };
     messages.push(userMsg);
 
@@ -328,69 +404,129 @@ export function createMockQueryFn(config: MockQueryConfig = {}): QueryFunction {
       }
     };
 
-    // Create QueryObject with async iterator
-    const queryObject: QueryObject = {
-      [Symbol.asyncIterator]: async function* () {
-        for (const msg of messages) {
-          // Simulate timeout if requested
-          if (config.shouldTimeout) {
-            // Check if signal is already aborted
-            if (input.options?.abortController?.signal.aborted) {
-              const error = new Error("Operation aborted");
-              error.name = "AbortError";
-              throw error;
-            }
+    // Create Query-like mock with async generator protocol
+    const iterator = async function* () {
+      for (const msg of messages) {
+        // Simulate timeout if requested
+        if (config.shouldTimeout) {
+          if (input.options?.abortController?.signal.aborted) {
+            const error = new Error("Operation aborted");
+            error.name = "AbortError";
+            throw error;
           }
-
-          // Call hooks before yielding assistant message with tool calls
-          if (msg.type === "assistant" && !config.errorMessage) {
-            for (const toolCall of toolCalls) {
-              await callHooksForTool(
-                toolCall.name,
-                toolCall.input,
-                toolCall.id,
-              );
-            }
-
-            // Simulate subagent spawns (both start and stop)
-            if (config.subagentSpawns) {
-              for (const spawn of config.subagentSpawns) {
-                await callSubagentStartHooks(spawn.agentId, spawn.agentType);
-                await callSubagentStopHooks(spawn.agentId);
-              }
-            }
-          }
-
-          yield msg;
         }
-      },
 
-      rewindFiles: async (messageId: string) => {
-        // messageId parameter required by interface but not used in mock
-        void messageId;
+        // Call hooks before yielding assistant message with tool calls
+        if (msg.type === "assistant" && !config.errorMessage) {
+          for (const toolCall of toolCalls) {
+            await callHooksForTool(toolCall.name, toolCall.input, toolCall.id);
+          }
+
+          // Simulate subagent spawns (both start and stop)
+          if (config.subagentSpawns) {
+            for (const spawn of config.subagentSpawns) {
+              await callSubagentStartHooks(spawn.agentId, spawn.agentType);
+              await callSubagentStopHooks(spawn.agentId);
+            }
+          }
+        }
+
+        yield msg;
+      }
+    };
+
+    // Build a mock Query object implementing AsyncGenerator + methods
+    const gen = iterator();
+    const queryObject = Object.assign(gen, {
+      async rewindFiles(
+        _userMessageId: string,
+        _options?: { dryRun?: boolean },
+      ): Promise<RewindFilesResult> {
         if (config.rewindFilesError) {
           throw new Error(config.rewindFilesError);
         }
+        return {
+          canRewind: true,
+          filesChanged: [],
+          insertions: 0,
+          deletions: 0,
+        };
+      },
+
+      async supportedCommands(): Promise<SlashCommand[]> {
+        return (config.slashCommands ?? MOCK_DEFAULTS.slashCommands).map(
+          (name) => ({
+            name,
+            description: `Mock command: ${name}`,
+            argumentHint: "",
+          }),
+        );
+      },
+
+      async mcpServerStatus(): Promise<SDKMcpServerStatus[]> {
+        if (!config.mcpServers) {
+          return [];
+        }
+        return config.mcpServers.map((server) => ({
+          name: server.name,
+          status: server.status as SDKMcpServerStatus["status"],
+          ...(server.error !== undefined ? { error: server.error } : {}),
+          tools: [],
+        }));
+      },
+
+      async accountInfo(): Promise<AccountInfo> {
+        return { subscriptionType: "free" };
+      },
+
+      async interrupt(): Promise<void> {
         // No-op for mock
       },
 
-      supportedCommands: async () =>
-        config.slashCommands ?? MOCK_DEFAULTS.slashCommands,
-
-      mcpServerStatus: async () => {
-        const status: Record<string, { status: string; tools: string[] }> = {};
-        if (config.mcpServers) {
-          for (const server of config.mcpServers) {
-            status[server.name] = { status: server.status, tools: [] };
-          }
-        }
-        return status;
+      async setPermissionMode(): Promise<void> {
+        // No-op for mock
       },
 
-      accountInfo: async () => ({ tier: "free" }),
-    };
+      async setModel(): Promise<void> {
+        // No-op for mock
+      },
 
-    return queryObject;
+      async setMaxThinkingTokens(): Promise<void> {
+        // No-op for mock
+      },
+
+      async supportedModels(): Promise<
+        { value: string; displayName: string; description: string }[]
+      > {
+        return [];
+      },
+
+      async reconnectMcpServer(): Promise<void> {
+        // No-op for mock
+      },
+
+      async toggleMcpServer(): Promise<void> {
+        // No-op for mock
+      },
+
+      async setMcpServers(): Promise<{
+        added: string[];
+        removed: string[];
+        errors: Record<string, string>;
+      }> {
+        return { added: [], removed: [], errors: {} };
+      },
+
+      async streamInput(): Promise<void> {
+        // No-op for mock
+      },
+
+      close(): void {
+        // No-op for mock
+      },
+    });
+
+    return queryObject as unknown as Query;
   };
 }
 
@@ -423,18 +559,9 @@ export function createMockExecutionConfig(
  * @returns QueryFunction that throws
  */
 export function createThrowingQueryFn(errorMessage: string): QueryFunction {
-  return (input: QueryInput): QueryObject => {
-    // input parameter required by interface but not used in this mock
-    void input;
-    return {
-      // eslint-disable-next-line require-yield
-      [Symbol.asyncIterator]: async function* () {
-        throw new Error(errorMessage);
-      },
-      rewindFiles: async () => {
-        // No-op for mock - intentionally empty
-      },
-      supportedCommands: async () => [],
-    } as QueryObject;
+  return (_input: QueryInput): Query => {
+    return buildMockQuery(async function* () {
+      throw new Error(errorMessage);
+    });
   };
 }

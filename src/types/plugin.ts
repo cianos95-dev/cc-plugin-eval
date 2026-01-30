@@ -29,13 +29,38 @@ export type PluginErrorType =
 export const MCP_STATUS_NEEDS_AUTH: McpServerStatus["status"] = "needs-auth";
 
 /**
+ * Tool annotations from the SDK's McpServerStatus.
+ */
+export interface McpToolAnnotations {
+  readOnly?: boolean;
+  destructive?: boolean;
+  openWorld?: boolean;
+}
+
+/**
+ * Detailed tool information from SDK's McpServerStatus.
+ */
+export interface McpToolDetail {
+  name: string;
+  description?: string;
+  annotations?: McpToolAnnotations;
+}
+
+/**
  * Status of an MCP server connection.
  */
 export interface McpServerStatus {
   name: string;
-  status: "connected" | "failed" | "pending" | "needs-auth";
+  status: "connected" | "failed" | "pending" | "needs-auth" | "disabled";
+  /** Tool names (string list for backward compatibility) */
   tools: string[];
   error?: string;
+  /** Server info from the MCP protocol (available when connected) */
+  serverInfo?: { name: string; version: string } | undefined;
+  /** Configuration scope (e.g., project, user, local) */
+  scope?: string | undefined;
+  /** Detailed tool metadata including descriptions and annotations */
+  toolDetails?: McpToolDetail[] | undefined;
 }
 
 /**

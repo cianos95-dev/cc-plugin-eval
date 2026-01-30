@@ -25,8 +25,11 @@ import {
   getErrorFromMessage,
   type SDKSystemMessage,
   type QueryInput,
-  type QueryObject,
+  type Query,
   type SettingSource,
+  type SDKMcpServerStatus,
+  type SlashCommand,
+  type AccountInfo,
 } from "./sdk-client.js";
 
 /**
@@ -69,7 +72,7 @@ export function getRecoveryHint(errorType: string): string {
  * Query function type for dependency injection in tests.
  * When provided, this overrides the real SDK.
  */
-export type QueryFunction = (input: QueryInput) => QueryObject;
+export type QueryFunction = (input: QueryInput) => Query;
 
 /**
  * Plugin loader options.
@@ -136,7 +139,7 @@ function buildPluginQueryInput(
 
 /** Process messages from query stream looking for init message */
 async function processQueryMessages(
-  q: QueryObject,
+  q: Query,
   pluginPath: string,
   timings: PluginLoadTimings,
 ): Promise<PluginLoadResult> {
@@ -256,7 +259,7 @@ export async function verifyPluginLoad(
   const settingSources: SettingSource[] = enableMcpDiscovery ? ["project"] : [];
 
   // Keep reference for cleanup
-  let queryObject: QueryObject | undefined;
+  let queryObject: Query | undefined;
 
   try {
     const queryInput = buildPluginQueryInput({
@@ -274,7 +277,7 @@ export async function verifyPluginLoad(
     return handlePluginLoadError(err, pluginPath, timeoutMs, timings);
   } finally {
     // Ensure query cleanup on timeout or error
-    queryObject?.close?.();
+    queryObject?.close();
     clearTimeout(timeout);
   }
 }
@@ -309,13 +312,14 @@ function createTimingBreakdown(
 }
 
 /**
- * Valid MCP server status values.
- * Used to validate SDK responses match our expected type.
+ * Known MCP server status values from the SDK.
+ * The SDK's McpServerStatus type defines: 'connected' | 'failed' | 'needs-auth' | 'pending' | 'disabled'.
  */
-const VALID_MCP_STATUSES = new Set<McpServerStatus["status"]>([
+const KNOWN_MCP_STATUSES = new Set<McpServerStatus["status"]>([
   "connected",
   "failed",
   "pending",
+  "disabled",
   MCP_STATUS_NEEDS_AUTH,
 ]);
 
@@ -323,61 +327,102 @@ const VALID_MCP_STATUSES = new Set<McpServerStatus["status"]>([
  * Type guard to validate MCP server status from SDK response.
  * Returns true if the status is a known valid status value.
  */
-function isValidMcpStatus(status: string): status is McpServerStatus["status"] {
-  return VALID_MCP_STATUSES.has(status as McpServerStatus["status"]);
+function isKnownMcpStatus(status: string): status is McpServerStatus["status"] {
+  return KNOWN_MCP_STATUSES.has(status as McpServerStatus["status"]);
 }
 
 /**
  * Enrich MCP server status with real-time data from SDK query.
  * MCP servers may connect asynchronously after init message.
+ *
+ * The SDK's mcpServerStatus() returns McpServerStatus[] (an array),
+ * which we convert to a Map by server name for efficient lookup.
  */
+/**
+ * Build optional MCP metadata fields from live SDK status.
+ * Extracts serverInfo, scope, and toolDetails when present.
+ */
+function buildMcpMetadata(live: SDKMcpServerStatus): Partial<McpServerStatus> {
+  return {
+    ...(live.serverInfo !== undefined ? { serverInfo: live.serverInfo } : {}),
+    ...(live.scope !== undefined ? { scope: live.scope } : {}),
+    ...(live.tools !== undefined
+      ? {
+          toolDetails: live.tools.map((t) => ({
+            name: t.name,
+            ...(t.description !== undefined
+              ? { description: t.description }
+              : {}),
+            ...(t.annotations !== undefined
+              ? { annotations: t.annotations }
+              : {}),
+          })),
+        }
+      : {}),
+  };
+}
+
 async function enrichMcpServerStatus(
   result: PluginLoadResult,
-  queryObj: QueryObject,
+  queryObj: Query,
 ): Promise<void> {
-  if (!queryObj.mcpServerStatus || result.mcp_servers.length === 0) {
+  if (result.mcp_servers.length === 0) {
     return;
   }
 
   try {
-    const liveStatus = await queryObj.mcpServerStatus();
+    const liveStatuses: SDKMcpServerStatus[] = await queryObj.mcpServerStatus();
+
+    // Convert array to Map by name for efficient lookup
+    const statusByName = new Map<string, SDKMcpServerStatus>();
+    for (const status of liveStatuses) {
+      statusByName.set(status.name, status);
+    }
 
     // Update MCP server data with live status and tools
     result.mcp_servers = result.mcp_servers.map((server) => {
-      const live = liveStatus[server.name];
+      const live = statusByName.get(server.name);
       if (!live) {
         return server;
       }
 
+      // Extract tool names from the richer SDK tool objects
+      const toolNames = live.tools?.map((t) => t.name) ?? server.tools;
+
       // Validate status is a known value; if not, keep init message status and log warning
-      if (!isValidMcpStatus(live.status)) {
+      if (!isKnownMcpStatus(live.status)) {
         logger.debug(
-          `Unknown MCP server status "${live.status}" for server "${server.name}", keeping init status`,
+          `Unknown MCP server status "${String(live.status)}" for server "${server.name}", keeping init status`,
         );
         return {
           ...server,
-          // Always use live tools as the authoritative source for current server state
-          tools: live.tools,
+          tools: toolNames,
+          ...buildMcpMetadata(live),
         };
       }
 
       return {
         ...server,
         status: live.status,
-        // Always use live tools as the authoritative source for current server state
-        tools: live.tools,
+        tools: toolNames,
+        ...buildMcpMetadata(live),
       };
     });
 
-    // Add warnings for failed servers
+    // Add warnings for failed/needs-auth/disabled servers
     const failures = result.mcp_servers.filter(
-      (s) => s.status === "failed" || s.status === MCP_STATUS_NEEDS_AUTH,
+      (s) =>
+        s.status === "failed" ||
+        s.status === MCP_STATUS_NEEDS_AUTH ||
+        s.status === "disabled",
     );
     if (failures.length > 0) {
-      result.mcp_warnings = failures.map(
-        (s) =>
-          `MCP server "${s.name}" ${s.status === MCP_STATUS_NEEDS_AUTH ? "requires authentication" : "failed to connect"}${s.error ? `: ${s.error}` : ""}`,
-      );
+      result.mcp_warnings = failures.map((s) => {
+        if (s.status === "disabled") {
+          return `MCP server "${s.name}" is disabled`;
+        }
+        return `MCP server "${s.name}" ${s.status === MCP_STATUS_NEEDS_AUTH ? "requires authentication" : "failed to connect"}${s.error ? `: ${s.error}` : ""}`;
+      });
     }
   } catch (err) {
     // Don't fail plugin load if status query fails
@@ -649,9 +694,9 @@ export function formatPluginLoadResult(result: PluginLoadResult): string {
  * Query inspection result for runtime capability checking.
  */
 export interface QueryInspectionResult {
-  commands: string[];
-  mcpStatus: Record<string, { status: string; tools: string[] }>;
-  accountInfo?: { tier: string };
+  commands: SlashCommand[];
+  mcpStatus: SDKMcpServerStatus[];
+  accountInfo?: AccountInfo | undefined;
 }
 
 /**
@@ -665,34 +710,26 @@ export interface QueryInspectionResult {
  * @returns Inspection result with commands and MCP status
  */
 export async function inspectQueryCapabilities(
-  q: {
-    supportedCommands?: () => Promise<string[]>;
-    mcpServerStatus?: () => Promise<
-      Record<string, { status: string; tools: string[] }>
-    >;
-    accountInfo?: () => Promise<{ tier: string }>;
-  },
+  q: Query,
   _pluginName: string,
 ): Promise<QueryInspectionResult> {
   // Get all supported commands (verifies command registration)
-  const commands = q.supportedCommands ? await q.supportedCommands() : [];
+  const commands: SlashCommand[] = await q.supportedCommands();
 
   // Get real-time MCP server status (verifies MCP connectivity)
-  const mcpStatus = q.mcpServerStatus ? await q.mcpServerStatus() : {};
+  const mcpStatus: SDKMcpServerStatus[] = await q.mcpServerStatus();
 
   // Optional: Get account info for tier-specific features
-  let accountInfo: { tier: string } | undefined;
-  if (q.accountInfo) {
-    try {
-      accountInfo = await q.accountInfo();
-    } catch {
-      // Account info may not be available in all contexts
-    }
+  let accountInfo: AccountInfo | undefined;
+  try {
+    accountInfo = await q.accountInfo();
+  } catch {
+    // Account info may not be available in all contexts
   }
 
   return {
     commands,
     mcpStatus,
-    ...(accountInfo ? { accountInfo } : {}),
+    ...(accountInfo !== undefined ? { accountInfo } : {}),
   };
 }

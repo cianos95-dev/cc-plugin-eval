@@ -401,16 +401,6 @@ describe("SDK Message Type Guards", () => {
   });
 
   describe("getMessageId", () => {
-    it("returns id when present", () => {
-      const msg = {
-        type: "user",
-        id: "msg-123",
-        message: { role: "user", content: "Hello" },
-      } as SDKMessage;
-
-      expect(getMessageId(msg)).toBe("msg-123");
-    });
-
     it("returns uuid when present", () => {
       const msg = {
         type: "user",
@@ -421,32 +411,11 @@ describe("SDK Message Type Guards", () => {
       expect(getMessageId(msg)).toBe("uuid-456");
     });
 
-    it("prefers id over uuid when both present", () => {
-      const msg = {
-        type: "user",
-        id: "id-value",
-        uuid: "uuid-value",
-        message: { role: "user", content: "Hello" },
-      } as SDKMessage;
-
-      expect(getMessageId(msg)).toBe("id-value");
-    });
-
-    it("returns undefined when neither id nor uuid present", () => {
+    it("returns undefined when uuid not present", () => {
       const msg: SDKMessage = {
         type: "user",
         message: { role: "user", content: "Hello" },
       };
-
-      expect(getMessageId(msg)).toBeUndefined();
-    });
-
-    it("returns undefined when id is not a string", () => {
-      const msg = {
-        type: "user",
-        id: 123,
-        message: { role: "user", content: "Hello" },
-      } as SDKMessage;
 
       expect(getMessageId(msg)).toBeUndefined();
     });

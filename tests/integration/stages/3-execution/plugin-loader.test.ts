@@ -17,10 +17,14 @@ import type {
   SDKMessage,
   SDKSystemMessage,
   SDKErrorMessage,
-  QueryObject,
+  Query,
   QueryInput,
+  SDKMcpServerStatus,
 } from "../../../../src/stages/3-execution/sdk-client.js";
-import { createMockExecutionConfig } from "../../../mocks/sdk-mock.js";
+import {
+  createMockExecutionConfig,
+  buildMockQuery,
+} from "../../../mocks/sdk-mock.js";
 
 const fixturesPath = path.resolve(process.cwd(), "tests/fixtures");
 const validPluginPath = path.join(fixturesPath, "valid-plugin");
@@ -39,8 +43,8 @@ function createPluginLoadQueryFn(
     errorMessage?: string;
     noInitMessage?: boolean;
   } = {},
-): (input: QueryInput) => QueryObject {
-  return (input: QueryInput): QueryObject => {
+): (input: QueryInput) => Query {
+  return (input: QueryInput): Query => {
     const messages: SDKMessage[] = [];
     const pluginName = config.pluginName ?? "test-plugin";
     const allTools = config.tools ?? ["Skill", "Task", "SlashCommand", "Read"];
@@ -79,33 +83,37 @@ function createPluginLoadQueryFn(
       messages.push(initMsg);
     }
 
-    return {
-      [Symbol.asyncIterator]: async function* () {
+    return buildMockQuery(
+      async function* () {
         for (const msg of messages) {
           yield msg;
         }
       },
-      rewindFiles: async () => {},
-      supportedCommands: async () => config.slashCommands ?? [],
-      mcpServerStatus: async () => {
-        const status: Record<string, { status: string; tools: string[] }> = {};
-        if (config.mcpServers) {
-          for (const server of config.mcpServers) {
-            // Filter tools that belong to this MCP server
-            const pluginServerPrefix = `mcp__plugin_${pluginName}_${server.name}__`;
-            const directServerPrefix = `mcp__${server.name}__`;
+      {
+        supportedCommands: async () =>
+          (config.slashCommands ?? ["/commit", "/review-pr"]).map((name) => ({
+            name,
+            description: "",
+            argumentHint: "",
+          })),
+        mcpServerStatus: async () => {
+          if (!config.mcpServers) return [];
+          return config.mcpServers.map((server) => {
+            const serverPrefix = `mcp__plugin_${pluginName}_${server.name}__`;
+            const directPrefix = `mcp__${server.name}__`;
             const serverTools = allTools.filter(
-              (t) =>
-                t.startsWith(pluginServerPrefix) ||
-                t.startsWith(directServerPrefix),
+              (t) => t.startsWith(serverPrefix) || t.startsWith(directPrefix),
             );
-            status[server.name] = { status: server.status, tools: serverTools };
-          }
-        }
-        return status;
+            return {
+              name: server.name,
+              status: server.status as SDKMcpServerStatus["status"],
+              ...(server.error !== undefined ? { error: server.error } : {}),
+              tools: serverTools.map((t) => ({ name: t })),
+            };
+          });
+        },
       },
-      accountInfo: async () => ({ tier: "free" }),
-    } as QueryObject;
+    );
   };
 }
 
@@ -264,7 +272,7 @@ describe("verifyPluginLoad", () => {
   });
 
   it("handles query function throwing error", async () => {
-    const queryFn = (_input: QueryInput): QueryObject => {
+    const queryFn = (_input: QueryInput): Query => {
       throw new Error("Network connection failed");
     };
 
@@ -282,14 +290,10 @@ describe("verifyPluginLoad", () => {
   });
 
   it("handles async iteration throwing error", async () => {
-    const queryFn = (_input: QueryInput): QueryObject => {
-      return {
-        [Symbol.asyncIterator]: async function* () {
-          throw new Error("Stream interrupted");
-        },
-        rewindFiles: async () => {},
-        supportedCommands: async () => [],
-      } as QueryObject;
+    const queryFn = (_input: QueryInput): Query => {
+      return buildMockQuery(async function* () {
+        throw new Error("Stream interrupted");
+      });
     };
 
     const options: PluginLoaderOptions = {
@@ -306,28 +310,24 @@ describe("verifyPluginLoad", () => {
 
   it("handles timeout via abort controller", async () => {
     // Create a query function that never yields
-    const queryFn = (input: QueryInput): QueryObject => {
-      return {
-        [Symbol.asyncIterator]: async function* () {
-          // Wait for abort signal from controller
-          await new Promise((_, reject) => {
-            const signal = input.options?.abortController?.signal;
-            if (signal?.aborted) {
-              const error = new Error("Aborted");
-              error.name = "AbortError";
-              reject(error);
-              return;
-            }
-            signal?.addEventListener("abort", () => {
-              const error = new Error("Aborted");
-              error.name = "AbortError";
-              reject(error);
-            });
+    const queryFn = (input: QueryInput): Query => {
+      return buildMockQuery(async function* () {
+        // Wait for abort signal from controller
+        await new Promise((_, reject) => {
+          const signal = input.options?.abortController?.signal;
+          if (signal?.aborted) {
+            const error = new Error("Aborted");
+            error.name = "AbortError";
+            reject(error);
+            return;
+          }
+          signal?.addEventListener("abort", () => {
+            const error = new Error("Aborted");
+            error.name = "AbortError";
+            reject(error);
           });
-        },
-        rewindFiles: async () => {},
-        supportedCommands: async () => [],
-      } as QueryObject;
+        });
+      });
     };
 
     const options: PluginLoaderOptions = {
@@ -346,7 +346,7 @@ describe("verifyPluginLoad", () => {
 
   it("matches plugin by path suffix", async () => {
     // The plugin path in the mock ends with our target path
-    const queryFn = (input: QueryInput): QueryObject => {
+    const queryFn = (input: QueryInput): Query => {
       const pluginPath = input.options?.plugins?.[0]?.path ?? "";
 
       const initMsg = {
@@ -372,13 +372,9 @@ describe("verifyPluginLoad", () => {
         uuid: "mock-uuid-123" as `${string}-${string}-${string}-${string}-${string}`,
       } satisfies SDKSystemMessage;
 
-      return {
-        [Symbol.asyncIterator]: async function* () {
-          yield initMsg;
-        },
-        rewindFiles: async () => {},
-        supportedCommands: async () => [],
-      } as QueryObject;
+      return buildMockQuery(async function* () {
+        yield initMsg;
+      });
     };
 
     const options: PluginLoaderOptions = {
@@ -437,60 +433,63 @@ describe("verifyPluginLoad", () => {
 
 describe("inspectQueryCapabilities", () => {
   it("returns commands and MCP status", async () => {
-    const queryObject = {
-      supportedCommands: async () => ["/commit", "/review-pr", "/deploy"],
-      mcpServerStatus: async () => ({
-        github: { status: "connected", tools: ["create_issue"] },
-        postgres: { status: "failed", tools: [] },
-      }),
-      accountInfo: async () => ({ tier: "pro" }),
-    };
+    const queryObject = buildMockQuery(
+      async function* () {
+        // empty
+      },
+      {
+        supportedCommands: async () =>
+          ["/commit", "/review-pr", "/deploy"].map((name) => ({
+            name,
+            description: "",
+            argumentHint: "",
+          })),
+        mcpServerStatus: async () => [
+          {
+            name: "github",
+            status: "connected" as SDKMcpServerStatus["status"],
+            tools: [],
+          },
+          {
+            name: "postgres",
+            status: "failed" as SDKMcpServerStatus["status"],
+            tools: [],
+          },
+        ],
+      },
+    );
 
     const result = await inspectQueryCapabilities(queryObject, "test-plugin");
 
-    expect(result.commands).toEqual(["/commit", "/review-pr", "/deploy"]);
-    expect(result.mcpStatus).toEqual({
-      github: { status: "connected", tools: ["create_issue"] },
-      postgres: { status: "failed", tools: [] },
-    });
-    expect(result.accountInfo).toEqual({ tier: "pro" });
-  });
-
-  it("handles missing optional methods", async () => {
-    const queryObject = {};
-
-    const result = await inspectQueryCapabilities(queryObject, "test-plugin");
-
-    expect(result.commands).toEqual([]);
-    expect(result.mcpStatus).toEqual({});
-    expect(result.accountInfo).toBeUndefined();
+    expect(result.commands).toHaveLength(3);
+    expect(result.commands.map((c) => c.name)).toEqual([
+      "/commit",
+      "/review-pr",
+      "/deploy",
+    ]);
+    expect(result.mcpStatus).toHaveLength(2);
+    expect(result.accountInfo).toBeDefined();
+    expect(result.accountInfo?.subscriptionType).toBe("free");
   });
 
   it("handles accountInfo throwing error", async () => {
-    const queryObject = {
-      supportedCommands: async () => ["/commit"],
-      mcpServerStatus: async () => ({}),
-      accountInfo: async () => {
-        throw new Error("Not authenticated");
+    const queryObject = buildMockQuery(
+      async function* () {
+        // empty
       },
-    };
+      {
+        supportedCommands: async () => [
+          { name: "/commit", description: "", argumentHint: "" },
+        ],
+        accountInfo: async () => {
+          throw new Error("Not authenticated");
+        },
+      },
+    );
 
     const result = await inspectQueryCapabilities(queryObject, "test-plugin");
 
-    expect(result.commands).toEqual(["/commit"]);
-    expect(result.accountInfo).toBeUndefined();
-  });
-
-  it("handles partial query object", async () => {
-    const queryObject = {
-      supportedCommands: async () => ["/commit"],
-      // No mcpServerStatus or accountInfo
-    };
-
-    const result = await inspectQueryCapabilities(queryObject, "test-plugin");
-
-    expect(result.commands).toEqual(["/commit"]);
-    expect(result.mcpStatus).toEqual({});
+    expect(result.commands).toHaveLength(1);
     expect(result.accountInfo).toBeUndefined();
   });
 });

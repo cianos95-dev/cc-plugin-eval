@@ -625,12 +625,17 @@ export {
   type SDKResultMessage,
   type SDKSystemMessage,
   type SDKErrorMessage,
-  type QueryObject,
+  type Query,
   type QueryInput,
   type QueryOptions,
   type PreToolUseHookInput,
   type HookCallback,
   type HookJSONOutput,
+  type SlashCommand,
+  type AccountInfo,
+  type RewindFilesResult,
+  type SDKMcpServerStatus,
+  type SDKHookResponseMessage,
 } from "./sdk-client.js";
 
 // Agent executor exports

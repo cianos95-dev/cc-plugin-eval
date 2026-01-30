@@ -5,7 +5,11 @@
  * scenario execution for programmatic detection in Stage 4.
  */
 
-import type { HookJSONOutput, PreToolUseHookInput } from "./sdk-client.js";
+import type {
+  HookJSONOutput,
+  PreToolUseHookInput,
+  SDKHookResponseMessage,
+} from "./sdk-client.js";
 import type { HookResponseCapture, ToolCapture } from "../../types/index.js";
 
 /**
@@ -344,6 +348,32 @@ export interface HookResponseCollector {
 }
 
 /**
+ * Type guard for SDKHookResponseMessage.
+ * Uses the SDK's exported type for accurate field checking.
+ *
+ * @param message - SDK message to check
+ * @returns True if message is a hook response
+ */
+function isHookResponseMessage(
+  message: unknown,
+): message is SDKHookResponseMessage {
+  if (typeof message !== "object" || message === null) {
+    return false;
+  }
+
+  const msg = message as Record<string, unknown>;
+
+  return (
+    msg["type"] === "system" &&
+    msg["subtype"] === "hook_response" &&
+    typeof msg["hook_name"] === "string" &&
+    typeof msg["hook_event"] === "string" &&
+    typeof msg["stdout"] === "string" &&
+    typeof msg["stderr"] === "string"
+  );
+}
+
+/**
  * Create a hook response collector.
  *
  * This collector processes SDK messages and extracts hook response messages
@@ -374,12 +404,15 @@ export function createHookResponseCollector(): HookResponseCollector {
       return;
     }
 
+    // After type guard, message is narrowed to SDKHookResponseMessage
     responses.push({
       hookName: message.hook_name,
       hookEvent: message.hook_event,
+      hookId: message.hook_id,
       stdout: message.stdout,
       stderr: message.stderr,
       exitCode: message.exit_code,
+      outcome: message.outcome,
       timestamp: Date.now(),
     });
   };
@@ -393,45 +426,6 @@ export function createHookResponseCollector(): HookResponseCollector {
     processMessage,
     clear,
   };
-}
-
-/**
- * SDK hook response message structure.
- * Matches the SDKHookResponseMessage type from Agent SDK.
- */
-interface SDKHookResponseMessage {
-  type: "system";
-  subtype: "hook_response";
-  hook_name: string;
-  hook_event: string;
-  stdout: string;
-  stderr: string;
-  exit_code?: number;
-}
-
-/**
- * Type guard for SDKHookResponseMessage.
- *
- * @param message - SDK message to check
- * @returns True if message is a hook response
- */
-function isHookResponseMessage(
-  message: unknown,
-): message is SDKHookResponseMessage {
-  if (typeof message !== "object" || message === null) {
-    return false;
-  }
-
-  const msg = message as Record<string, unknown>;
-
-  return (
-    msg["type"] === "system" &&
-    msg["subtype"] === "hook_response" &&
-    typeof msg["hook_name"] === "string" &&
-    typeof msg["hook_event"] === "string" &&
-    typeof msg["stdout"] === "string" &&
-    typeof msg["stderr"] === "string"
-  );
 }
 
 /**

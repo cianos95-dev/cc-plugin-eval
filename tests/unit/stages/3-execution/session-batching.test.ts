@@ -13,6 +13,7 @@ import {
 import {
   createMockExecutionConfig,
   createMockQueryFn,
+  buildMockQuery,
 } from "../../../mocks/sdk-mock.js";
 
 import type {
@@ -245,7 +246,9 @@ describe("session-batching", () => {
     });
 
     it("executes batch with checkpointing enabled and calls rewindFiles", async () => {
-      const rewindFilesMock = vi.fn().mockResolvedValue(undefined);
+      const rewindFilesMock = vi
+        .fn()
+        .mockResolvedValue({ canRewind: true, filesChanged: [] });
       const scenarios = [
         createBatchScenario("scenario-1", "skill:test"),
         createBatchScenario("scenario-2", "skill:test"),
@@ -259,10 +262,10 @@ describe("session-batching", () => {
       // Wrap the mock to track rewindFiles calls
       const wrappedQueryFn = (input: unknown) => {
         const queryObj = mockQuery(input as Parameters<typeof mockQuery>[0]);
-        return {
-          ...queryObj,
+        // Use Object.assign to preserve async generator protocol
+        return Object.assign(queryObj, {
           rewindFiles: rewindFilesMock,
-        };
+        });
       };
 
       const results = await executeBatch({
@@ -296,10 +299,9 @@ describe("session-batching", () => {
 
       const wrappedQueryFn = (input: unknown) => {
         const queryObj = mockQuery(input as Parameters<typeof mockQuery>[0]);
-        return {
-          ...queryObj,
+        return Object.assign(queryObj, {
           rewindFiles: rewindFilesMock,
-        };
+        });
       };
 
       // Should not throw, just log warning
@@ -319,7 +321,9 @@ describe("session-batching", () => {
     });
 
     it("skips rewindFiles when checkpointing is disabled", async () => {
-      const rewindFilesMock = vi.fn().mockResolvedValue(undefined);
+      const rewindFilesMock = vi
+        .fn()
+        .mockResolvedValue({ canRewind: true, filesChanged: [] });
       const scenarios = [createBatchScenario("scenario-1", "skill:test")];
 
       const mockQuery = createMockQueryFn({
@@ -329,10 +333,9 @@ describe("session-batching", () => {
 
       const wrappedQueryFn = (input: unknown) => {
         const queryObj = mockQuery(input as Parameters<typeof mockQuery>[0]);
-        return {
-          ...queryObj,
+        return Object.assign(queryObj, {
           rewindFiles: rewindFilesMock,
-        };
+        });
       };
 
       await executeBatch({
@@ -378,7 +381,7 @@ describe("session-batching", () => {
       expect(queryInput.options?.enableFileCheckpointing).toBe(true);
     });
 
-    it("handles missing rewindFiles method gracefully", async () => {
+    it("handles canRewind:false response gracefully", async () => {
       const scenarios = [createBatchScenario("scenario-1", "skill:test")];
 
       const mockQuery = createMockQueryFn({
@@ -386,12 +389,16 @@ describe("session-batching", () => {
         userMessageId: "user-msg-no-rewind",
       });
 
-      // Create a query function that returns an object WITHOUT rewindFiles
+      // Return canRewind: false to simulate SDK not able to rewind
+      const rewindFilesMock = vi
+        .fn()
+        .mockResolvedValue({ canRewind: false, error: "No checkpoint found" });
+
       const wrappedQueryFn = (input: unknown) => {
         const queryObj = mockQuery(input as Parameters<typeof mockQuery>[0]);
-        // Remove rewindFiles to simulate SDK not supporting it
-        const { rewindFiles: _removed, ...queryObjWithoutRewind } = queryObj;
-        return queryObjWithoutRewind;
+        return Object.assign(queryObj, {
+          rewindFiles: rewindFilesMock,
+        });
       };
 
       // Should complete without throwing
@@ -420,15 +427,14 @@ describe("session-batching", () => {
 
       const rewindFilesMock = vi.fn().mockImplementation((msgId: string) => {
         capturedMessageIds.push(msgId);
-        return Promise.resolve();
+        return Promise.resolve({ canRewind: true, filesChanged: [] });
       });
 
       const wrappedQueryFn = (input: unknown) => {
         const queryObj = mockQuery(input as Parameters<typeof mockQuery>[0]);
-        return {
-          ...queryObj,
+        return Object.assign(queryObj, {
           rewindFiles: rewindFilesMock,
-        };
+        });
       };
 
       await executeBatch({
@@ -458,12 +464,14 @@ describe("session-batching", () => {
         if (callCount === 1) {
           throw new Error("Execution failed");
         }
-        // Return a minimal async iterable for the second scenario
-        return {
-          [Symbol.asyncIterator]: async function* () {
-            yield { type: "result", total_cost_usd: 0, duration_ms: 100 };
-          },
-        };
+        // Return a minimal Query-like object for the second scenario
+        return buildMockQuery(async function* () {
+          yield {
+            type: "result" as const,
+            total_cost_usd: 0,
+            duration_ms: 100,
+          };
+        });
       };
 
       const results = await executeBatch({
