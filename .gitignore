@@ -155,7 +155,6 @@ knip-raw-results.json
 
 # Claude related files
 .claude/
-.serena/
 
 # =============================================================================
 # Temporary Files
