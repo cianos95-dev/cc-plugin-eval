@@ -95,7 +95,7 @@ Fixes # (issue)
 
 - [ ] I have run `npm run lint` and fixed all issues
 - [ ] I have run `npm run format:check`
-- [ ] I have run `markdownlint "*.md"` on Markdown files
+- [ ] I have run `markdownlint-cli2 "**/*.md" "#node_modules"` on Markdown files
 - [ ] I have run `uvx yamllint -c .yamllint.yml` on YAML files (if modified)
 - [ ] I have run `actionlint` on workflow files (if modified)
 

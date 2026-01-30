@@ -128,7 +128,7 @@ npm run typecheck
 npm run format:check
 
 # Markdown
-markdownlint "*.md"
+markdownlint-cli2 "**/*.md" "#node_modules"
 
 # YAML
 uvx yamllint -c .yamllint.yml config.yaml .yamllint.yml
@@ -236,7 +236,7 @@ npm run build
 
 # Additional linters
 npm run format:check
-markdownlint "*.md"
+markdownlint-cli2 "**/*.md" "#node_modules"
 uvx yamllint -c .yamllint.yml config.yaml .yamllint.yml
 actionlint .github/workflows/*.yml
 ```
