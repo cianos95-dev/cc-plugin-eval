@@ -163,7 +163,8 @@ npx vitest run -t "SkillAnalyzer"
 2. **Make changes** following the code style above
 
 3. **Ensure quality gates pass**
-   - All linters pass (`npm run lint`, `npm run typecheck`)
+   - All linters pass (`npm run lint`, `npm run typecheck`, `npm run format:check`)
+   - Dead code check passes (`npm run knip`)
    - All tests pass (`npm test`)
    - Coverage threshold met (`npm run test:coverage`)
 
@@ -229,13 +230,14 @@ This project follows semantic versioning. The version is defined in `package.jso
 Run all validation before starting:
 
 ```bash
+npm run build
 npm run typecheck
 npm run lint
+npm run format:check
+npm run knip
 npm test
-npm run build
 
 # Additional linters
-npm run format:check
 markdownlint-cli2 "**/*.md" "#node_modules"
 uvx yamllint -c .yamllint.yml config.yaml .yamllint.yml
 actionlint .github/workflows/*.yml

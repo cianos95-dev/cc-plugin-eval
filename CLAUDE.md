@@ -34,7 +34,7 @@
 ## Commands
 
 ```bash
-npm run build && npm run lint && npm run typecheck && npm test  # Verify
+npm run build && npm run lint && npm run typecheck && npm run format:check && npm run knip && npm test  # Verify
 cc-plugin-eval run -p ./plugin           # Full pipeline
 cc-plugin-eval run -p ./plugin --dry-run # Cost estimation
 cc-plugin-eval resume -r <run-id>        # Resume run

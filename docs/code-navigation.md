@@ -23,7 +23,7 @@ Agent detection uses SubagentStart/SubagentStop hooks. Use `find_symbol` to navi
 | Pattern                                   | Matches                                     |
 | ----------------------------------------- | ------------------------------------------- |
 | `runEvaluation`                           | Any symbol named `runEvaluation`            |
-| `ProgrammaticDetector/detectFromCaptures` | Method in class                             |
+| `enrichMcpServerStatus`                   | Function in `plugin-loader.ts`              |
 | `/ClassName/method`                       | Absolute path (exact match required)        |
 | `detect` (with `substring_matching`)      | `detectFromCaptures`, `detectAllComponents` |
 

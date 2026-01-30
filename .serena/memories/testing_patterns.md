@@ -71,6 +71,27 @@ Available mock factories:
 - `createMockScenarioOptions(overrides)` - Scenario options
 - `createThrowingQueryFn(error)` - Error simulation
 - `createTimeoutQueryFn(delayMs)` - Timeout simulation
+- `buildMockQuery(genFn, overrides?)` - Minimal Query mock from async generator
+
+### Query Mock Pattern (`buildMockQuery`)
+
+Use `buildMockQuery()` for all Query mocks. Stubs all 14 Query interface methods
+with safe defaults. Pass `overrides` for custom behavior:
+
+```typescript
+import { buildMockQuery } from "../mocks/sdk-mock.js";
+
+// Basic usage
+const query = buildMockQuery(async function* () { yield initMessage; });
+
+// With custom method overrides
+const query = buildMockQuery(
+  async function* () { yield initMessage; },
+  { mcpServerStatus: async () => { throw new Error("Network error"); } },
+);
+```
+
+Do NOT use inline `Object.assign(gen, {...})` — that pattern has been fully replaced.
 
 ### Test-Local Helpers
 

@@ -36,17 +36,25 @@ When completing a task in this project, run the following checks:
 
    Must compile successfully.
 
-## Optional Checks
-
-1. **Format Check** (if touching many files)
+5. **Format Check**
 
    ```bash
    npm run format:check
    ```
 
-   Use `npm run format` to fix formatting issues.
+   Must pass. Use `npm run format` to fix formatting issues.
 
-2. **Markdown Lint** (if editing markdown)
+6. **Dead Code Detection**
+
+   ```bash
+   npm run knip
+   ```
+
+   Must pass with no unused exports or dependencies.
+
+## Optional Checks
+
+1. **Markdown Lint** (if editing markdown)
 
    ```bash
    markdownlint-cli2 "**/*.md" "#node_modules"

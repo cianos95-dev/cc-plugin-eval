@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Aligned with Claude Agent SDK v0.2.25 type definitions (#345)
+- Updated dependencies to latest versions
+
+### Added
+
+- Calibration documentation for LLM judge evaluation (corpus, human evaluation, judge calibration)
+
 ## [0.4.0] - 2026-01-22
 
 ### Added

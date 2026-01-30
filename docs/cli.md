@@ -303,7 +303,7 @@ Standard JSON output with full evaluation data:
 
 ```json
 {
-  "timestamp": "2024-01-15T10:30:00Z",
+  "timestamp": "2026-01-15T10:30:00Z",
   "plugin_name": "my-plugin",
   "metrics": {
     "total": 10,
@@ -319,7 +319,7 @@ Standard JSON output with full evaluation data:
 Human-readable YAML format:
 
 ```yaml
-timestamp: "2024-01-15T10:30:00Z"
+timestamp: "2026-01-15T10:30:00Z"
 plugin_name: my-plugin
 metrics:
   total: 10
