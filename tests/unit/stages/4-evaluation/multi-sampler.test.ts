@@ -17,7 +17,6 @@ import { evaluateWithFallback } from "../../../../src/stages/4-evaluation/llm-ju
 import {
   aggregateScores,
   calculateVariance,
-  calculateStdDev,
   getMajorityVote,
   isUnanimousVote,
   isLowVariance,
@@ -120,18 +119,6 @@ describe("calculateVariance", () => {
   it("should handle high variance", () => {
     // [1, 10] has mean 5.5, variance = ((1-5.5)² + (10-5.5)²) / 2 = 20.25
     expect(calculateVariance([1, 10])).toBeCloseTo(20.25);
-  });
-});
-
-describe("calculateStdDev", () => {
-  it("should be square root of variance", () => {
-    const scores = [7, 8, 9];
-    const variance = calculateVariance(scores);
-    expect(calculateStdDev(scores)).toBeCloseTo(Math.sqrt(variance));
-  });
-
-  it("should return 0 for identical values", () => {
-    expect(calculateStdDev([5, 5, 5])).toBe(0);
   });
 });
 

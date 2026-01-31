@@ -3,8 +3,9 @@
  * Parses command markdown files and extracts frontmatter.
  */
 
+import path from "node:path";
+
 import {
-  basename,
   parseFrontmatter,
   parseStringOrArray,
   readText,
@@ -34,7 +35,7 @@ export function analyzeCommand(
   const name =
     typeof frontmatter["name"] === "string"
       ? frontmatter["name"]
-      : basename(commandPath, ".md");
+      : path.basename(commandPath, ".md");
 
   // Get description from frontmatter or body
   const description =

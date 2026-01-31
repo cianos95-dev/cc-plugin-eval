@@ -3,8 +3,9 @@
  * Parses agent markdown files and extracts example blocks.
  */
 
+import path from "node:path";
+
 import {
-  basename,
   parseFrontmatter,
   parseStringOrArray,
   readText,
@@ -27,7 +28,7 @@ export function analyzeAgent(agentPath: string): AgentComponent {
   const name =
     typeof frontmatter["name"] === "string"
       ? frontmatter["name"]
-      : basename(agentPath, ".md");
+      : path.basename(agentPath, ".md");
 
   // Get description from frontmatter or body
   const description =

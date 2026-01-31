@@ -1,24 +1,23 @@
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import {
-  basename,
-  dirname,
   ensureDir,
-  extname,
-  fileExists,
   generateRunId,
   getResultsDir,
-  joinPath,
   parseFrontmatter,
   readJson,
   readText,
   readYaml,
-  relativePath,
-  resolvePath,
   writeJson,
   writeText,
   writeYaml,
@@ -37,20 +36,20 @@ describe("ensureDir", () => {
 
   it("creates a new directory", () => {
     const newDir = path.join(tempDir, "newdir");
-    expect(fileExists(newDir)).toBe(false);
+    expect(existsSync(newDir)).toBe(false);
 
     ensureDir(newDir);
 
-    expect(fileExists(newDir)).toBe(true);
+    expect(existsSync(newDir)).toBe(true);
   });
 
   it("creates nested directories", () => {
     const nestedDir = path.join(tempDir, "a", "b", "c");
-    expect(fileExists(nestedDir)).toBe(false);
+    expect(existsSync(nestedDir)).toBe(false);
 
     ensureDir(nestedDir);
 
-    expect(fileExists(nestedDir)).toBe(true);
+    expect(existsSync(nestedDir)).toBe(true);
   });
 
   it("does nothing if directory exists", () => {
@@ -60,7 +59,7 @@ describe("ensureDir", () => {
     // Should not throw
     ensureDir(existingDir);
 
-    expect(fileExists(existingDir)).toBe(true);
+    expect(existsSync(existingDir)).toBe(true);
   });
 });
 
@@ -101,7 +100,7 @@ describe("readJson / writeJson", () => {
 
     writeJson(filePath, data);
 
-    expect(fileExists(filePath)).toBe(true);
+    expect(existsSync(filePath)).toBe(true);
     expect(readJson(filePath)).toEqual(data);
   });
 
@@ -146,7 +145,7 @@ describe("readYaml / writeYaml", () => {
 
     writeYaml(filePath, data);
 
-    expect(fileExists(filePath)).toBe(true);
+    expect(existsSync(filePath)).toBe(true);
     expect(readYaml(filePath)).toEqual(data);
   });
 
@@ -184,7 +183,7 @@ describe("readText / writeText", () => {
 
     writeText(filePath, content);
 
-    expect(fileExists(filePath)).toBe(true);
+    expect(existsSync(filePath)).toBe(true);
     expect(readText(filePath)).toBe(content);
   });
 
@@ -195,100 +194,6 @@ describe("readText / writeText", () => {
     const result = readText(filePath);
 
     expect(result).toBe("");
-  });
-});
-
-describe("fileExists", () => {
-  let tempDir: string;
-
-  beforeEach(() => {
-    tempDir = mkdtempSync(path.join(os.tmpdir(), "file-io-test-"));
-  });
-
-  afterEach(() => {
-    rmSync(tempDir, { recursive: true, force: true });
-  });
-
-  it("returns true for existing file", () => {
-    const filePath = path.join(tempDir, "exists.txt");
-    writeFileSync(filePath, "content", "utf-8");
-
-    expect(fileExists(filePath)).toBe(true);
-  });
-
-  it("returns true for existing directory", () => {
-    expect(fileExists(tempDir)).toBe(true);
-  });
-
-  it("returns false for non-existent path", () => {
-    const filePath = path.join(tempDir, "nonexistent.txt");
-
-    expect(fileExists(filePath)).toBe(false);
-  });
-});
-
-describe("path utilities", () => {
-  describe("relativePath", () => {
-    it("returns relative path between two paths", () => {
-      const from = "/a/b/c";
-      const to = "/a/b/d/e.txt";
-
-      const result = relativePath(from, to);
-
-      expect(result).toBe("../d/e.txt");
-    });
-  });
-
-  describe("joinPath", () => {
-    it("joins path segments", () => {
-      const result = joinPath("a", "b", "c.txt");
-
-      expect(result).toBe(path.join("a", "b", "c.txt"));
-    });
-  });
-
-  describe("resolvePath", () => {
-    it("resolves to absolute path", () => {
-      const result = resolvePath("./relative/path");
-
-      expect(path.isAbsolute(result)).toBe(true);
-    });
-  });
-
-  describe("dirname", () => {
-    it("returns directory name", () => {
-      const result = dirname("/a/b/c.txt");
-
-      expect(result).toBe("/a/b");
-    });
-  });
-
-  describe("basename", () => {
-    it("returns base name", () => {
-      const result = basename("/a/b/c.txt");
-
-      expect(result).toBe("c.txt");
-    });
-
-    it("removes extension when provided", () => {
-      const result = basename("/a/b/c.txt", ".txt");
-
-      expect(result).toBe("c");
-    });
-  });
-
-  describe("extname", () => {
-    it("returns file extension", () => {
-      const result = extname("/a/b/c.txt");
-
-      expect(result).toBe(".txt");
-    });
-
-    it("returns empty string for no extension", () => {
-      const result = extname("/a/b/c");
-
-      expect(result).toBe("");
-    });
   });
 });
 

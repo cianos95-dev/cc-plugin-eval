@@ -128,16 +128,6 @@ export function calculateVariance(scores: number[]): number {
   return sum(scores.map((s) => Math.pow(s - mean, 2))) / scores.length;
 }
 
-/**
- * Calculate standard deviation of scores.
- *
- * @param scores - Array of scores
- * @returns Standard deviation
- */
-export function calculateStdDev(scores: number[]): number {
-  return Math.sqrt(calculateVariance(scores));
-}
-
 // Re-export getMajorityVote from judge-utils for backward compatibility
 export { getMajorityVote } from "./judge-utils.js";
 
