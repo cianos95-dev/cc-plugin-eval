@@ -28,6 +28,7 @@ import {
   type SDKMessage,
   type SettingSource,
 } from "./sdk-client.js";
+import { createSDKEventCollector } from "./sdk-event-collector.js";
 import {
   addInterruptErrorIfNeeded,
   createTimeout,
@@ -47,6 +48,7 @@ import type {
   TestScenario,
   ToolCapture,
   TranscriptErrorEvent,
+  SDKEventCapture,
 } from "../../types/index.js";
 
 /**
@@ -308,6 +310,8 @@ interface ExecuteScenarioWithRetryResult {
   userMessageId: string | undefined;
   /** Whether the SDK Stop hook fired (clean completion) */
   stopReceived: boolean;
+  /** SDK events captured from new message types */
+  sdkEvents: SDKEventCapture[];
 }
 
 /**
@@ -346,6 +350,7 @@ async function executeScenarioWithRetry(
   const detectedTools: ToolCapture[] = [];
   const subagentCaptures: SubagentCapture[] = [];
   const hookCollector = createHookResponseCollector();
+  const sdkEventCollector = createSDKEventCollector();
   let userMessageId: string | undefined;
   let stopReceived = false;
 
@@ -415,6 +420,9 @@ async function executeScenarioWithRetry(
           scenarioMessages.push(message);
           hookCollector.processMessage(message);
 
+          // Process for SDK event capture (new message types v0.2.25+)
+          sdkEventCollector.processMessage(message, detectedTools);
+
           // Capture the FIRST user message ID for file checkpointing.
           // We only need the first because we want to rewind to the state
           // before the scenario prompt, not any follow-up messages.
@@ -471,6 +479,7 @@ async function executeScenarioWithRetry(
     errors: scenarioErrors,
     userMessageId,
     stopReceived,
+    sdkEvents: sdkEventCollector.events,
   };
 }
 
@@ -786,6 +795,7 @@ export async function executeBatch(
         pluginName,
         model: config.model,
         stopReceived: executionResult.stopReceived,
+        sdkEvents: executionResult.sdkEvents,
       });
       results.push(result);
       onScenarioComplete?.(result, scenarioIndex);
@@ -816,6 +826,7 @@ export async function executeBatch(
         pluginName,
         model: config.model,
         stopReceived: false,
+        sdkEvents: [],
       });
       results.push(result);
       onScenarioComplete?.(result, scenarioIndex);
@@ -850,6 +861,8 @@ interface BuildScenarioResultOptions {
   model: string;
   /** Whether the SDK Stop hook fired (clean completion) */
   stopReceived: boolean;
+  /** SDK events captured from new message types */
+  sdkEvents: SDKEventCapture[];
 }
 
 /**
@@ -868,6 +881,7 @@ function buildScenarioResult(
     pluginName,
     model,
     stopReceived,
+    sdkEvents,
   } = options;
   // Extract metrics from result message
   const resultMsg = messages.find(isResultMessage);
@@ -900,6 +914,7 @@ function buildScenarioResult(
     permission_denials: permissionDenials,
     errors,
     termination_type: terminationType,
+    ...(sdkEvents.length > 0 ? { sdk_events: sdkEvents } : {}),
   };
 }
 

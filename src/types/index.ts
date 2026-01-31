@@ -73,6 +73,9 @@ export type {
   Transcript,
   ExecutionResult,
   TerminationType,
+  ToolProgressData,
+  ToolSummaryData,
+  SDKEventCapture,
 } from "./transcript.js";
 
 // Evaluation types

@@ -31,6 +31,7 @@ import {
   type SettingSource,
   type ModelUsage,
 } from "./sdk-client.js";
+import { createSDKEventCollector } from "./sdk-event-collector.js";
 import {
   addInterruptErrorIfNeeded,
   createTimeout,
@@ -52,6 +53,7 @@ import type {
   ToolCapture,
   SubagentCapture,
   HookResponseCapture,
+  SDKEventCapture,
 } from "../../types/index.js";
 
 /**
@@ -229,6 +231,8 @@ interface ExecutionContext {
   interrupted: { value: boolean };
   /** Mutable query reference for timeout callbacks */
   queryHolder: QueryHolder;
+  /** SDK event collector for new message types (v0.2.25+) */
+  sdkEventCollector: ReturnType<typeof createSDKEventCollector>;
 }
 
 /**
@@ -245,6 +249,7 @@ function prepareExecutionContext(
   const subagentCaptures: SubagentCapture[] = [];
   const errors: TranscriptErrorEvent[] = [];
   const hookCollector = createHookResponseCollector();
+  const sdkEventCollector = createSDKEventCollector();
   const controller = new AbortController();
   const queryHolder: QueryHolder = { query: undefined };
   const { cleanup, interrupted } = createTimeout(
@@ -260,6 +265,7 @@ function prepareExecutionContext(
     subagentCaptures,
     errors,
     hookCollector,
+    sdkEventCollector,
     controller,
     cleanup,
     startTime,
@@ -346,6 +352,8 @@ interface BuildExecutionResultOptions {
   metrics: ResultMetrics;
   /** Whether the SDK Stop hook fired (clean completion) */
   stopReceived: boolean;
+  /** SDK events captured from new message types */
+  sdkEvents: SDKEventCapture[];
 }
 
 /**
@@ -400,6 +408,7 @@ function buildExecutionResult(
     subagentCaptures,
     metrics,
     stopReceived,
+    sdkEvents,
   } = options;
 
   // Derive termination type from execution signals
@@ -424,6 +433,7 @@ function buildExecutionResult(
     cache_read_tokens: metrics.cacheReadTokens,
     cache_creation_tokens: metrics.cacheCreationTokens,
     termination_type: terminationType,
+    ...(sdkEvents.length > 0 ? { sdk_events: sdkEvents } : {}),
   };
 }
 
@@ -460,6 +470,7 @@ function finalizeExecution(
     subagentCaptures: ctx.subagentCaptures,
     metrics: extractResultMetrics(ctx.messages),
     stopReceived: ctx.stopReceived,
+    sdkEvents: ctx.sdkEventCollector.events,
   });
 }
 
@@ -574,6 +585,9 @@ export async function executeScenario(
 
           // Process message for hook responses
           ctx.hookCollector.processMessage(message);
+
+          // Process for SDK event capture (new message types v0.2.25+)
+          ctx.sdkEventCollector.processMessage(message, ctx.detectedTools);
 
           // Capture errors for transcript
           // Note: SDK may send error messages not in its TypeScript union

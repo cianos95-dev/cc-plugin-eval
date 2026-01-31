@@ -40,6 +40,10 @@ export interface ToolCapture {
   error?: string;
   /** Whether the tool was interrupted */
   isInterrupt?: boolean;
+  /** Progress tracking data from SDKToolProgressMessage */
+  progress?: ToolProgressData;
+  /** Summary data from SDKToolUseSummaryMessage */
+  summaryData?: ToolSummaryData;
 }
 
 /**
@@ -82,6 +86,42 @@ export interface HookResponseCapture {
   outcome?: "success" | "error" | "cancelled" | undefined;
   /** Capture timestamp */
   timestamp: number;
+}
+
+/**
+ * Tool execution progress data from SDKToolProgressMessage.
+ * Aggregated from potentially multiple progress messages per tool.
+ */
+export interface ToolProgressData {
+  /** Last recorded elapsed time in seconds */
+  elapsed_time_seconds: number;
+  /** Number of progress messages received for this tool */
+  progress_count: number;
+  /** Parent tool use ID if this is a nested tool */
+  parent_tool_use_id?: string;
+}
+
+/**
+ * Tool usage summary data from SDKToolUseSummaryMessage.
+ */
+export interface ToolSummaryData {
+  /** LLM-generated summary of what the tool did */
+  summary: string;
+}
+
+/**
+ * Generic capture for SDK message types not handled by targeted enrichment.
+ * Provides forward-compatible storage for current and future SDK message types.
+ */
+export interface SDKEventCapture {
+  /** The raw SDK message type (e.g., "auth_status", "system") */
+  type: string;
+  /** The subtype if present (e.g., "files_persisted", "task_notification") */
+  subtype?: string;
+  /** Timestamp when the event was captured */
+  timestamp: number;
+  /** Raw message payload */
+  payload: Record<string, unknown>;
 }
 
 /**
@@ -219,4 +259,6 @@ export interface ExecutionResult {
   cache_creation_tokens?: number;
   /** How the scenario terminated: clean completion, timeout, or error */
   termination_type?: TerminationType;
+  /** Generic SDK events not covered by targeted captures (forward-compatible) */
+  sdk_events?: SDKEventCapture[];
 }

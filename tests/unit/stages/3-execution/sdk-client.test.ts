@@ -13,6 +13,11 @@ import {
   isResultMessage,
   isSystemMessage,
   isErrorMessage,
+  isToolProgressMessage,
+  isToolUseSummaryMessage,
+  isFilesPersistedEvent,
+  isTaskNotificationMessage,
+  isAuthStatusMessage,
   getErrorFromMessage,
   getMessageId,
   type SDKMessage,
@@ -314,6 +319,124 @@ describe("SDK Message Type Guards", () => {
       };
 
       expect(isErrorMessage(msg)).toBe(false);
+    });
+  });
+
+  describe("isToolProgressMessage", () => {
+    it("returns true for tool progress message", () => {
+      const msg = {
+        type: "tool_progress",
+        tool_use_id: "tool-123",
+        tool_name: "Bash",
+        parent_tool_use_id: null,
+        elapsed_time_seconds: 5.0,
+        uuid: "uuid-1",
+        session_id: "sess-1",
+      } as SDKMessage;
+
+      expect(isToolProgressMessage(msg)).toBe(true);
+    });
+
+    it("returns false for non-tool-progress message", () => {
+      const msg = {
+        type: "user",
+        message: { role: "user", content: "Hi" },
+      } as SDKMessage;
+      expect(isToolProgressMessage(msg)).toBe(false);
+    });
+  });
+
+  describe("isToolUseSummaryMessage", () => {
+    it("returns true for tool use summary message", () => {
+      const msg = {
+        type: "tool_use_summary",
+        summary: "Read a file",
+        preceding_tool_use_ids: ["tool-1"],
+        uuid: "uuid-1",
+        session_id: "sess-1",
+      } as SDKMessage;
+
+      expect(isToolUseSummaryMessage(msg)).toBe(true);
+    });
+
+    it("returns false for non-summary message", () => {
+      const msg = { type: "result" } as SDKMessage;
+      expect(isToolUseSummaryMessage(msg)).toBe(false);
+    });
+  });
+
+  describe("isFilesPersistedEvent", () => {
+    it("returns true for files_persisted system message", () => {
+      const msg = {
+        type: "system",
+        subtype: "files_persisted",
+        files: [],
+        failed: [],
+        processed_at: "2026-01-30T00:00:00Z",
+        uuid: "uuid-1",
+        session_id: "sess-1",
+      } as SDKMessage;
+
+      expect(isFilesPersistedEvent(msg)).toBe(true);
+    });
+
+    it("returns false for system init message", () => {
+      const msg = { type: "system", subtype: "init" } as SDKMessage;
+      expect(isFilesPersistedEvent(msg)).toBe(false);
+    });
+
+    it("returns false for non-system message", () => {
+      const msg = {
+        type: "user",
+        message: { role: "user", content: "Hi" },
+      } as SDKMessage;
+      expect(isFilesPersistedEvent(msg)).toBe(false);
+    });
+  });
+
+  describe("isTaskNotificationMessage", () => {
+    it("returns true for task_notification system message", () => {
+      const msg = {
+        type: "system",
+        subtype: "task_notification",
+        task_id: "task-1",
+        status: "completed",
+        output_file: "/tmp/out.txt",
+        summary: "Done",
+        uuid: "uuid-1",
+        session_id: "sess-1",
+      } as SDKMessage;
+
+      expect(isTaskNotificationMessage(msg)).toBe(true);
+    });
+
+    it("returns false for files_persisted system message", () => {
+      const msg = { type: "system", subtype: "files_persisted" } as SDKMessage;
+      expect(isTaskNotificationMessage(msg)).toBe(false);
+    });
+
+    it("returns false for system init message", () => {
+      const msg = { type: "system", subtype: "init" } as SDKMessage;
+      expect(isTaskNotificationMessage(msg)).toBe(false);
+    });
+  });
+
+  describe("isAuthStatusMessage", () => {
+    it("returns true for auth_status message", () => {
+      const msg = {
+        type: "auth_status",
+        isAuthenticating: true,
+        output: ["Authenticating..."],
+        uuid: "uuid-1",
+        session_id: "sess-1",
+      } as SDKMessage;
+
+      expect(isAuthStatusMessage(msg)).toBe(true);
+    });
+
+    it("returns false for non-auth-status message", () => {
+      const msg = { type: "system", subtype: "status" } as SDKMessage;
+      expect(isAuthStatusMessage(msg)).toBe(false);
     });
   });
 

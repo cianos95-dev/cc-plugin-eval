@@ -30,6 +30,11 @@ import {
   type SDKSystemMessage as SDKSystemMessageType,
   type SDKPermissionDenial,
   type SDKHookResponseMessage,
+  type SDKToolProgressMessage as SDKToolProgressMessageType,
+  type SDKToolUseSummaryMessage as SDKToolUseSummaryMessageType,
+  type SDKFilesPersistedEvent as SDKFilesPersistedEventType,
+  type SDKTaskNotificationMessage as SDKTaskNotificationMessageType,
+  type SDKAuthStatusMessage as SDKAuthStatusMessageType,
   type SlashCommand,
   type AccountInfo,
   type RewindFilesResult,
@@ -63,6 +68,11 @@ export type SDKAssistantMessage = SDKAssistantMessageType;
 export type SDKResultMessage = SDKResultMessageType;
 export type SDKSystemMessage = SDKSystemMessageType;
 export type { SDKResultSuccess, SDKResultError, SDKPermissionDenial };
+export type SDKToolProgressMessage = SDKToolProgressMessageType;
+export type SDKToolUseSummaryMessage = SDKToolUseSummaryMessageType;
+export type SDKFilesPersistedEvent = SDKFilesPersistedEventType;
+export type SDKTaskNotificationMessage = SDKTaskNotificationMessageType;
+export type SDKAuthStatusMessage = SDKAuthStatusMessageType;
 
 /**
  * SDK tool result message.
@@ -275,6 +285,62 @@ export function isErrorMessage(msg: unknown): msg is SDKErrorMessage {
     msg !== null &&
     (msg as { type?: string }).type === "error"
   );
+}
+
+/**
+ * Type guard for tool progress message (SDK v0.2.25+).
+ * Reports elapsed time for a tool execution in progress.
+ */
+export function isToolProgressMessage(
+  msg: SDKMessage,
+): msg is SDKToolProgressMessage {
+  return msg.type === "tool_progress";
+}
+
+/**
+ * Type guard for tool use summary message (SDK v0.2.25+).
+ * Contains an LLM-generated summary of preceding tool executions.
+ */
+export function isToolUseSummaryMessage(
+  msg: SDKMessage,
+): msg is SDKToolUseSummaryMessage {
+  return msg.type === "tool_use_summary";
+}
+
+/**
+ * Type guard for files persisted event (SDK v0.2.25+).
+ * System message with subtype "files_persisted" — reports file checkpoint results.
+ */
+export function isFilesPersistedEvent(
+  msg: SDKMessage,
+): msg is SDKFilesPersistedEvent {
+  return (
+    msg.type === "system" &&
+    (msg as { subtype?: string }).subtype === "files_persisted"
+  );
+}
+
+/**
+ * Type guard for task notification message (SDK v0.2.25+).
+ * System message with subtype "task_notification" — reports subagent task completion.
+ */
+export function isTaskNotificationMessage(
+  msg: SDKMessage,
+): msg is SDKTaskNotificationMessage {
+  return (
+    msg.type === "system" &&
+    (msg as { subtype?: string }).subtype === "task_notification"
+  );
+}
+
+/**
+ * Type guard for auth status message (SDK v0.2.25+).
+ * Reports authentication status changes during execution.
+ */
+export function isAuthStatusMessage(
+  msg: SDKMessage,
+): msg is SDKAuthStatusMessage {
+  return msg.type === "auth_status";
 }
 
 /**
