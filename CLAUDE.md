@@ -6,11 +6,11 @@
 
 | Tool                              | Use When                               |
 | --------------------------------- | -------------------------------------- |
-| Serena `find_symbol`              | Know the symbol name - TRY FIRST      |
+| Serena `find_symbol`              | Know the symbol name - TRY FIRST       |
 | Serena `find_referencing_symbols` | Find all usages of a symbol            |
 | Serena `get_symbols_overview`     | Understand file structure              |
 | `rg "pattern"`                    | Regex/text patterns (not symbol-based) |
-| Built-in `Grep` / `Glob`         | Fallback when above tools insufficient |
+| Built-in `Grep` / `Glob`          | Fallback when above tools insufficient |
 
 ### Edit (prefer in order)
 

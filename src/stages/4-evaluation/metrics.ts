@@ -159,6 +159,7 @@ export function countErrorsByType(
   const counts: Record<TranscriptErrorType, number> = {
     api_error: 0,
     timeout: 0,
+    interrupted: 0,
     permission_denied: 0,
     budget_exceeded: 0,
   };

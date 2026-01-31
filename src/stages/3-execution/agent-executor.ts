@@ -32,6 +32,12 @@ import {
   type ModelUsage,
 } from "./sdk-client.js";
 import {
+  addInterruptErrorIfNeeded,
+  createTimeout,
+  type QueryHolder,
+  type TimeoutConfig,
+} from "./timeout-strategy.js";
+import {
   buildTranscript,
   createErrorEvent,
   type TranscriptBuilderContext,
@@ -213,12 +219,16 @@ interface ExecutionContext {
   hookCollector: ReturnType<typeof createHookResponseCollector>;
   /** Abort controller for timeout */
   controller: AbortController;
-  /** Timeout ID (for cleanup) */
-  timeout: ReturnType<typeof setTimeout>;
+  /** Cleanup function for timeout timers */
+  cleanup: () => void;
   /** Execution start timestamp */
   startTime: number;
   /** Whether the SDK Stop hook fired (clean completion) */
   stopReceived: boolean;
+  /** Whether an interrupt was fired (for error classification) */
+  interrupted: { value: boolean };
+  /** Mutable query reference for timeout callbacks */
+  queryHolder: QueryHolder;
 }
 
 /**
@@ -227,14 +237,21 @@ interface ExecutionContext {
  * @param timeoutMs - Timeout in milliseconds
  * @returns Execution context for scenario execution
  */
-function prepareExecutionContext(timeoutMs: number): ExecutionContext {
+function prepareExecutionContext(
+  timeoutConfig: TimeoutConfig,
+): ExecutionContext {
   const messages: SDKMessage[] = [];
   const detectedTools: ToolCapture[] = [];
   const subagentCaptures: SubagentCapture[] = [];
   const errors: TranscriptErrorEvent[] = [];
   const hookCollector = createHookResponseCollector();
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  const queryHolder: QueryHolder = { query: undefined };
+  const { cleanup, interrupted } = createTimeout(
+    controller,
+    queryHolder,
+    timeoutConfig,
+  );
   const startTime = Date.now();
 
   return {
@@ -244,9 +261,11 @@ function prepareExecutionContext(timeoutMs: number): ExecutionContext {
     errors,
     hookCollector,
     controller,
-    timeout,
+    cleanup,
     startTime,
     stopReceived: false,
+    interrupted,
+    queryHolder,
   };
 }
 
@@ -335,8 +354,9 @@ interface BuildExecutionResultOptions {
  * Priority:
  * 1. If Stop hook fired → "clean" (agent completed normally)
  * 2. If errors contain an AbortError → "timeout" (forced termination)
- * 3. If any errors exist → "error" (unexpected failure)
- * 4. Otherwise → "clean" (no errors and no Stop hook, assume clean)
+ * 3. If errors contain an interrupted error → "interrupted" (graceful interrupt)
+ * 4. If any errors exist → "error" (unexpected failure)
+ * 5. Otherwise → "clean" (no errors and no Stop hook, assume clean)
  */
 export function deriveTerminationType(
   errors: TranscriptErrorEvent[],
@@ -351,6 +371,11 @@ export function deriveTerminationType(
   );
   if (hasTimeout) {
     return "timeout";
+  }
+
+  const hasInterrupt = errors.some((e) => e.error_type === "interrupted");
+  if (hasInterrupt) {
+    return "interrupted";
   }
 
   if (errors.length > 0) {
@@ -504,7 +529,11 @@ export async function executeScenario(
   } = options;
 
   // Prepare execution context
-  const ctx = prepareExecutionContext(config.timeout_ms);
+  const ctx = prepareExecutionContext({
+    timeout_ms: config.timeout_ms,
+    timeout_strategy: config.timeout_strategy ?? "interrupt_first",
+    interrupt_grace_ms: config.interrupt_grace_ms ?? 10000,
+  });
 
   // Set up capture infrastructure
   const { plugins, hooksConfig } = setupCaptureInfrastructure(
@@ -537,6 +566,7 @@ export async function executeScenario(
       // Use provided query function or real SDK
       const q = queryFn ? queryFn(queryInput) : executeQuery(queryInput);
       queryObject = q;
+      ctx.queryHolder.query = q;
 
       try {
         for await (const message of q) {
@@ -563,8 +593,10 @@ export async function executeScenario(
     // Ensure cleanup if error occurred outside the retry wrapper
     queryObject?.close();
   } finally {
-    clearTimeout(ctx.timeout);
+    ctx.cleanup();
   }
+
+  addInterruptErrorIfNeeded(ctx.interrupted, ctx.errors);
 
   return finalizeExecution(ctx, scenario, pluginName, config.model);
 }
@@ -591,7 +623,11 @@ export async function executeScenarioWithCheckpoint(
   } = options;
 
   // Prepare execution context
-  const ctx = prepareExecutionContext(config.timeout_ms);
+  const ctx = prepareExecutionContext({
+    timeout_ms: config.timeout_ms,
+    timeout_strategy: config.timeout_strategy ?? "interrupt_first",
+    interrupt_grace_ms: config.interrupt_grace_ms ?? 10000,
+  });
   let userMessageId: string | undefined;
 
   // Set up capture infrastructure
@@ -625,6 +661,7 @@ export async function executeScenarioWithCheckpoint(
     await withRetry(async () => {
       const q = queryFn ? queryFn(queryInput) : executeQuery(queryInput);
       queryObject = q;
+      ctx.queryHolder.query = q;
 
       try {
         for await (const message of q) {
@@ -656,8 +693,10 @@ export async function executeScenarioWithCheckpoint(
     // Ensure cleanup if error occurred outside the retry wrapper
     queryObject?.close();
   } finally {
-    clearTimeout(ctx.timeout);
+    ctx.cleanup();
   }
+
+  addInterruptErrorIfNeeded(ctx.interrupted, ctx.errors);
 
   return finalizeExecution(ctx, scenario, pluginName, config.model);
 }

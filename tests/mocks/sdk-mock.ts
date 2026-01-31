@@ -60,6 +60,9 @@ export interface MockQueryConfig {
   /** Whether to simulate a timeout via AbortSignal */
   shouldTimeout?: boolean;
 
+  /** Whether to simulate an interrupt (yields result message and stops early) */
+  shouldInterrupt?: boolean;
+
   /** Cost in USD to report */
   costUsd?: number;
 
@@ -224,6 +227,9 @@ export function createMockQueryFn(config: MockQueryConfig = {}): QueryFunction {
   return (input: QueryInput): Query => {
     const messages: SDKMessage[] = [];
     let toolCallCounter = 0;
+
+    // Track interrupt state — shared between interrupt() and the generator
+    let interruptRequested = false;
 
     // Extract hooks for calling during tool use
     const preToolUseHooks: PreToolUseHookConfig[] =
@@ -416,6 +422,16 @@ export function createMockQueryFn(config: MockQueryConfig = {}): QueryFunction {
           }
         }
 
+        // Simulate interrupt: when interrupt is requested (or pre-configured),
+        // yield the result message and return early
+        if (interruptRequested || config.shouldInterrupt) {
+          if (msg.type === "result" || msg === messages[messages.length - 1]) {
+            // Yield the result message so the consumer gets partial results
+            yield resultMsg;
+            return;
+          }
+        }
+
         // Call hooks before yielding assistant message with tool calls
         if (msg.type === "assistant" && !config.errorMessage) {
           for (const toolCall of toolCalls) {
@@ -480,7 +496,7 @@ export function createMockQueryFn(config: MockQueryConfig = {}): QueryFunction {
       },
 
       async interrupt(): Promise<void> {
-        // No-op for mock
+        interruptRequested = true;
       },
 
       async setPermissionMode(): Promise<void> {
@@ -546,6 +562,7 @@ export function createMockExecutionConfig(
     max_budget_usd: 1.0,
     session_isolation: true,
     permission_bypass: true,
+    disallowed_tools: ["Write", "Edit", "Bash"],
     num_reps: 1,
     additional_plugins: [],
     ...overrides,

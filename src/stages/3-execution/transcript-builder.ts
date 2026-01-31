@@ -235,6 +235,17 @@ export function createErrorEvent(
   };
 }
 
+/** Create an error event for a graceful interrupt timeout. */
+export function createInterruptedError(message: string): TranscriptErrorEvent {
+  return {
+    type: "error",
+    error_type: "interrupted",
+    message,
+    timestamp: Date.now(),
+    recoverable: false,
+  };
+}
+
 /**
  * Extract session ID from system init message.
  *

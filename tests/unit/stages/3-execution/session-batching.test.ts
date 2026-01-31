@@ -577,4 +577,85 @@ describe("session-batching", () => {
       expect(results[0]?.subagent_captures).toBeUndefined();
     });
   });
+
+  describe("executeBatch timeout strategy", () => {
+    const createBatchScenario = (
+      id: string,
+      componentRef: string,
+    ): TestScenario => ({
+      id,
+      scenario_type: "direct",
+      component_type: "skill",
+      component_ref: componentRef,
+      user_prompt: `Test prompt for ${id}`,
+      expected_trigger: true,
+      expected_component: componentRef,
+    });
+
+    it("executes batch with abort_only strategy (legacy behavior)", async () => {
+      const scenarios = [createBatchScenario("scenario-1", "skill:test")];
+      const mockQuery = createMockQueryFn({
+        triggeredTools: [{ name: "Skill", input: { skill: "test" } }],
+      });
+
+      const results = await executeBatch({
+        scenarios,
+        pluginPath: "/path/to/plugin",
+        pluginName: "test-plugin",
+        config: createMockExecutionConfig({
+          timeout_strategy: "abort_only",
+        }),
+        queryFn: mockQuery,
+      });
+
+      expect(results).toHaveLength(1);
+      expect(results[0]?.termination_type).toBe("clean");
+      expect(results[0]?.errors).toHaveLength(0);
+    });
+
+    it("executes batch with interrupt_first strategy (default)", async () => {
+      const scenarios = [createBatchScenario("scenario-1", "skill:test")];
+      const mockQuery = createMockQueryFn({
+        triggeredTools: [{ name: "Skill", input: { skill: "test" } }],
+      });
+
+      const results = await executeBatch({
+        scenarios,
+        pluginPath: "/path/to/plugin",
+        pluginName: "test-plugin",
+        config: createMockExecutionConfig({
+          timeout_strategy: "interrupt_first",
+          interrupt_grace_ms: 5000,
+        }),
+        queryFn: mockQuery,
+      });
+
+      expect(results).toHaveLength(1);
+      expect(results[0]?.termination_type).toBe("clean");
+      expect(results[0]?.errors).toHaveLength(0);
+    });
+
+    it("defaults to interrupt_first when timeout_strategy is undefined", async () => {
+      const scenarios = [createBatchScenario("scenario-1", "skill:test")];
+      const mockQuery = createMockQueryFn({
+        triggeredTools: [{ name: "Skill", input: { skill: "test" } }],
+      });
+
+      // Config without explicit timeout_strategy
+      const config = createMockExecutionConfig();
+      // Ensure it's undefined (not set)
+      expect(config.timeout_strategy).toBeUndefined();
+
+      const results = await executeBatch({
+        scenarios,
+        pluginPath: "/path/to/plugin",
+        pluginName: "test-plugin",
+        config,
+        queryFn: mockQuery,
+      });
+
+      expect(results).toHaveLength(1);
+      expect(results[0]?.termination_type).toBe("clean");
+    });
+  });
 });

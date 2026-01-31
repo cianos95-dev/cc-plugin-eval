@@ -325,4 +325,51 @@ describe("deriveTerminationType", () => {
     const errors: TranscriptErrorEvent[] = [];
     expect(deriveTerminationType(errors, false)).toBe("clean");
   });
+
+  it("returns 'interrupted' when errors contain interrupted type", () => {
+    const errors: TranscriptErrorEvent[] = [
+      {
+        type: "error",
+        error_type: "interrupted",
+        message: "Execution interrupted by soft timeout",
+        timestamp: Date.now(),
+        recoverable: false,
+      },
+    ];
+    expect(deriveTerminationType(errors, false)).toBe("interrupted");
+  });
+
+  it("returns 'timeout' when both interrupted AND timeout errors exist", () => {
+    // timeout takes priority over interrupted
+    const errors: TranscriptErrorEvent[] = [
+      {
+        type: "error",
+        error_type: "interrupted",
+        message: "Execution interrupted by soft timeout",
+        timestamp: Date.now(),
+        recoverable: false,
+      },
+      {
+        type: "error",
+        error_type: "timeout",
+        message: "Operation timed out",
+        timestamp: Date.now(),
+        recoverable: false,
+      },
+    ];
+    expect(deriveTerminationType(errors, false)).toBe("timeout");
+  });
+
+  it("returns 'clean' when stopReceived even with interrupted error", () => {
+    const errors: TranscriptErrorEvent[] = [
+      {
+        type: "error",
+        error_type: "interrupted",
+        message: "Execution interrupted by soft timeout",
+        timestamp: Date.now(),
+        recoverable: false,
+      },
+    ];
+    expect(deriveTerminationType(errors, true)).toBe("clean");
+  });
 });

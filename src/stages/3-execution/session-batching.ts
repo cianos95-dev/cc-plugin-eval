@@ -29,6 +29,11 @@ import {
   type SettingSource,
 } from "./sdk-client.js";
 import {
+  addInterruptErrorIfNeeded,
+  createTimeout,
+  type QueryHolder,
+} from "./timeout-strategy.js";
+import {
   buildTranscript,
   type TranscriptBuilderContext,
 } from "./transcript-builder.js";
@@ -281,6 +286,8 @@ interface ExecuteScenarioWithRetryOptions {
   sharedStatelessHooks?: StatelessHooks | undefined;
   /** Optional rate limiter function */
   rateLimiter?: (<T>(fn: () => Promise<T>) => Promise<T>) | undefined;
+  /** Mutable query holder for timeout interrupt access */
+  queryHolder?: QueryHolder | undefined;
 }
 
 /**
@@ -331,6 +338,7 @@ async function executeScenarioWithRetry(
     sharedCaptureMaps,
     sharedStatelessHooks,
     rateLimiter,
+    queryHolder,
   } = options;
 
   const scenarioMessages: SDKMessage[] = [];
@@ -396,6 +404,11 @@ async function executeScenarioWithRetry(
   const executeWithRateLimit = async (): Promise<void> => {
     await withRetry(async () => {
       const q = queryFn ? queryFn(queryInput) : executeQuery(queryInput);
+
+      // Assign query to holder so timeout callback can access it
+      if (queryHolder) {
+        queryHolder.query = q;
+      }
 
       try {
         for await (const message of q) {
@@ -734,7 +747,12 @@ export async function executeBatch(
     sharedCaptureMaps.subagentCaptureMap.clear();
 
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), config.timeout_ms);
+    const queryHolder: QueryHolder = { query: undefined };
+    const timeout = createTimeout(controller, queryHolder, {
+      timeout_ms: config.timeout_ms,
+      timeout_strategy: config.timeout_strategy ?? "interrupt_first",
+      interrupt_grace_ms: config.interrupt_grace_ms ?? 10000,
+    });
 
     try {
       const executionResult = await executeScenarioWithRetry({
@@ -753,7 +771,10 @@ export async function executeBatch(
         sharedCaptureMaps,
         sharedStatelessHooks,
         rateLimiter: options.rateLimiter,
+        queryHolder,
       });
+
+      addInterruptErrorIfNeeded(timeout.interrupted, executionResult.errors);
 
       const result = buildScenarioResult({
         scenario,
@@ -803,7 +824,7 @@ export async function executeBatch(
         `Batch: scenario ${String(scenarioIndex + 1)} failed, continuing with batch: ${err instanceof Error ? err.message : String(err)}`,
       );
     } finally {
-      clearTimeout(timeout);
+      timeout.cleanup();
     }
   }
 

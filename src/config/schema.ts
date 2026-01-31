@@ -116,6 +116,8 @@ export const SessionStrategySchema = z.enum([
   "batched_by_component",
 ]);
 
+const TimeoutStrategySchema = z.enum(["interrupt_first", "abort_only"]);
+
 /**
  * Generation configuration schema.
  */
@@ -160,6 +162,10 @@ export const ExecutionConfigSchema = z.object({
    * - 10000-30000: Complex reasoning or multi-step tasks
    */
   max_thinking_tokens: z.number().int().min(100).max(100000).optional(),
+  /** Timeout strategy: "interrupt_first" tries graceful interrupt before hard abort */
+  timeout_strategy: TimeoutStrategySchema.default("interrupt_first"),
+  /** Grace period (ms) after interrupt before hard abort. Only for "interrupt_first". */
+  interrupt_grace_ms: z.number().int().min(1000).max(60000).default(10000),
 });
 
 /**

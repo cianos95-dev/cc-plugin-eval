@@ -153,6 +153,7 @@ export interface ToolResultEvent {
 export type TranscriptErrorType =
   | "api_error"
   | "timeout"
+  | "interrupted"
   | "permission_denied"
   | "budget_exceeded";
 
@@ -187,9 +188,10 @@ export interface Transcript {
  * Type of scenario termination.
  * - "clean": Agent finished normally (Stop hook received)
  * - "timeout": Forced termination via AbortController
+ * - "interrupted": Graceful interrupt via query.interrupt() before hard abort
  * - "error": Unexpected failure during execution
  */
-export type TerminationType = "clean" | "timeout" | "error";
+export type TerminationType = "clean" | "timeout" | "interrupted" | "error";
 
 /**
  * Result of executing a scenario.

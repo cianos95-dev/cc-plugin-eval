@@ -109,6 +109,7 @@ export type {
   ScopeConfig,
   ReasoningEffort,
   SessionStrategy,
+  TimeoutStrategy,
   GenerationConfig,
   ExecutionConfig,
   DetectionMode,

@@ -71,6 +71,9 @@ export interface GenerationConfig {
 /**
  * Execution stage configuration.
  */
+/** Strategy for handling execution timeouts */
+export type TimeoutStrategy = "interrupt_first" | "abort_only";
+
 export interface ExecutionConfig {
   model: string;
   max_turns: number;
@@ -107,6 +110,18 @@ export interface ExecutionConfig {
    * - 10000-30000: Complex reasoning or multi-step tasks
    */
   max_thinking_tokens?: number;
+  /**
+   * Timeout strategy.
+   * - "interrupt_first": Try graceful interrupt before hard abort (default)
+   * - "abort_only": Immediately abort on timeout (legacy behavior)
+   */
+  timeout_strategy?: TimeoutStrategy;
+  /**
+   * Grace period (ms) after interrupt before hard abort.
+   * Only applies when timeout_strategy is "interrupt_first".
+   * Default: 10000 (10 seconds)
+   */
+  interrupt_grace_ms?: number;
 }
 
 /**

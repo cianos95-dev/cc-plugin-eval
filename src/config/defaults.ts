@@ -45,6 +45,8 @@ export const DEFAULT_EXECUTION = {
   disallowed_tools: ["Write", "Edit", "Bash"] as string[],
   num_reps: 1,
   additional_plugins: [] as string[],
+  timeout_strategy: "interrupt_first" as const,
+  interrupt_grace_ms: 10000,
 };
 
 /**
