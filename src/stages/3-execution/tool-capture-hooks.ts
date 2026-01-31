@@ -268,16 +268,6 @@ export function createSubagentStopHook(
 }
 
 /**
- * Creates a Stop hook callback that updates captures when a stop event occurs.
- *
- * The hook:
- * 1. Looks up the capture from PreToolUse via toolUseId in the map
- * 2. Updates the capture with stop timestamp and reason
- *
- * @param captureMap - Map for correlating PreToolUse/Stop hooks by toolUseId
- * @returns Hook callback function for use with the Agent SDK
- */
-/**
  * Callback invoked when the Stop hook fires (agent completed cleanly).
  */
 export type OnStopCapture = () => void;
@@ -289,8 +279,8 @@ export type OnStopCapture = () => void;
  * 1. Validates the input is a Stop event
  * 2. Calls the onStop callback to signal clean termination
  *
- * This is a stateless hook — it simply sets a flag, no per-scenario
- * state is needed.
+ * This is a stateful hook — the onStop callback is a per-scenario closure
+ * for signaling clean termination.
  *
  * @param onStop - Callback invoked when the agent stops cleanly
  * @returns Hook callback function for use with the Agent SDK
