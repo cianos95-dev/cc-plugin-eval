@@ -3,10 +3,13 @@
  * Represents execution transcripts from Agent SDK runs.
  */
 
-import type { SDKPermissionDenial } from "@anthropic-ai/claude-agent-sdk";
+import type {
+  SDKPermissionDenial,
+  ExitReason,
+} from "@anthropic-ai/claude-agent-sdk";
 
 // Re-export for convenience
-export type { SDKPermissionDenial };
+export type { SDKPermissionDenial, ExitReason };
 
 /**
  * Per-model usage metrics from SDK.
@@ -122,6 +125,39 @@ export interface SDKEventCapture {
   timestamp: number;
   /** Raw message payload */
   payload: Record<string, unknown>;
+}
+
+/**
+ * Source of a session start event from the SDK.
+ */
+export type SessionStartSource = "startup" | "resume" | "clear" | "compact";
+
+/**
+ * Captured SessionStart event from SDK hook.
+ */
+export interface SessionStartCapture {
+  source: SessionStartSource;
+  timestamp: number;
+  agent_type?: string;
+  model?: string;
+}
+
+/**
+ * Captured SessionEnd event from SDK hook.
+ */
+export interface SessionEndCapture {
+  reason: ExitReason;
+  timestamp: number;
+}
+
+/**
+ * Session lifecycle timing captured via SessionStart/SessionEnd hooks.
+ * The `starts` array may contain multiple entries when `/clear` triggers
+ * additional SessionStart events within a batch session.
+ */
+export interface SessionTimingCapture {
+  starts: SessionStartCapture[];
+  end?: SessionEndCapture;
 }
 
 /**
@@ -261,4 +297,6 @@ export interface ExecutionResult {
   termination_type?: TerminationType;
   /** Generic SDK events not covered by targeted captures (forward-compatible) */
   sdk_events?: SDKEventCapture[];
+  /** Session lifecycle timing from SessionStart/SessionEnd hooks */
+  session_timing?: SessionTimingCapture;
 }

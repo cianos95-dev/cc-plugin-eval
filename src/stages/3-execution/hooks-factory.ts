@@ -14,9 +14,13 @@ import {
   createSubagentStartHook,
   createSubagentStopHook,
   createStopHook,
+  createSessionStartHook,
+  createSessionEndHook,
   type OnToolCapture,
   type OnSubagentCapture,
   type OnStopCapture,
+  type OnSessionStartCapture,
+  type OnSessionEndCapture,
 } from "./tool-capture-hooks.js";
 
 import type {
@@ -27,6 +31,8 @@ import type {
   SubagentStartHookConfig,
   SubagentStopHookConfig,
   StopHookConfig,
+  SessionStartHookConfig,
+  SessionEndHookConfig,
 } from "./sdk-client.js";
 import type { ToolCapture, SubagentCapture } from "../../types/index.js";
 
@@ -41,6 +47,8 @@ export interface SDKHooksConfig {
   SubagentStart: SubagentStartHookConfig[];
   SubagentStop: SubagentStopHookConfig[];
   Stop: StopHookConfig[];
+  SessionStart: SessionStartHookConfig[];
+  SessionEnd: SessionEndHookConfig[];
 }
 
 /**
@@ -57,6 +65,10 @@ export interface CaptureHooksOptions {
   onSubagentCapture: OnSubagentCapture;
   /** Callback invoked when the agent stops cleanly */
   onStop: OnStopCapture;
+  /** Callback invoked when a session start event is captured */
+  onSessionStart: OnSessionStartCapture;
+  /** Callback invoked when a session end event is captured */
+  onSessionEnd: OnSessionEndCapture;
 }
 
 /**
@@ -93,6 +105,10 @@ export interface StatefulHooks {
   subagentStartHook: HookCallback;
   /** Stop hook with scenario-specific onStop callback */
   stopHook: HookCallback;
+  /** SessionStart hook with scenario-specific onSessionStart callback */
+  sessionStartHook: HookCallback;
+  /** SessionEnd hook with scenario-specific onSessionEnd callback */
+  sessionEndHook: HookCallback;
 }
 
 /**
@@ -109,6 +125,10 @@ export interface StatefulHooksOptions {
   onSubagentCapture: OnSubagentCapture;
   /** Per-scenario callback for clean stop signal */
   onStop: OnStopCapture;
+  /** Per-scenario callback for session start events */
+  onSessionStart: OnSessionStartCapture;
+  /** Per-scenario callback for session end events */
+  onSessionEnd: OnSessionEndCapture;
 }
 
 /**
@@ -187,6 +207,8 @@ export function createScenarioStatefulHooks(
     subagentCaptureMap,
     onSubagentCapture,
     onStop,
+    onSessionStart,
+    onSessionEnd,
   } = options;
 
   return {
@@ -196,6 +218,8 @@ export function createScenarioStatefulHooks(
       onSubagentCapture,
     ),
     stopHook: createStopHook(onStop),
+    sessionStartHook: createSessionStartHook(onSessionStart),
+    sessionEndHook: createSessionEndHook(onSessionEnd),
   };
 }
 
@@ -250,6 +274,18 @@ export function assembleHooksConfig(
         hooks: [statefulHooks.stopHook],
       },
     ],
+    SessionStart: [
+      {
+        matcher: ".*",
+        hooks: [statefulHooks.sessionStartHook],
+      },
+    ],
+    SessionEnd: [
+      {
+        matcher: ".*",
+        hooks: [statefulHooks.sessionEndHook],
+      },
+    ],
   };
 }
 
@@ -294,6 +330,8 @@ export function createCaptureHooksConfig(
     subagentCaptureMap,
     onSubagentCapture,
     onStop,
+    onSessionStart,
+    onSessionEnd,
   } = options;
 
   return {
@@ -331,6 +369,18 @@ export function createCaptureHooksConfig(
       {
         matcher: ".*",
         hooks: [createStopHook(onStop)],
+      },
+    ],
+    SessionStart: [
+      {
+        matcher: ".*",
+        hooks: [createSessionStartHook(onSessionStart)],
+      },
+    ],
+    SessionEnd: [
+      {
+        matcher: ".*",
+        hooks: [createSessionEndHook(onSessionEnd)],
       },
     ],
   };

@@ -76,6 +76,10 @@ export type {
   ToolProgressData,
   ToolSummaryData,
   SDKEventCapture,
+  SessionStartSource,
+  SessionStartCapture,
+  SessionEndCapture,
+  SessionTimingCapture,
 } from "./transcript.js";
 
 // Evaluation types

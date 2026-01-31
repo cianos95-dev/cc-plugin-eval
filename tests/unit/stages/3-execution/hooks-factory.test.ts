@@ -47,6 +47,8 @@ describe("hooks-factory", () => {
         onStop: () => {
           stopReceived = true;
         },
+        onSessionStart: () => {},
+        onSessionEnd: () => {},
       });
 
       // Verify PascalCase keys (SDK format)
@@ -56,6 +58,8 @@ describe("hooks-factory", () => {
       expect(hooksConfig).toHaveProperty("SubagentStart");
       expect(hooksConfig).toHaveProperty("SubagentStop");
       expect(hooksConfig).toHaveProperty("Stop");
+      expect(hooksConfig).toHaveProperty("SessionStart");
+      expect(hooksConfig).toHaveProperty("SessionEnd");
     });
 
     it("creates hook arrays with matcher and hooks properties", () => {
@@ -67,6 +71,8 @@ describe("hooks-factory", () => {
         onStop: () => {
           stopReceived = true;
         },
+        onSessionStart: () => {},
+        onSessionEnd: () => {},
       });
 
       // Each hook type should have an array with one entry
@@ -76,6 +82,8 @@ describe("hooks-factory", () => {
       expect(hooksConfig.SubagentStart).toHaveLength(1);
       expect(hooksConfig.SubagentStop).toHaveLength(1);
       expect(hooksConfig.Stop).toHaveLength(1);
+      expect(hooksConfig.SessionStart).toHaveLength(1);
+      expect(hooksConfig.SessionEnd).toHaveLength(1);
 
       // Each entry should have matcher ".*" to capture all tools
       expect(hooksConfig.PreToolUse[0]).toHaveProperty("matcher", ".*");
@@ -84,6 +92,8 @@ describe("hooks-factory", () => {
       expect(hooksConfig.SubagentStart[0]).toHaveProperty("matcher", ".*");
       expect(hooksConfig.SubagentStop[0]).toHaveProperty("matcher", ".*");
       expect(hooksConfig.Stop[0]).toHaveProperty("matcher", ".*");
+      expect(hooksConfig.SessionStart[0]).toHaveProperty("matcher", ".*");
+      expect(hooksConfig.SessionEnd[0]).toHaveProperty("matcher", ".*");
     });
 
     it("creates hooks arrays with hook callbacks", () => {
@@ -95,6 +105,8 @@ describe("hooks-factory", () => {
         onStop: () => {
           stopReceived = true;
         },
+        onSessionStart: () => {},
+        onSessionEnd: () => {},
       });
 
       // Each entry should have a hooks array with at least one callback
@@ -104,6 +116,8 @@ describe("hooks-factory", () => {
       expect(hooksConfig.SubagentStart[0].hooks).toHaveLength(1);
       expect(hooksConfig.SubagentStop[0].hooks).toHaveLength(1);
       expect(hooksConfig.Stop[0].hooks).toHaveLength(1);
+      expect(hooksConfig.SessionStart[0].hooks).toHaveLength(1);
+      expect(hooksConfig.SessionEnd[0].hooks).toHaveLength(1);
 
       // All hook callbacks should be functions
       expect(typeof hooksConfig.PreToolUse[0].hooks[0]).toBe("function");
@@ -114,6 +128,8 @@ describe("hooks-factory", () => {
       expect(typeof hooksConfig.SubagentStart[0].hooks[0]).toBe("function");
       expect(typeof hooksConfig.SubagentStop[0].hooks[0]).toBe("function");
       expect(typeof hooksConfig.Stop[0].hooks[0]).toBe("function");
+      expect(typeof hooksConfig.SessionStart[0].hooks[0]).toBe("function");
+      expect(typeof hooksConfig.SessionEnd[0].hooks[0]).toBe("function");
     });
 
     it("PreToolUse hook captures tool invocation and calls onToolCapture", async () => {
@@ -125,6 +141,8 @@ describe("hooks-factory", () => {
         onStop: () => {
           stopReceived = true;
         },
+        onSessionStart: () => {},
+        onSessionEnd: () => {},
       });
 
       const preToolUseHook = hooksConfig.PreToolUse[0].hooks[0];
@@ -158,6 +176,8 @@ describe("hooks-factory", () => {
         onStop: () => {
           stopReceived = true;
         },
+        onSessionStart: () => {},
+        onSessionEnd: () => {},
       });
 
       const preToolUseHook = hooksConfig.PreToolUse[0].hooks[0];
@@ -193,6 +213,8 @@ describe("hooks-factory", () => {
         onStop: () => {
           stopReceived = true;
         },
+        onSessionStart: () => {},
+        onSessionEnd: () => {},
       });
 
       const subagentStartHook = hooksConfig.SubagentStart[0].hooks[0];
@@ -223,6 +245,8 @@ describe("hooks-factory", () => {
         onStop: () => {
           stopReceived = true;
         },
+        onSessionStart: () => {},
+        onSessionEnd: () => {},
       });
 
       const stopHook = hooksConfig.Stop[0].hooks[0];
@@ -238,6 +262,64 @@ describe("hooks-factory", () => {
       );
 
       expect(stopReceived).toBe(true);
+    });
+
+    it("SessionStart hook captures session lifecycle start", async () => {
+      const sessionStarts: { source: string }[] = [];
+      const hooksConfig = createCaptureHooksConfig({
+        captureMap,
+        onToolCapture,
+        subagentCaptureMap,
+        onSubagentCapture,
+        onStop: () => {},
+        onSessionStart: (capture) => sessionStarts.push(capture),
+        onSessionEnd: () => {},
+      });
+
+      const sessionStartHook = hooksConfig.SessionStart[0].hooks[0];
+      await sessionStartHook(
+        {
+          hook_event_name: "SessionStart",
+          source: "startup",
+          session_id: "sess-1",
+          transcript_path: "/path",
+          cwd: "/cwd",
+        } as unknown,
+        undefined,
+        undefined,
+      );
+
+      expect(sessionStarts).toHaveLength(1);
+      expect(sessionStarts[0].source).toBe("startup");
+    });
+
+    it("SessionEnd hook captures session lifecycle end", async () => {
+      const sessionEnds: { reason: string }[] = [];
+      const hooksConfig = createCaptureHooksConfig({
+        captureMap,
+        onToolCapture,
+        subagentCaptureMap,
+        onSubagentCapture,
+        onStop: () => {},
+        onSessionStart: () => {},
+        onSessionEnd: (capture) => sessionEnds.push(capture),
+      });
+
+      const sessionEndHook = hooksConfig.SessionEnd[0].hooks[0];
+      await sessionEndHook(
+        {
+          hook_event_name: "SessionEnd",
+          reason: "clear",
+          session_id: "sess-1",
+          transcript_path: "/path",
+          cwd: "/cwd",
+        } as unknown,
+        undefined,
+        undefined,
+      );
+
+      expect(sessionEnds).toHaveLength(1);
+      expect(sessionEnds[0].reason).toBe("clear");
     });
   });
 
@@ -379,11 +461,15 @@ describe("hooks-factory", () => {
         subagentCaptureMap,
         onSubagentCapture: (c) => capturedSubagents.push(c),
         onStop: () => {},
+        onSessionStart: () => {},
+        onSessionEnd: () => {},
       });
 
       expect(typeof hooks.preToolUseHook).toBe("function");
       expect(typeof hooks.subagentStartHook).toBe("function");
       expect(typeof hooks.stopHook).toBe("function");
+      expect(typeof hooks.sessionStartHook).toBe("function");
+      expect(typeof hooks.sessionEndHook).toBe("function");
     });
 
     it("preToolUseHook calls the closure-bound callback", async () => {
@@ -395,6 +481,8 @@ describe("hooks-factory", () => {
         subagentCaptureMap,
         onSubagentCapture: () => {},
         onStop: () => {},
+        onSessionStart: () => {},
+        onSessionEnd: () => {},
       });
 
       await hooks.preToolUseHook(
@@ -418,6 +506,8 @@ describe("hooks-factory", () => {
         subagentCaptureMap,
         onSubagentCapture: () => {},
         onStop: () => {},
+        onSessionStart: () => {},
+        onSessionEnd: () => {},
       });
 
       await hooks1.preToolUseHook(
@@ -438,6 +528,8 @@ describe("hooks-factory", () => {
         subagentCaptureMap,
         onSubagentCapture: () => {},
         onStop: () => {},
+        onSessionStart: () => {},
+        onSessionEnd: () => {},
       });
 
       await hooks2.preToolUseHook(
@@ -475,6 +567,8 @@ describe("hooks-factory", () => {
         subagentCaptureMap,
         onSubagentCapture: () => {},
         onStop: () => {},
+        onSessionStart: () => {},
+        onSessionEnd: () => {},
       });
 
       const config = assembleHooksConfig(statelessHooks, statefulHooks);
@@ -486,16 +580,22 @@ describe("hooks-factory", () => {
       expect(config.SubagentStart).toHaveLength(1);
       expect(config.SubagentStop).toHaveLength(1);
       expect(config.Stop).toHaveLength(1);
+      expect(config.SessionStart).toHaveLength(1);
+      expect(config.SessionEnd).toHaveLength(1);
 
       // All have ".*" matcher
       expect(config.PreToolUse[0].matcher).toBe(".*");
       expect(config.PostToolUse[0].matcher).toBe(".*");
       expect(config.Stop[0].matcher).toBe(".*");
+      expect(config.SessionStart[0].matcher).toBe(".*");
+      expect(config.SessionEnd[0].matcher).toBe(".*");
 
       // Hooks are functions
       expect(typeof config.PreToolUse[0].hooks[0]).toBe("function");
       expect(typeof config.PostToolUse[0].hooks[0]).toBe("function");
       expect(typeof config.Stop[0].hooks[0]).toBe("function");
+      expect(typeof config.SessionStart[0].hooks[0]).toBe("function");
+      expect(typeof config.SessionEnd[0].hooks[0]).toBe("function");
     });
 
     it("assembled config produces equivalent behavior to createCaptureHooksConfig", async () => {
@@ -510,6 +610,8 @@ describe("hooks-factory", () => {
         subagentCaptureMap: new Map(),
         onSubagentCapture: () => {},
         onStop: () => {},
+        onSessionStart: () => {},
+        onSessionEnd: () => {},
       });
 
       // New approach (assemble)
@@ -525,6 +627,8 @@ describe("hooks-factory", () => {
         subagentCaptureMap: newSubagentCaptureMap,
         onSubagentCapture: () => {},
         onStop: () => {},
+        onSessionStart: () => {},
+        onSessionEnd: () => {},
       });
       const newConfig = assembleHooksConfig(statelessHooks, statefulHooks);
 

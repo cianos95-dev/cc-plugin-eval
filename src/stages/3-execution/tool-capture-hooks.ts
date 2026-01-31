@@ -16,8 +16,15 @@ import type {
   SubagentStartHookInput,
   SubagentStopHookInput,
   StopHookInput,
+  SessionStartHookInput,
+  SessionEndHookInput,
 } from "./sdk-client.js";
-import type { ToolCapture, SubagentCapture } from "../../types/index.js";
+import type {
+  ToolCapture,
+  SubagentCapture,
+  SessionStartCapture,
+  SessionEndCapture,
+} from "../../types/index.js";
 
 /**
  * Type guard for PreToolUseHookInput.
@@ -96,6 +103,36 @@ function isStopInput(input: unknown): input is StopHookInput {
     input !== null &&
     "hook_event_name" in input &&
     (input as { hook_event_name: string }).hook_event_name === "Stop"
+  );
+}
+
+/**
+ * Type guard for SessionStartHookInput.
+ * Validates the input has hook_event_name === "SessionStart" and a source string.
+ */
+function isSessionStartInput(input: unknown): input is SessionStartHookInput {
+  return (
+    typeof input === "object" &&
+    input !== null &&
+    "hook_event_name" in input &&
+    (input as { hook_event_name: string }).hook_event_name === "SessionStart" &&
+    "source" in input &&
+    typeof (input as { source: unknown }).source === "string"
+  );
+}
+
+/**
+ * Type guard for SessionEndHookInput.
+ * Validates the input has hook_event_name === "SessionEnd" and a reason string.
+ */
+function isSessionEndInput(input: unknown): input is SessionEndHookInput {
+  return (
+    typeof input === "object" &&
+    input !== null &&
+    "hook_event_name" in input &&
+    (input as { hook_event_name: string }).hook_event_name === "SessionEnd" &&
+    "reason" in input &&
+    typeof (input as { reason: unknown }).reason === "string"
   );
 }
 
@@ -289,6 +326,76 @@ export function createStopHook(onStop: OnStopCapture): HookCallback {
   return async (input, _toolUseId, _context) => {
     if (isStopInput(input)) {
       onStop();
+    }
+    return Promise.resolve({});
+  };
+}
+
+/**
+ * Callback invoked when a SessionStart event is captured.
+ */
+export type OnSessionStartCapture = (capture: SessionStartCapture) => void;
+
+/**
+ * Callback invoked when a SessionEnd event is captured.
+ */
+export type OnSessionEndCapture = (capture: SessionEndCapture) => void;
+
+/**
+ * Creates a SessionStart hook callback that captures session lifecycle start events.
+ *
+ * The hook:
+ * 1. Validates the input is a SessionStart event
+ * 2. Creates a SessionStartCapture with source, timestamp, and optional metadata
+ * 3. Calls the onCapture callback
+ *
+ * This is a stateful hook — the onCapture callback is a per-scenario closure.
+ *
+ * @param onCapture - Callback invoked with each session start capture
+ * @returns Hook callback function for use with the Agent SDK
+ */
+export function createSessionStartHook(
+  onCapture: OnSessionStartCapture,
+): HookCallback {
+  return async (input, _toolUseId, _context) => {
+    if (isSessionStartInput(input)) {
+      const capture: SessionStartCapture = {
+        source: input.source,
+        timestamp: Date.now(),
+        ...(input.agent_type !== undefined
+          ? { agent_type: input.agent_type }
+          : {}),
+        ...(input.model !== undefined ? { model: input.model } : {}),
+      };
+      onCapture(capture);
+    }
+    return Promise.resolve({});
+  };
+}
+
+/**
+ * Creates a SessionEnd hook callback that captures session lifecycle end events.
+ *
+ * The hook:
+ * 1. Validates the input is a SessionEnd event
+ * 2. Creates a SessionEndCapture with reason and timestamp
+ * 3. Calls the onCapture callback
+ *
+ * This is a stateful hook — the onCapture callback is a per-scenario closure.
+ *
+ * @param onCapture - Callback invoked with each session end capture
+ * @returns Hook callback function for use with the Agent SDK
+ */
+export function createSessionEndHook(
+  onCapture: OnSessionEndCapture,
+): HookCallback {
+  return async (input, _toolUseId, _context) => {
+    if (isSessionEndInput(input)) {
+      const capture: SessionEndCapture = {
+        reason: input.reason,
+        timestamp: Date.now(),
+      };
+      onCapture(capture);
     }
     return Promise.resolve({});
   };

@@ -18,6 +18,8 @@ import {
   type SubagentStartHookInput as SDKSubagentStartHookInput,
   type SubagentStopHookInput as SDKSubagentStopHookInput,
   type StopHookInput as SDKStopHookInput,
+  type SessionStartHookInput as SDKSessionStartHookInput,
+  type SessionEndHookInput as SDKSessionEndHookInput,
   type PermissionMode,
   type SettingSource,
   type SDKUserMessage as SDKUserMessageType,
@@ -176,6 +178,32 @@ export type SubagentStopHookConfig = HookCallbackMatcher;
  * Uses SDK's HookCallbackMatcher type.
  */
 export type StopHookConfig = HookCallbackMatcher;
+
+/**
+ * SessionStart hook input from SDK.
+ * Fired when a session starts or restarts (after /clear).
+ * Re-exported for use in other modules.
+ */
+export type SessionStartHookInput = SDKSessionStartHookInput;
+
+/**
+ * SessionEnd hook input from SDK.
+ * Fired when a session ends.
+ * Re-exported for use in other modules.
+ */
+export type SessionEndHookInput = SDKSessionEndHookInput;
+
+/**
+ * Hook configuration for SessionStart.
+ * Uses SDK's HookCallbackMatcher type.
+ */
+export type SessionStartHookConfig = HookCallbackMatcher;
+
+/**
+ * Hook configuration for SessionEnd.
+ * Uses SDK's HookCallbackMatcher type.
+ */
+export type SessionEndHookConfig = HookCallbackMatcher;
 
 /**
  * Plugin reference for SDK options.

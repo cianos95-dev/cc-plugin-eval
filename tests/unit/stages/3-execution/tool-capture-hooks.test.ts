@@ -13,10 +13,14 @@ import {
   createSubagentStartHook,
   createSubagentStopHook,
   createStopHook,
+  createSessionStartHook,
+  createSessionEndHook,
 } from "../../../../src/stages/3-execution/tool-capture-hooks.js";
 import type {
   ToolCapture,
   SubagentCapture,
+  SessionStartCapture,
+  SessionEndCapture,
 } from "../../../../src/types/index.js";
 
 describe("createPreToolUseHook", () => {
@@ -737,6 +741,213 @@ describe("createStopHook", () => {
     const result = await hook(
       {
         hook_event_name: "Stop",
+        session_id: "sess-1",
+        transcript_path: "/path",
+        cwd: "/cwd",
+      },
+      undefined,
+      { signal: new AbortController().signal },
+    );
+
+    expect(result).toEqual({});
+  });
+});
+
+describe("createSessionStartHook", () => {
+  it("should capture session start with startup source", async () => {
+    const onCapture = vi.fn();
+    const hook = createSessionStartHook(onCapture);
+
+    await hook(
+      {
+        hook_event_name: "SessionStart",
+        source: "startup",
+        session_id: "sess-1",
+        transcript_path: "/path",
+        cwd: "/cwd",
+        model: "claude-sonnet-4-20250514",
+      },
+      undefined,
+      { signal: new AbortController().signal },
+    );
+
+    expect(onCapture).toHaveBeenCalledTimes(1);
+    const capture = onCapture.mock.calls[0]![0] as SessionStartCapture;
+    expect(capture.source).toBe("startup");
+    expect(capture.model).toBe("claude-sonnet-4-20250514");
+    expect(capture.timestamp).toBeTypeOf("number");
+  });
+
+  it("should capture session start with clear source", async () => {
+    const onCapture = vi.fn();
+    const hook = createSessionStartHook(onCapture);
+
+    await hook(
+      {
+        hook_event_name: "SessionStart",
+        source: "clear",
+        session_id: "sess-1",
+        transcript_path: "/path",
+        cwd: "/cwd",
+      },
+      undefined,
+      { signal: new AbortController().signal },
+    );
+
+    expect(onCapture).toHaveBeenCalledTimes(1);
+    const capture = onCapture.mock.calls[0]![0] as SessionStartCapture;
+    expect(capture.source).toBe("clear");
+  });
+
+  it("should handle missing optional fields", async () => {
+    const onCapture = vi.fn();
+    const hook = createSessionStartHook(onCapture);
+
+    await hook(
+      {
+        hook_event_name: "SessionStart",
+        source: "resume",
+        session_id: "sess-1",
+        transcript_path: "/path",
+        cwd: "/cwd",
+      },
+      undefined,
+      { signal: new AbortController().signal },
+    );
+
+    expect(onCapture).toHaveBeenCalledTimes(1);
+    const capture = onCapture.mock.calls[0]![0] as SessionStartCapture;
+    expect(capture.source).toBe("resume");
+    expect(capture.agent_type).toBeUndefined();
+    expect(capture.model).toBeUndefined();
+  });
+
+  it("should not capture for non-SessionStart input", async () => {
+    const onCapture = vi.fn();
+    const hook = createSessionStartHook(onCapture);
+
+    await hook({ hook_event_name: "SessionEnd", reason: "clear" }, undefined, {
+      signal: new AbortController().signal,
+    });
+
+    expect(onCapture).not.toHaveBeenCalled();
+  });
+
+  it("should not capture for invalid input", async () => {
+    const onCapture = vi.fn();
+    const hook = createSessionStartHook(onCapture);
+
+    await hook(
+      { other_field: "value" } as unknown as { hook_event_name: string },
+      undefined,
+      { signal: new AbortController().signal },
+    );
+
+    expect(onCapture).not.toHaveBeenCalled();
+  });
+
+  it("should return empty object to allow operation to proceed", async () => {
+    const onCapture = vi.fn();
+    const hook = createSessionStartHook(onCapture);
+
+    const result = await hook(
+      {
+        hook_event_name: "SessionStart",
+        source: "startup",
+        session_id: "sess-1",
+        transcript_path: "/path",
+        cwd: "/cwd",
+      },
+      undefined,
+      { signal: new AbortController().signal },
+    );
+
+    expect(result).toEqual({});
+  });
+});
+
+describe("createSessionEndHook", () => {
+  it("should capture session end with reason", async () => {
+    const onCapture = vi.fn();
+    const hook = createSessionEndHook(onCapture);
+
+    await hook(
+      {
+        hook_event_name: "SessionEnd",
+        reason: "clear",
+        session_id: "sess-1",
+        transcript_path: "/path",
+        cwd: "/cwd",
+      },
+      undefined,
+      { signal: new AbortController().signal },
+    );
+
+    expect(onCapture).toHaveBeenCalledTimes(1);
+    const capture = onCapture.mock.calls[0]![0] as SessionEndCapture;
+    expect(capture.reason).toBe("clear");
+    expect(capture.timestamp).toBeTypeOf("number");
+  });
+
+  it("should capture various exit reasons", async () => {
+    const onCapture = vi.fn();
+    const hook = createSessionEndHook(onCapture);
+
+    for (const reason of ["clear", "logout", "other"]) {
+      onCapture.mockClear();
+
+      await hook(
+        {
+          hook_event_name: "SessionEnd",
+          reason,
+          session_id: "sess-1",
+          transcript_path: "/path",
+          cwd: "/cwd",
+        },
+        undefined,
+        { signal: new AbortController().signal },
+      );
+
+      expect(onCapture).toHaveBeenCalledTimes(1);
+      const capture = onCapture.mock.calls[0]![0] as SessionEndCapture;
+      expect(capture.reason).toBe(reason);
+    }
+  });
+
+  it("should not capture for non-SessionEnd input", async () => {
+    const onCapture = vi.fn();
+    const hook = createSessionEndHook(onCapture);
+
+    await hook(
+      { hook_event_name: "SessionStart", source: "startup" },
+      undefined,
+      { signal: new AbortController().signal },
+    );
+
+    expect(onCapture).not.toHaveBeenCalled();
+  });
+
+  it("should not capture for invalid input", async () => {
+    const onCapture = vi.fn();
+    const hook = createSessionEndHook(onCapture);
+
+    await hook(
+      { other_field: "value" } as unknown as { hook_event_name: string },
+      undefined,
+      { signal: new AbortController().signal },
+    );
+
+    expect(onCapture).not.toHaveBeenCalled();
+  });
+
+  it("should return empty object to allow operation to proceed", async () => {
+    const onCapture = vi.fn();
+    const hook = createSessionEndHook(onCapture);
+
+    const result = await hook(
+      {
+        hook_event_name: "SessionEnd",
+        reason: "other",
         session_id: "sess-1",
         transcript_path: "/path",
         cwd: "/cwd",

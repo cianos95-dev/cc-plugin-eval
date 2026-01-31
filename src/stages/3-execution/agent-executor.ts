@@ -54,6 +54,9 @@ import type {
   SubagentCapture,
   HookResponseCapture,
   SDKEventCapture,
+  SessionStartCapture,
+  SessionEndCapture,
+  SessionTimingCapture,
 } from "../../types/index.js";
 
 /**
@@ -233,6 +236,10 @@ interface ExecutionContext {
   queryHolder: QueryHolder;
   /** SDK event collector for new message types (v0.2.25+) */
   sdkEventCollector: ReturnType<typeof createSDKEventCollector>;
+  /** Session start events captured via SessionStart hook */
+  sessionStarts: SessionStartCapture[];
+  /** Session end event captured via SessionEnd hook */
+  sessionEnd: SessionEndCapture | undefined;
 }
 
 /**
@@ -272,6 +279,8 @@ function prepareExecutionContext(
     stopReceived: false,
     interrupted,
     queryHolder,
+    sessionStarts: [],
+    sessionEnd: undefined,
   };
 }
 
@@ -304,6 +313,8 @@ function setupCaptureInfrastructure(
   detectedTools: ToolCapture[],
   subagentCaptures: SubagentCapture[],
   onStop: () => void,
+  onSessionStart: (capture: SessionStartCapture) => void,
+  onSessionEnd: (capture: SessionEndCapture) => void,
 ): CaptureInfrastructure {
   // Build plugin list
   const plugins: PluginReference[] = [{ type: "local", path: pluginPath }];
@@ -320,6 +331,8 @@ function setupCaptureInfrastructure(
     subagentCaptureMap,
     onSubagentCapture: (capture) => subagentCaptures.push(capture),
     onStop,
+    onSessionStart,
+    onSessionEnd,
   });
 
   return { plugins, hooksConfig };
@@ -354,6 +367,10 @@ interface BuildExecutionResultOptions {
   stopReceived: boolean;
   /** SDK events captured from new message types */
   sdkEvents: SDKEventCapture[];
+  /** Session start events captured via SessionStart hook */
+  sessionStarts: SessionStartCapture[];
+  /** Session end event captured via SessionEnd hook */
+  sessionEnd: SessionEndCapture | undefined;
 }
 
 /**
@@ -409,10 +426,18 @@ function buildExecutionResult(
     metrics,
     stopReceived,
     sdkEvents,
+    sessionStarts,
+    sessionEnd,
   } = options;
 
   // Derive termination type from execution signals
   const terminationType = deriveTerminationType(errors, stopReceived);
+
+  // Build session timing if any lifecycle events were captured
+  const sessionTiming: SessionTimingCapture | undefined =
+    sessionStarts.length > 0 || sessionEnd
+      ? { starts: sessionStarts, ...(sessionEnd ? { end: sessionEnd } : {}) }
+      : undefined;
 
   return {
     scenario_id: scenarioId,
@@ -434,6 +459,7 @@ function buildExecutionResult(
     cache_creation_tokens: metrics.cacheCreationTokens,
     termination_type: terminationType,
     ...(sdkEvents.length > 0 ? { sdk_events: sdkEvents } : {}),
+    ...(sessionTiming ? { session_timing: sessionTiming } : {}),
   };
 }
 
@@ -471,6 +497,8 @@ function finalizeExecution(
     metrics: extractResultMetrics(ctx.messages),
     stopReceived: ctx.stopReceived,
     sdkEvents: ctx.sdkEventCollector.events,
+    sessionStarts: ctx.sessionStarts,
+    sessionEnd: ctx.sessionEnd,
   });
 }
 
@@ -554,6 +582,12 @@ export async function executeScenario(
     ctx.subagentCaptures,
     () => {
       ctx.stopReceived = true;
+    },
+    (capture) => {
+      ctx.sessionStarts.push(capture);
+    },
+    (capture) => {
+      ctx.sessionEnd = capture;
     },
   );
 
@@ -652,6 +686,12 @@ export async function executeScenarioWithCheckpoint(
     ctx.subagentCaptures,
     () => {
       ctx.stopReceived = true;
+    },
+    (capture) => {
+      ctx.sessionStarts.push(capture);
+    },
+    (capture) => {
+      ctx.sessionEnd = capture;
     },
   );
 

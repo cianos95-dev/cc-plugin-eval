@@ -49,6 +49,9 @@ import type {
   ToolCapture,
   TranscriptErrorEvent,
   SDKEventCapture,
+  SessionStartCapture,
+  SessionEndCapture,
+  SessionTimingCapture,
 } from "../../types/index.js";
 
 /**
@@ -226,6 +229,10 @@ interface BuildScenarioQueryInputOptions {
   onSubagentCapture: (capture: SubagentCapture) => void;
   /** Stop hook callback for clean completion signal */
   onStop: () => void;
+  /** SessionStart hook callback */
+  onSessionStart: (capture: SessionStartCapture) => void;
+  /** SessionEnd hook callback */
+  onSessionEnd: (capture: SessionEndCapture) => void;
   /** Stderr handler */
   onStderr: (data: string) => void;
   /** Enable file checkpointing for rewind support */
@@ -312,6 +319,10 @@ interface ExecuteScenarioWithRetryResult {
   stopReceived: boolean;
   /** SDK events captured from new message types */
   sdkEvents: SDKEventCapture[];
+  /** Session start events captured via SessionStart hook */
+  sessionStarts: SessionStartCapture[];
+  /** Session end event captured via SessionEnd hook */
+  sessionEnd: SessionEndCapture | undefined;
 }
 
 /**
@@ -353,6 +364,8 @@ async function executeScenarioWithRetry(
   const sdkEventCollector = createSDKEventCollector();
   let userMessageId: string | undefined;
   let stopReceived = false;
+  const sessionStarts: SessionStartCapture[] = [];
+  let sessionEnd: SessionEndCapture | undefined;
 
   // Create capture map for correlating Pre/Post hooks by toolUseId
   const captureMap =
@@ -383,6 +396,12 @@ async function executeScenarioWithRetry(
     onSubagentCapture: (capture) => subagentCaptures.push(capture),
     onStop: () => {
       stopReceived = true;
+    },
+    onSessionStart: (capture) => {
+      sessionStarts.push(capture);
+    },
+    onSessionEnd: (capture) => {
+      sessionEnd = capture;
     },
     /**
      * SECURITY NOTE: The template literal below uses `pluginName` which comes
@@ -480,6 +499,8 @@ async function executeScenarioWithRetry(
     userMessageId,
     stopReceived,
     sdkEvents: sdkEventCollector.events,
+    sessionStarts,
+    sessionEnd,
   };
 }
 
@@ -507,6 +528,8 @@ function buildScenarioQueryInput(
     subagentCaptureMap,
     onSubagentCapture,
     onStop,
+    onSessionStart,
+    onSessionEnd,
     onStderr,
     enableFileCheckpointing,
     enableMcpDiscovery = true,
@@ -520,7 +543,7 @@ function buildScenarioQueryInput(
   // Create capture hooks configuration.
   // When shared stateless hooks are provided (batch execution), use hybrid approach:
   // - Reuse stateless hooks (PostToolUse, PostToolUseFailure, SubagentStop) from batch
-  // - Create fresh stateful hooks (PreToolUse, SubagentStart, Stop) per scenario for closure isolation
+  // - Create fresh stateful hooks (PreToolUse, SubagentStart, Stop, SessionStart, SessionEnd) per scenario
   // This reduces memory allocations by ~60% for hook callbacks.
   const hooksConfig = sharedStatelessHooks
     ? assembleHooksConfig(
@@ -531,6 +554,8 @@ function buildScenarioQueryInput(
           subagentCaptureMap,
           onSubagentCapture,
           onStop,
+          onSessionStart,
+          onSessionEnd,
         }),
       )
     : createCaptureHooksConfig({
@@ -539,6 +564,8 @@ function buildScenarioQueryInput(
         subagentCaptureMap,
         onSubagentCapture,
         onStop,
+        onSessionStart,
+        onSessionEnd,
       });
 
   return {
@@ -796,6 +823,8 @@ export async function executeBatch(
         model: config.model,
         stopReceived: executionResult.stopReceived,
         sdkEvents: executionResult.sdkEvents,
+        sessionStarts: executionResult.sessionStarts,
+        sessionEnd: executionResult.sessionEnd,
       });
       results.push(result);
       onScenarioComplete?.(result, scenarioIndex);
@@ -827,6 +856,8 @@ export async function executeBatch(
         model: config.model,
         stopReceived: false,
         sdkEvents: [],
+        sessionStarts: [],
+        sessionEnd: undefined,
       });
       results.push(result);
       onScenarioComplete?.(result, scenarioIndex);
@@ -863,6 +894,10 @@ interface BuildScenarioResultOptions {
   stopReceived: boolean;
   /** SDK events captured from new message types */
   sdkEvents: SDKEventCapture[];
+  /** Session start events captured via SessionStart hook */
+  sessionStarts: SessionStartCapture[];
+  /** Session end event captured via SessionEnd hook */
+  sessionEnd: SessionEndCapture | undefined;
 }
 
 /**
@@ -882,6 +917,8 @@ function buildScenarioResult(
     model,
     stopReceived,
     sdkEvents,
+    sessionStarts,
+    sessionEnd,
   } = options;
   // Extract metrics from result message
   const resultMsg = messages.find(isResultMessage);
@@ -900,6 +937,12 @@ function buildScenarioResult(
   // Derive termination type from execution signals
   const terminationType = deriveTerminationType(errors, stopReceived);
 
+  // Build session timing if any lifecycle events were captured
+  const sessionTiming: SessionTimingCapture | undefined =
+    sessionStarts.length > 0 || sessionEnd
+      ? { starts: sessionStarts, ...(sessionEnd ? { end: sessionEnd } : {}) }
+      : undefined;
+
   return {
     scenario_id: scenario.id,
     transcript: buildTranscript(context, messages, errors),
@@ -915,6 +958,7 @@ function buildScenarioResult(
     errors,
     termination_type: terminationType,
     ...(sdkEvents.length > 0 ? { sdk_events: sdkEvents } : {}),
+    ...(sessionTiming ? { session_timing: sessionTiming } : {}),
   };
 }
 
