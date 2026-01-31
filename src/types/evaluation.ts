@@ -248,21 +248,3 @@ export interface EvalMetrics {
   /** Cache usage statistics */
   cache_stats?: CacheStats;
 }
-
-/**
- * Meta-judgment of overall eval suite quality.
- */
-export interface MetaJudgmentResult {
-  suite_diversity_score: number;
-  coverage_completeness: number;
-  scenario_quality_distribution: {
-    excellent: number;
-    good: number;
-    fair: number;
-    poor: number;
-  };
-  identified_gaps: string[];
-  false_positive_patterns: string[];
-  false_negative_patterns: string[];
-  recommendations: string[];
-}

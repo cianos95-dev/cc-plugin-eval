@@ -101,15 +101,3 @@ export interface BaseScenario {
   /** Original prompt */
   base_prompt: string;
 }
-
-/**
- * Scenario variation extending base scenario.
- */
-export interface ScenarioVariation extends TestScenario {
-  /** Reference to parent */
-  base_scenario_id: string;
-  variation_index: number;
-  variation_type: "entity" | "domain" | "tone" | "specificity";
-  /** What was changed */
-  changes_made: string;
-}

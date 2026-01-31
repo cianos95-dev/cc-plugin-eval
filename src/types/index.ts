@@ -53,7 +53,6 @@ export type {
   DiversityConfig,
   ScenarioDistribution,
   BaseScenario,
-  ScenarioVariation,
 } from "./scenario.js";
 
 // Transcript types
@@ -99,7 +98,6 @@ export type {
   RepetitionStats,
   CacheStats,
   EvalMetrics,
-  MetaJudgmentResult,
 } from "./evaluation.js";
 
 // Evaluation Zod schemas (runtime validation)
