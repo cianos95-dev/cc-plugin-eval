@@ -12,6 +12,7 @@ import {
   createPostToolUseFailureHook,
   createSubagentStartHook,
   createSubagentStopHook,
+  createStopHook,
 } from "../../../../src/stages/3-execution/tool-capture-hooks.js";
 import type {
   ToolCapture,
@@ -681,5 +682,69 @@ describe("SubagentStart/SubagentStop hook correlation", () => {
 
     expect(captures[1]!.agentType).toBe("Bash");
     expect(captures[1]!.transcriptPath).toBe("/path/2.json");
+  });
+});
+
+describe("createStopHook", () => {
+  it("should call onStop callback when Stop input is received", async () => {
+    const onStop = vi.fn();
+    const hook = createStopHook(onStop);
+
+    await hook(
+      {
+        hook_event_name: "Stop",
+        session_id: "sess-1",
+        transcript_path: "/path",
+        cwd: "/cwd",
+      },
+      undefined,
+      { signal: new AbortController().signal },
+    );
+
+    expect(onStop).toHaveBeenCalledTimes(1);
+  });
+
+  it("should not call onStop for non-Stop input", async () => {
+    const onStop = vi.fn();
+    const hook = createStopHook(onStop);
+
+    await hook(
+      { hook_event_name: "SubagentStop", agent_id: "agent-1" },
+      undefined,
+      { signal: new AbortController().signal },
+    );
+
+    expect(onStop).not.toHaveBeenCalled();
+  });
+
+  it("should not call onStop for invalid input", async () => {
+    const onStop = vi.fn();
+    const hook = createStopHook(onStop);
+
+    await hook(
+      { other_field: "value" } as unknown as { hook_event_name: string },
+      undefined,
+      { signal: new AbortController().signal },
+    );
+
+    expect(onStop).not.toHaveBeenCalled();
+  });
+
+  it("should return empty object to allow operation to proceed", async () => {
+    const onStop = vi.fn();
+    const hook = createStopHook(onStop);
+
+    const result = await hook(
+      {
+        hook_event_name: "Stop",
+        session_id: "sess-1",
+        transcript_path: "/path",
+        cwd: "/cwd",
+      },
+      undefined,
+      { signal: new AbortController().signal },
+    );
+
+    expect(result).toEqual({});
   });
 });

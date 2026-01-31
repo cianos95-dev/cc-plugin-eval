@@ -15,6 +15,7 @@ import type {
   PostToolUseFailureHookInput,
   SubagentStartHookInput,
   SubagentStopHookInput,
+  StopHookInput,
 } from "./sdk-client.js";
 import type { ToolCapture, SubagentCapture } from "../../types/index.js";
 
@@ -82,6 +83,19 @@ function isSubagentStopInput(input: unknown): input is SubagentStopHookInput {
     input !== null &&
     "agent_id" in input &&
     typeof (input as SubagentStopHookInput).agent_id === "string"
+  );
+}
+
+/**
+ * Type guard for StopHookInput.
+ * Validates the input has the expected shape with hook_event_name === "Stop".
+ */
+function isStopInput(input: unknown): input is StopHookInput {
+  return (
+    typeof input === "object" &&
+    input !== null &&
+    "hook_event_name" in input &&
+    (input as { hook_event_name: string }).hook_event_name === "Stop"
   );
 }
 
@@ -248,6 +262,43 @@ export function createSubagentStopHook(
           capture.stopHookActive = input.stop_hook_active;
         }
       }
+    }
+    return Promise.resolve({});
+  };
+}
+
+/**
+ * Creates a Stop hook callback that updates captures when a stop event occurs.
+ *
+ * The hook:
+ * 1. Looks up the capture from PreToolUse via toolUseId in the map
+ * 2. Updates the capture with stop timestamp and reason
+ *
+ * @param captureMap - Map for correlating PreToolUse/Stop hooks by toolUseId
+ * @returns Hook callback function for use with the Agent SDK
+ */
+/**
+ * Callback invoked when the Stop hook fires (agent completed cleanly).
+ */
+export type OnStopCapture = () => void;
+
+/**
+ * Creates a Stop hook callback that signals clean agent completion.
+ *
+ * The hook:
+ * 1. Validates the input is a Stop event
+ * 2. Calls the onStop callback to signal clean termination
+ *
+ * This is a stateless hook — it simply sets a flag, no per-scenario
+ * state is needed.
+ *
+ * @param onStop - Callback invoked when the agent stops cleanly
+ * @returns Hook callback function for use with the Agent SDK
+ */
+export function createStopHook(onStop: OnStopCapture): HookCallback {
+  return async (input, _toolUseId, _context) => {
+    if (isStopInput(input)) {
+      onStop();
     }
     return Promise.resolve({});
   };

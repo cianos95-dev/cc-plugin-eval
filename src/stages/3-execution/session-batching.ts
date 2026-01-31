@@ -8,6 +8,7 @@
 import { logger } from "../../utils/logging.js";
 import { withRetry } from "../../utils/retry.js";
 
+import { deriveTerminationType, type QueryFunction } from "./agent-executor.js";
 import { createHookResponseCollector } from "./hook-capture.js";
 import {
   createCaptureHooksConfig,
@@ -32,7 +33,6 @@ import {
   type TranscriptBuilderContext,
 } from "./transcript-builder.js";
 
-import type { QueryFunction } from "./agent-executor.js";
 import type {
   ExecutionConfig,
   ExecutionResult,
@@ -217,6 +217,8 @@ interface BuildScenarioQueryInputOptions {
   subagentCaptureMap: Map<string, SubagentCapture>;
   /** Subagent capture callback */
   onSubagentCapture: (capture: SubagentCapture) => void;
+  /** Stop hook callback for clean completion signal */
+  onStop: () => void;
   /** Stderr handler */
   onStderr: (data: string) => void;
   /** Enable file checkpointing for rewind support */
@@ -227,7 +229,7 @@ interface BuildScenarioQueryInputOptions {
   permissionBypass?: boolean | undefined;
   /**
    * Pre-created stateless hooks shared across the batch.
-   * When provided, only stateful hooks (PreToolUse, SubagentStart) are created fresh.
+   * When provided, only stateful hooks (PreToolUse, SubagentStart, Stop) are created fresh.
    */
   sharedStatelessHooks?: StatelessHooks | undefined;
 }
@@ -297,6 +299,8 @@ interface ExecuteScenarioWithRetryResult {
   errors: TranscriptErrorEvent[];
   /** User message ID for file checkpointing */
   userMessageId: string | undefined;
+  /** Whether the SDK Stop hook fired (clean completion) */
+  stopReceived: boolean;
 }
 
 /**
@@ -335,6 +339,7 @@ async function executeScenarioWithRetry(
   const subagentCaptures: SubagentCapture[] = [];
   const hookCollector = createHookResponseCollector();
   let userMessageId: string | undefined;
+  let stopReceived = false;
 
   // Create capture map for correlating Pre/Post hooks by toolUseId
   const captureMap =
@@ -363,6 +368,9 @@ async function executeScenarioWithRetry(
     onToolCapture: (capture) => detectedTools.push(capture),
     subagentCaptureMap,
     onSubagentCapture: (capture) => subagentCaptures.push(capture),
+    onStop: () => {
+      stopReceived = true;
+    },
     /**
      * SECURITY NOTE: The template literal below uses `pluginName` which comes
      * from local plugin configuration (plugin.json), not user input. This is
@@ -449,6 +457,7 @@ async function executeScenarioWithRetry(
     subagentCaptures,
     errors: scenarioErrors,
     userMessageId,
+    stopReceived,
   };
 }
 
@@ -475,6 +484,7 @@ function buildScenarioQueryInput(
     onToolCapture,
     subagentCaptureMap,
     onSubagentCapture,
+    onStop,
     onStderr,
     enableFileCheckpointing,
     enableMcpDiscovery = true,
@@ -488,7 +498,7 @@ function buildScenarioQueryInput(
   // Create capture hooks configuration.
   // When shared stateless hooks are provided (batch execution), use hybrid approach:
   // - Reuse stateless hooks (PostToolUse, PostToolUseFailure, SubagentStop) from batch
-  // - Create fresh stateful hooks (PreToolUse, SubagentStart) per scenario for closure isolation
+  // - Create fresh stateful hooks (PreToolUse, SubagentStart, Stop) per scenario for closure isolation
   // This reduces memory allocations by ~60% for hook callbacks.
   const hooksConfig = sharedStatelessHooks
     ? assembleHooksConfig(
@@ -498,6 +508,7 @@ function buildScenarioQueryInput(
           onToolCapture,
           subagentCaptureMap,
           onSubagentCapture,
+          onStop,
         }),
       )
     : createCaptureHooksConfig({
@@ -505,6 +516,7 @@ function buildScenarioQueryInput(
         onToolCapture,
         subagentCaptureMap,
         onSubagentCapture,
+        onStop,
       });
 
   return {
@@ -752,6 +764,7 @@ export async function executeBatch(
         subagentCaptures: executionResult.subagentCaptures,
         pluginName,
         model: config.model,
+        stopReceived: executionResult.stopReceived,
       });
       results.push(result);
       onScenarioComplete?.(result, scenarioIndex);
@@ -781,6 +794,7 @@ export async function executeBatch(
         subagentCaptures: [],
         pluginName,
         model: config.model,
+        stopReceived: false,
       });
       results.push(result);
       onScenarioComplete?.(result, scenarioIndex);
@@ -813,6 +827,8 @@ interface BuildScenarioResultOptions {
   subagentCaptures: SubagentCapture[];
   pluginName: string;
   model: string;
+  /** Whether the SDK Stop hook fired (clean completion) */
+  stopReceived: boolean;
 }
 
 /**
@@ -830,6 +846,7 @@ function buildScenarioResult(
     subagentCaptures,
     pluginName,
     model,
+    stopReceived,
   } = options;
   // Extract metrics from result message
   const resultMsg = messages.find(isResultMessage);
@@ -845,6 +862,9 @@ function buildScenarioResult(
     model,
   };
 
+  // Derive termination type from execution signals
+  const terminationType = deriveTerminationType(errors, stopReceived);
+
   return {
     scenario_id: scenario.id,
     transcript: buildTranscript(context, messages, errors),
@@ -858,6 +878,7 @@ function buildScenarioResult(
     num_turns: numTurns,
     permission_denials: permissionDenials,
     errors,
+    termination_type: terminationType,
   };
 }
 

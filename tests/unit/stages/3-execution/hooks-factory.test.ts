@@ -25,6 +25,7 @@ describe("hooks-factory", () => {
     let capturedSubagents: SubagentCapture[];
     let onToolCapture: OnToolCapture;
     let onSubagentCapture: OnSubagentCapture;
+    let stopReceived: boolean;
 
     beforeEach(() => {
       captureMap = new Map();
@@ -34,6 +35,7 @@ describe("hooks-factory", () => {
       onToolCapture = (capture: ToolCapture) => capturedTools.push(capture);
       onSubagentCapture = (capture: SubagentCapture) =>
         capturedSubagents.push(capture);
+      stopReceived = false;
     });
 
     it("returns SDK-compatible hooks configuration with PascalCase keys", () => {
@@ -42,6 +44,9 @@ describe("hooks-factory", () => {
         onToolCapture,
         subagentCaptureMap,
         onSubagentCapture,
+        onStop: () => {
+          stopReceived = true;
+        },
       });
 
       // Verify PascalCase keys (SDK format)
@@ -50,6 +55,7 @@ describe("hooks-factory", () => {
       expect(hooksConfig).toHaveProperty("PostToolUseFailure");
       expect(hooksConfig).toHaveProperty("SubagentStart");
       expect(hooksConfig).toHaveProperty("SubagentStop");
+      expect(hooksConfig).toHaveProperty("Stop");
     });
 
     it("creates hook arrays with matcher and hooks properties", () => {
@@ -58,6 +64,9 @@ describe("hooks-factory", () => {
         onToolCapture,
         subagentCaptureMap,
         onSubagentCapture,
+        onStop: () => {
+          stopReceived = true;
+        },
       });
 
       // Each hook type should have an array with one entry
@@ -66,6 +75,7 @@ describe("hooks-factory", () => {
       expect(hooksConfig.PostToolUseFailure).toHaveLength(1);
       expect(hooksConfig.SubagentStart).toHaveLength(1);
       expect(hooksConfig.SubagentStop).toHaveLength(1);
+      expect(hooksConfig.Stop).toHaveLength(1);
 
       // Each entry should have matcher ".*" to capture all tools
       expect(hooksConfig.PreToolUse[0]).toHaveProperty("matcher", ".*");
@@ -73,6 +83,7 @@ describe("hooks-factory", () => {
       expect(hooksConfig.PostToolUseFailure[0]).toHaveProperty("matcher", ".*");
       expect(hooksConfig.SubagentStart[0]).toHaveProperty("matcher", ".*");
       expect(hooksConfig.SubagentStop[0]).toHaveProperty("matcher", ".*");
+      expect(hooksConfig.Stop[0]).toHaveProperty("matcher", ".*");
     });
 
     it("creates hooks arrays with hook callbacks", () => {
@@ -81,6 +92,9 @@ describe("hooks-factory", () => {
         onToolCapture,
         subagentCaptureMap,
         onSubagentCapture,
+        onStop: () => {
+          stopReceived = true;
+        },
       });
 
       // Each entry should have a hooks array with at least one callback
@@ -89,6 +103,7 @@ describe("hooks-factory", () => {
       expect(hooksConfig.PostToolUseFailure[0].hooks).toHaveLength(1);
       expect(hooksConfig.SubagentStart[0].hooks).toHaveLength(1);
       expect(hooksConfig.SubagentStop[0].hooks).toHaveLength(1);
+      expect(hooksConfig.Stop[0].hooks).toHaveLength(1);
 
       // All hook callbacks should be functions
       expect(typeof hooksConfig.PreToolUse[0].hooks[0]).toBe("function");
@@ -98,6 +113,7 @@ describe("hooks-factory", () => {
       );
       expect(typeof hooksConfig.SubagentStart[0].hooks[0]).toBe("function");
       expect(typeof hooksConfig.SubagentStop[0].hooks[0]).toBe("function");
+      expect(typeof hooksConfig.Stop[0].hooks[0]).toBe("function");
     });
 
     it("PreToolUse hook captures tool invocation and calls onToolCapture", async () => {
@@ -106,6 +122,9 @@ describe("hooks-factory", () => {
         onToolCapture,
         subagentCaptureMap,
         onSubagentCapture,
+        onStop: () => {
+          stopReceived = true;
+        },
       });
 
       const preToolUseHook = hooksConfig.PreToolUse[0].hooks[0];
@@ -136,6 +155,9 @@ describe("hooks-factory", () => {
         onToolCapture,
         subagentCaptureMap,
         onSubagentCapture,
+        onStop: () => {
+          stopReceived = true;
+        },
       });
 
       const preToolUseHook = hooksConfig.PreToolUse[0].hooks[0];
@@ -168,6 +190,9 @@ describe("hooks-factory", () => {
         onToolCapture,
         subagentCaptureMap,
         onSubagentCapture,
+        onStop: () => {
+          stopReceived = true;
+        },
       });
 
       const subagentStartHook = hooksConfig.SubagentStart[0].hooks[0];
@@ -187,6 +212,32 @@ describe("hooks-factory", () => {
 
       // Should have stored in subagentCaptureMap
       expect(subagentCaptureMap.has("agent-123")).toBe(true);
+    });
+
+    it("Stop hook calls onStop callback on clean completion", async () => {
+      const hooksConfig = createCaptureHooksConfig({
+        captureMap,
+        onToolCapture,
+        subagentCaptureMap,
+        onSubagentCapture,
+        onStop: () => {
+          stopReceived = true;
+        },
+      });
+
+      const stopHook = hooksConfig.Stop[0].hooks[0];
+      await stopHook(
+        {
+          hook_event_name: "Stop",
+          session_id: "sess-1",
+          transcript_path: "/path",
+          cwd: "/cwd",
+        } as unknown,
+        undefined,
+        undefined,
+      );
+
+      expect(stopReceived).toBe(true);
     });
   });
 
@@ -327,10 +378,12 @@ describe("hooks-factory", () => {
         onToolCapture: (c) => capturedTools.push(c),
         subagentCaptureMap,
         onSubagentCapture: (c) => capturedSubagents.push(c),
+        onStop: () => {},
       });
 
       expect(typeof hooks.preToolUseHook).toBe("function");
       expect(typeof hooks.subagentStartHook).toBe("function");
+      expect(typeof hooks.stopHook).toBe("function");
     });
 
     it("preToolUseHook calls the closure-bound callback", async () => {
@@ -341,6 +394,7 @@ describe("hooks-factory", () => {
         onToolCapture: (c) => capturedTools.push(c),
         subagentCaptureMap,
         onSubagentCapture: () => {},
+        onStop: () => {},
       });
 
       await hooks.preToolUseHook(
@@ -363,6 +417,7 @@ describe("hooks-factory", () => {
         onToolCapture: (c) => scenario1Tools.push(c),
         subagentCaptureMap,
         onSubagentCapture: () => {},
+        onStop: () => {},
       });
 
       await hooks1.preToolUseHook(
@@ -382,6 +437,7 @@ describe("hooks-factory", () => {
         onToolCapture: (c) => scenario2Tools.push(c),
         subagentCaptureMap,
         onSubagentCapture: () => {},
+        onStop: () => {},
       });
 
       await hooks2.preToolUseHook(
@@ -418,6 +474,7 @@ describe("hooks-factory", () => {
         onToolCapture: () => {},
         subagentCaptureMap,
         onSubagentCapture: () => {},
+        onStop: () => {},
       });
 
       const config = assembleHooksConfig(statelessHooks, statefulHooks);
@@ -428,14 +485,17 @@ describe("hooks-factory", () => {
       expect(config.PostToolUseFailure).toHaveLength(1);
       expect(config.SubagentStart).toHaveLength(1);
       expect(config.SubagentStop).toHaveLength(1);
+      expect(config.Stop).toHaveLength(1);
 
       // All have ".*" matcher
       expect(config.PreToolUse[0].matcher).toBe(".*");
       expect(config.PostToolUse[0].matcher).toBe(".*");
+      expect(config.Stop[0].matcher).toBe(".*");
 
       // Hooks are functions
       expect(typeof config.PreToolUse[0].hooks[0]).toBe("function");
       expect(typeof config.PostToolUse[0].hooks[0]).toBe("function");
+      expect(typeof config.Stop[0].hooks[0]).toBe("function");
     });
 
     it("assembled config produces equivalent behavior to createCaptureHooksConfig", async () => {
@@ -449,6 +509,7 @@ describe("hooks-factory", () => {
         onToolCapture: (c) => capturedToolsOld.push(c),
         subagentCaptureMap: new Map(),
         onSubagentCapture: () => {},
+        onStop: () => {},
       });
 
       // New approach (assemble)
@@ -463,6 +524,7 @@ describe("hooks-factory", () => {
         onToolCapture: (c) => capturedToolsNew.push(c),
         subagentCaptureMap: newSubagentCaptureMap,
         onSubagentCapture: () => {},
+        onStop: () => {},
       });
       const newConfig = assembleHooksConfig(statelessHooks, statefulHooks);
 

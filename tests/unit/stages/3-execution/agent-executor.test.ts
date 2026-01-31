@@ -8,6 +8,7 @@ import { DEFAULT_TUNING } from "../../../../src/config/defaults.js";
 import type {
   ExecutionConfig,
   ExecutionResult,
+  TranscriptErrorEvent,
 } from "../../../../src/types/index.js";
 
 // Track calls to getModelPricing
@@ -249,5 +250,79 @@ describe("formatExecutionStats", () => {
 
     expect(stats).toContain("Errors: 1");
     expect(stats).toContain("Failed scenarios: failed-scenario");
+  });
+});
+
+describe("deriveTerminationType", () => {
+  // Import the function - it's exported for shared use
+  let deriveTerminationType: typeof import("../../../../src/stages/3-execution/agent-executor.js").deriveTerminationType;
+
+  beforeEach(async () => {
+    const mod =
+      await import("../../../../src/stages/3-execution/agent-executor.js");
+    deriveTerminationType = mod.deriveTerminationType;
+  });
+
+  it("returns 'clean' when Stop hook fired", () => {
+    const errors: TranscriptErrorEvent[] = [];
+    expect(deriveTerminationType(errors, true)).toBe("clean");
+  });
+
+  it("returns 'clean' when Stop hook fired even with errors", () => {
+    // Stop hook takes priority - if the agent signaled clean stop, trust it
+    const errors: TranscriptErrorEvent[] = [
+      {
+        type: "error",
+        error_type: "api_error",
+        message: "minor warning",
+        timestamp: Date.now(),
+        recoverable: true,
+      },
+    ];
+    expect(deriveTerminationType(errors, true)).toBe("clean");
+  });
+
+  it("returns 'timeout' when errors contain timeout", () => {
+    const errors: TranscriptErrorEvent[] = [
+      {
+        type: "error",
+        error_type: "timeout",
+        message: "Operation timed out",
+        timestamp: Date.now(),
+        recoverable: false,
+      },
+    ];
+    expect(deriveTerminationType(errors, false)).toBe("timeout");
+  });
+
+  it("returns 'timeout' when errors contain AbortError message", () => {
+    const errors: TranscriptErrorEvent[] = [
+      {
+        type: "error",
+        error_type: "api_error",
+        message: "AbortError: signal was aborted",
+        timestamp: Date.now(),
+        recoverable: false,
+      },
+    ];
+    expect(deriveTerminationType(errors, false)).toBe("timeout");
+  });
+
+  it("returns 'error' when non-timeout errors exist", () => {
+    const errors: TranscriptErrorEvent[] = [
+      {
+        type: "error",
+        error_type: "api_error",
+        message: "Something went wrong",
+        timestamp: Date.now(),
+        recoverable: false,
+      },
+    ];
+    expect(deriveTerminationType(errors, false)).toBe("error");
+  });
+
+  it("returns 'clean' when no errors and no Stop hook", () => {
+    const errors: TranscriptErrorEvent[] = [];
+    expect(deriveTerminationType(errors, false)).toBe("clean");
   });
 });

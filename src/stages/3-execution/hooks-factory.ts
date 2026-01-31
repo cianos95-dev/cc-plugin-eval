@@ -13,8 +13,10 @@ import {
   createPostToolUseFailureHook,
   createSubagentStartHook,
   createSubagentStopHook,
+  createStopHook,
   type OnToolCapture,
   type OnSubagentCapture,
+  type OnStopCapture,
 } from "./tool-capture-hooks.js";
 
 import type {
@@ -24,6 +26,7 @@ import type {
   PostToolUseFailureHookConfig,
   SubagentStartHookConfig,
   SubagentStopHookConfig,
+  StopHookConfig,
 } from "./sdk-client.js";
 import type { ToolCapture, SubagentCapture } from "../../types/index.js";
 
@@ -37,6 +40,7 @@ export interface SDKHooksConfig {
   PostToolUseFailure: PostToolUseFailureHookConfig[];
   SubagentStart: SubagentStartHookConfig[];
   SubagentStop: SubagentStopHookConfig[];
+  Stop: StopHookConfig[];
 }
 
 /**
@@ -51,6 +55,8 @@ export interface CaptureHooksOptions {
   subagentCaptureMap: Map<string, SubagentCapture>;
   /** Callback invoked when a subagent is captured */
   onSubagentCapture: OnSubagentCapture;
+  /** Callback invoked when the agent stops cleanly */
+  onStop: OnStopCapture;
 }
 
 /**
@@ -85,6 +91,8 @@ export interface StatefulHooks {
   preToolUseHook: HookCallback;
   /** SubagentStart hook with scenario-specific onSubagentCapture callback */
   subagentStartHook: HookCallback;
+  /** Stop hook with scenario-specific onStop callback */
+  stopHook: HookCallback;
 }
 
 /**
@@ -99,6 +107,8 @@ export interface StatefulHooksOptions {
   subagentCaptureMap: Map<string, SubagentCapture>;
   /** Per-scenario callback for subagent captures */
   onSubagentCapture: OnSubagentCapture;
+  /** Per-scenario callback for clean stop signal */
+  onStop: OnStopCapture;
 }
 
 /**
@@ -171,8 +181,13 @@ export function createBatchStatelessHooks(
 export function createScenarioStatefulHooks(
   options: StatefulHooksOptions,
 ): StatefulHooks {
-  const { captureMap, onToolCapture, subagentCaptureMap, onSubagentCapture } =
-    options;
+  const {
+    captureMap,
+    onToolCapture,
+    subagentCaptureMap,
+    onSubagentCapture,
+    onStop,
+  } = options;
 
   return {
     preToolUseHook: createPreToolUseHook(captureMap, onToolCapture),
@@ -180,6 +195,7 @@ export function createScenarioStatefulHooks(
       subagentCaptureMap,
       onSubagentCapture,
     ),
+    stopHook: createStopHook(onStop),
   };
 }
 
@@ -228,6 +244,12 @@ export function assembleHooksConfig(
         hooks: [statelessHooks.subagentStopHook],
       },
     ],
+    Stop: [
+      {
+        matcher: ".*",
+        hooks: [statefulHooks.stopHook],
+      },
+    ],
   };
 }
 
@@ -266,8 +288,13 @@ export function assembleHooksConfig(
 export function createCaptureHooksConfig(
   options: CaptureHooksOptions,
 ): SDKHooksConfig {
-  const { captureMap, onToolCapture, subagentCaptureMap, onSubagentCapture } =
-    options;
+  const {
+    captureMap,
+    onToolCapture,
+    subagentCaptureMap,
+    onSubagentCapture,
+    onStop,
+  } = options;
 
   return {
     PreToolUse: [
@@ -298,6 +325,12 @@ export function createCaptureHooksConfig(
       {
         matcher: ".*",
         hooks: [createSubagentStopHook(subagentCaptureMap)],
+      },
+    ],
+    Stop: [
+      {
+        matcher: ".*",
+        hooks: [createStopHook(onStop)],
       },
     ],
   };
