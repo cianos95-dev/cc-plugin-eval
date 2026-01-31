@@ -60,13 +60,13 @@ When completing a task in this project, run the following checks:
    markdownlint-cli2 "**/*.md" "#node_modules"
    ```
 
-3. **YAML Lint** (if editing YAML files)
+2. **YAML Lint** (if editing YAML files)
 
    ```bash
    uvx yamllint -c .yamllint.yml config.yaml
    ```
 
-4. **GitHub Actions** (if editing workflows)
+3. **GitHub Actions** (if editing workflows)
 
    ```bash
    actionlint .github/workflows/*.yml
