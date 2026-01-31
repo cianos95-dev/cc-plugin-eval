@@ -74,6 +74,41 @@ export interface GenerationConfig {
 /** Strategy for handling execution timeouts */
 export type TimeoutStrategy = "interrupt_first" | "abort_only";
 
+/**
+ * Sandbox network configuration.
+ */
+export interface SandboxNetworkConfig {
+  allowed_domains?: string[];
+  allow_unix_sockets?: string[];
+  allow_all_unix_sockets?: boolean;
+  allow_local_binding?: boolean;
+  http_proxy_port?: number;
+  socks_proxy_port?: number;
+}
+
+/**
+ * Sandbox ripgrep configuration.
+ */
+export interface SandboxRipgrepConfig {
+  command: string;
+  args?: string[];
+}
+
+/**
+ * Sandbox configuration for execution environment.
+ * All fields are optional; omitting sandbox entirely means no sandbox (default).
+ */
+export interface SandboxConfig {
+  enabled?: boolean;
+  auto_allow_bash_if_sandboxed?: boolean;
+  allow_unsandboxed_commands?: boolean;
+  network?: SandboxNetworkConfig;
+  ignore_violations?: Record<string, string[]>;
+  enable_weaker_nested_sandbox?: boolean;
+  excluded_commands?: string[];
+  ripgrep?: SandboxRipgrepConfig;
+}
+
 export interface ExecutionConfig {
   model: string;
   max_turns: number;
@@ -122,6 +157,14 @@ export interface ExecutionConfig {
    * Default: 10000 (10 seconds)
    */
   interrupt_grace_ms?: number;
+  /** Sandbox settings for execution environment. Disabled by default. */
+  sandbox?: SandboxConfig;
+  /** Environment variables to pass to the execution environment. */
+  env?: Record<string, string>;
+  /** Working directory for the execution environment. */
+  cwd?: string;
+  /** Additional directories the execution environment can access. */
+  additional_directories?: string[];
 }
 
 /**

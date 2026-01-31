@@ -9,6 +9,7 @@ import { logger } from "../../utils/logging.js";
 import { withRetry } from "../../utils/retry.js";
 
 import { deriveTerminationType, type QueryFunction } from "./agent-executor.js";
+import { buildEnvironmentOptions } from "./environment-options.js";
 import { createHookResponseCollector } from "./hook-capture.js";
 import {
   createCaptureHooksConfig,
@@ -24,6 +25,7 @@ import {
   isResultMessage,
   type PluginReference,
   type QueryInput,
+  type QueryOptions,
   type Query,
   type SDKMessage,
   type SettingSource,
@@ -53,6 +55,7 @@ import type {
   SessionEndCapture,
   SessionTimingCapture,
 } from "../../types/index.js";
+import type { SandboxSettings } from "@anthropic-ai/claude-agent-sdk";
 
 /**
  * Discriminated union representing a resolved execution strategy with its data.
@@ -246,6 +249,14 @@ interface BuildScenarioQueryInputOptions {
    * When provided, only stateful hooks (PreToolUse, SubagentStart, Stop) are created fresh.
    */
   sharedStatelessHooks?: StatelessHooks | undefined;
+  /** SDK sandbox settings (camelCase, already mapped from config) */
+  sandbox?: SandboxSettings | undefined;
+  /** Environment variables for the execution environment */
+  env?: Record<string, string | undefined> | undefined;
+  /** Working directory for the execution environment */
+  cwd?: string | undefined;
+  /** Additional directories the execution environment can access */
+  additionalDirectories?: string[] | undefined;
 }
 
 /**
@@ -297,6 +308,8 @@ interface ExecuteScenarioWithRetryOptions {
   rateLimiter?: (<T>(fn: () => Promise<T>) => Promise<T>) | undefined;
   /** Mutable query holder for timeout interrupt access */
   queryHolder?: QueryHolder | undefined;
+  /** Pre-computed environment options (sandbox, env, cwd, additionalDirectories) */
+  envOptions: Partial<QueryOptions>;
 }
 
 /**
@@ -354,6 +367,7 @@ async function executeScenarioWithRetry(
     sharedStatelessHooks,
     rateLimiter,
     queryHolder,
+    envOptions,
   } = options;
 
   const scenarioMessages: SDKMessage[] = [];
@@ -421,6 +435,7 @@ async function executeScenarioWithRetry(
     enableMcpDiscovery,
     permissionBypass: config.permission_bypass,
     sharedStatelessHooks,
+    ...envOptions,
   });
 
   // Execute with retry for transient errors
@@ -535,6 +550,10 @@ function buildScenarioQueryInput(
     enableMcpDiscovery = true,
     permissionBypass = true,
     sharedStatelessHooks,
+    sandbox,
+    env,
+    cwd,
+    additionalDirectories,
   } = options;
 
   // Determine settingSources based on MCP discovery option
@@ -583,6 +602,10 @@ function buildScenarioQueryInput(
       continue: !isFirst,
       ...(maxBudgetUsd !== undefined ? { maxBudgetUsd } : {}),
       ...(enableFileCheckpointing ? { enableFileCheckpointing } : {}),
+      ...(sandbox ? { sandbox } : {}),
+      ...(env ? { env } : {}),
+      ...(cwd ? { cwd } : {}),
+      ...(additionalDirectories ? { additionalDirectories } : {}),
       abortController,
       permissionMode: permissionBypass ? "bypassPermissions" : "default",
       allowDangerouslySkipPermissions: permissionBypass,
@@ -610,6 +633,14 @@ interface SendClearCommandOptions {
   enableMcpDiscovery?: boolean | undefined;
   /** Bypass permission prompts (required for automation) */
   permissionBypass?: boolean | undefined;
+  /** SDK sandbox settings (camelCase, already mapped from config) */
+  sandbox?: SandboxSettings | undefined;
+  /** Environment variables for the execution environment */
+  env?: Record<string, string | undefined> | undefined;
+  /** Working directory for the execution environment */
+  cwd?: string | undefined;
+  /** Additional directories the execution environment can access */
+  additionalDirectories?: string[] | undefined;
 }
 
 /**
@@ -628,6 +659,10 @@ async function sendClearCommand(
     queryFn,
     enableMcpDiscovery = true,
     permissionBypass = true,
+    sandbox,
+    env,
+    cwd,
+    additionalDirectories,
   } = options;
 
   // Determine settingSources based on MCP discovery option
@@ -647,6 +682,10 @@ async function sendClearCommand(
       maxTurns: 1,
       persistSession: true,
       continue: true,
+      ...(sandbox ? { sandbox } : {}),
+      ...(env ? { env } : {}),
+      ...(cwd ? { cwd } : {}),
+      ...(additionalDirectories ? { additionalDirectories } : {}),
       abortController,
       permissionMode: permissionBypass ? "bypassPermissions" : "default",
       allowDangerouslySkipPermissions: permissionBypass,
@@ -777,6 +816,9 @@ export async function executeBatch(
     subagentCaptureMap: sharedCaptureMaps.subagentCaptureMap,
   });
 
+  // Build environment options once (config is immutable across the batch)
+  const envOptions = buildEnvironmentOptions(config);
+
   for (const scenario of scenarios) {
     const scenarioIndex = results.length;
     sharedCaptureMaps.captureMap.clear();
@@ -808,6 +850,7 @@ export async function executeBatch(
         sharedStatelessHooks,
         rateLimiter: options.rateLimiter,
         queryHolder,
+        envOptions,
       });
 
       addInterruptErrorIfNeeded(timeout.interrupted, executionResult.errors);
@@ -842,6 +885,7 @@ export async function executeBatch(
           queryFn,
           enableMcpDiscovery: options.enableMcpDiscovery,
           permissionBypass: config.permission_bypass,
+          ...buildEnvironmentOptions(config),
         });
       }
     } catch (err) {

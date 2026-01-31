@@ -137,6 +137,54 @@ export const GenerationConfigSchema = z.object({
 });
 
 /**
+ * Sandbox network configuration schema.
+ */
+export const SandboxNetworkConfigSchema = z.object({
+  allowed_domains: z.array(z.string()).optional(),
+  allow_unix_sockets: z.array(z.string()).optional(),
+  allow_all_unix_sockets: z.boolean().optional(),
+  allow_local_binding: z.boolean().optional(),
+  http_proxy_port: z.number().int().optional(),
+  socks_proxy_port: z.number().int().optional(),
+});
+
+/**
+ * Sandbox ripgrep configuration schema.
+ */
+export const SandboxRipgrepConfigSchema = z.object({
+  command: z.string(),
+  args: z.array(z.string()).optional(),
+});
+
+/**
+ * Sandbox configuration schema.
+ */
+export const SandboxConfigSchema = z
+  .object({
+    enabled: z.boolean().optional(),
+    auto_allow_bash_if_sandboxed: z.boolean().optional(),
+    allow_unsandboxed_commands: z.boolean().optional(),
+    network: SandboxNetworkConfigSchema.optional(),
+    ignore_violations: z.record(z.string(), z.array(z.string())).optional(),
+    enable_weaker_nested_sandbox: z.boolean().optional(),
+    excluded_commands: z.array(z.string()).optional(),
+    ripgrep: SandboxRipgrepConfigSchema.optional(),
+  })
+  .refine(
+    (config) => {
+      // If sandbox config has any fields set, 'enabled' should be explicitly configured
+      const hasOtherFields = Object.keys(config).some(
+        (key) => key !== "enabled",
+      );
+      return !hasOtherFields || config.enabled !== undefined;
+    },
+    {
+      message:
+        "sandbox.enabled must be explicitly set when configuring other sandbox options",
+    },
+  );
+
+/**
  * Execution configuration schema.
  */
 export const ExecutionConfigSchema = z.object({
@@ -166,6 +214,14 @@ export const ExecutionConfigSchema = z.object({
   timeout_strategy: TimeoutStrategySchema.default("interrupt_first"),
   /** Grace period (ms) after interrupt before hard abort. Only for "interrupt_first". */
   interrupt_grace_ms: z.number().int().min(1000).max(60000).default(10000),
+  /** Sandbox settings for execution environment. Disabled by default. */
+  sandbox: SandboxConfigSchema.optional(),
+  /** Environment variables to pass to the execution environment. */
+  env: z.record(z.string(), z.string()).optional(),
+  /** Working directory for the execution environment. */
+  cwd: z.string().optional(),
+  /** Additional directories the execution environment can access. */
+  additional_directories: z.array(z.string()).optional(),
 });
 
 /**

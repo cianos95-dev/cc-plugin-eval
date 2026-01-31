@@ -12,6 +12,7 @@ import { getModelPricing } from "../../config/pricing.js";
 import { logger } from "../../utils/logging.js";
 import { withRetry } from "../../utils/retry.js";
 
+import { buildEnvironmentOptions } from "./environment-options.js";
 import { createHookResponseCollector } from "./hook-capture.js";
 import {
   createCaptureHooksConfig,
@@ -197,6 +198,7 @@ function buildQueryInput(options: BuildQueryInputOptions): QueryInput {
       ...(config.max_thinking_tokens !== undefined
         ? { maxThinkingTokens: config.max_thinking_tokens }
         : {}),
+      ...buildEnvironmentOptions(config),
       hooks,
       stderr: (data: string): void => {
         const elapsed = Date.now() - startTime;

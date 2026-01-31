@@ -658,4 +658,155 @@ describe("session-batching", () => {
       expect(results[0]?.termination_type).toBe("clean");
     });
   });
+
+  describe("executeBatch sandbox passthrough", () => {
+    const createBatchScenario = (
+      id: string,
+      componentRef: string,
+    ): TestScenario => ({
+      id,
+      scenario_type: "direct",
+      component_type: "skill",
+      component_ref: componentRef,
+      user_prompt: `Test prompt for ${id}`,
+      expected_trigger: true,
+      expected_component: componentRef,
+    });
+
+    it("passes sandbox config through to query options", async () => {
+      const scenarios = [createBatchScenario("scenario-1", "skill:test")];
+      const baseMock = createMockQueryFn({
+        triggeredTools: [{ name: "Skill", input: { skill: "test" } }],
+      });
+
+      const capturedInputs: unknown[] = [];
+      const spyQueryFn = (input: unknown) => {
+        capturedInputs.push(input);
+        return baseMock(input as Parameters<typeof baseMock>[0]);
+      };
+
+      await executeBatch({
+        scenarios,
+        pluginPath: "/path/to/plugin",
+        pluginName: "test-plugin",
+        config: createMockExecutionConfig({
+          sandbox: {
+            enabled: true,
+            auto_allow_bash_if_sandboxed: true,
+          },
+        }),
+        queryFn: spyQueryFn,
+      });
+
+      expect(capturedInputs.length).toBeGreaterThanOrEqual(1);
+      const firstInput = capturedInputs[0] as {
+        options?: { sandbox?: unknown };
+      };
+      expect(firstInput.options?.sandbox).toEqual({
+        enabled: true,
+        autoAllowBashIfSandboxed: true,
+      });
+    });
+
+    it("passes env/cwd/additionalDirectories through to query options", async () => {
+      const scenarios = [createBatchScenario("scenario-1", "skill:test")];
+      const baseMock = createMockQueryFn({
+        triggeredTools: [],
+      });
+
+      const capturedInputs: unknown[] = [];
+      const spyQueryFn = (input: unknown) => {
+        capturedInputs.push(input);
+        return baseMock(input as Parameters<typeof baseMock>[0]);
+      };
+
+      await executeBatch({
+        scenarios,
+        pluginPath: "/path/to/plugin",
+        pluginName: "test-plugin",
+        config: createMockExecutionConfig({
+          env: { NODE_ENV: "test" },
+          cwd: "/tmp/workdir",
+          additional_directories: ["/extra"],
+        }),
+        queryFn: spyQueryFn,
+      });
+
+      expect(capturedInputs.length).toBeGreaterThanOrEqual(1);
+      const firstInput = capturedInputs[0] as {
+        options?: {
+          env?: unknown;
+          cwd?: unknown;
+          additionalDirectories?: unknown;
+        };
+      };
+      expect(firstInput.options?.env).toEqual({ NODE_ENV: "test" });
+      expect(firstInput.options?.cwd).toBe("/tmp/workdir");
+      expect(firstInput.options?.additionalDirectories).toEqual(["/extra"]);
+    });
+
+    it("does not include sandbox when not configured", async () => {
+      const scenarios = [createBatchScenario("scenario-1", "skill:test")];
+      const baseMock = createMockQueryFn({
+        triggeredTools: [],
+      });
+
+      const capturedInputs: unknown[] = [];
+      const spyQueryFn = (input: unknown) => {
+        capturedInputs.push(input);
+        return baseMock(input as Parameters<typeof baseMock>[0]);
+      };
+
+      await executeBatch({
+        scenarios,
+        pluginPath: "/path/to/plugin",
+        pluginName: "test-plugin",
+        config: createMockExecutionConfig(),
+        queryFn: spyQueryFn,
+      });
+
+      expect(capturedInputs.length).toBeGreaterThanOrEqual(1);
+      const firstInput = capturedInputs[0] as {
+        options?: { sandbox?: unknown };
+      };
+      expect(firstInput.options?.sandbox).toBeUndefined();
+    });
+
+    it("passes sandbox options to sendClearCommand between scenarios", async () => {
+      const scenarios = [
+        createBatchScenario("scenario-1", "skill:test"),
+        createBatchScenario("scenario-2", "skill:test"),
+      ];
+      const baseMock = createMockQueryFn({
+        triggeredTools: [],
+      });
+
+      const capturedInputs: unknown[] = [];
+      const spyQueryFn = (input: unknown) => {
+        capturedInputs.push(input);
+        return baseMock(input as Parameters<typeof baseMock>[0]);
+      };
+
+      await executeBatch({
+        scenarios,
+        pluginPath: "/path/to/plugin",
+        pluginName: "test-plugin",
+        config: createMockExecutionConfig({
+          sandbox: { enabled: true },
+          cwd: "/tmp/workdir",
+        }),
+        queryFn: spyQueryFn,
+      });
+
+      // Should have 3 calls: scenario-1, /clear, scenario-2
+      expect(capturedInputs).toHaveLength(3);
+      const clearInput = capturedInputs[1] as {
+        prompt: string;
+        options?: { sandbox?: unknown; cwd?: unknown };
+      };
+      expect(clearInput.prompt).toBe("/clear");
+      expect(clearInput.options?.sandbox).toEqual({ enabled: true });
+      expect(clearInput.options?.cwd).toBe("/tmp/workdir");
+    });
+  });
 });
