@@ -2,28 +2,25 @@
 
 ## MCP Tool Requirements (CRITICAL)
 
-**Cost tiers**: FREE (Serena, rg) → PAID (Morph ~$0.8-1.2/1M tokens) → AVOID (built-in Grep/Edit)
-
 ### Search (prefer in order)
 
-| Tool                              | Cost | Use When                               |
-| --------------------------------- | ---- | -------------------------------------- |
-| Serena `find_symbol`              | FREE | Know the symbol name                   |
-| Serena `find_referencing_symbols` | FREE | Find all usages of a symbol            |
-| Serena `get_symbols_overview`     | FREE | Understand file structure              |
-| `rg "pattern"`                    | FREE | Regex/text patterns (not symbol-based) |
-| Morph `warpgrep_codebase_search`  | PAID | Semantic/fuzzy queries (last resort)   |
+| Tool                              | Use When                               |
+| --------------------------------- | -------------------------------------- |
+| Serena `find_symbol`              | Know the symbol name - TRY FIRST      |
+| Serena `find_referencing_symbols` | Find all usages of a symbol            |
+| Serena `get_symbols_overview`     | Understand file structure              |
+| `rg "pattern"`                    | Regex/text patterns (not symbol-based) |
+| Built-in `Grep` / `Glob`         | Fallback when above tools insufficient |
 
 ### Edit (prefer in order)
 
-| Tool                         | Cost  | Use When                           |
-| ---------------------------- | ----- | ---------------------------------- |
-| Serena `replace_symbol_body` | FREE  | Replacing entire methods/functions |
-| Serena `insert_after_symbol` | FREE  | Adding new code after a symbol     |
-| Morph `edit_file`            | PAID  | Partial edits, non-LSP files       |
-| Built-in `Edit`              | AVOID | Fallback only                      |
+| Tool                         | Use When                           |
+| ---------------------------- | ---------------------------------- |
+| Serena `replace_symbol_body` | Replacing entire methods/functions |
+| Serena `insert_after_symbol` | Adding new code after a symbol     |
+| Built-in `Edit`              | All other edits                    |
 
-> **FREE tools first. Morph costs real money. Built-in Edit only as last resort.**
+> **Serena first, then rg/built-in tools.**
 
 ## Project Overview
 
