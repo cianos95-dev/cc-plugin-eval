@@ -17,6 +17,7 @@ import {
   type PostToolUseFailureHookInput as SDKPostToolUseFailureHookInput,
   type SubagentStartHookInput as SDKSubagentStartHookInput,
   type SubagentStopHookInput as SDKSubagentStopHookInput,
+  type StopHookInput as SDKStopHookInput,
   type PermissionMode,
   type SettingSource,
   type SDKUserMessage as SDKUserMessageType,
@@ -118,6 +119,13 @@ export type SubagentStartHookInput = SDKSubagentStartHookInput;
 export type SubagentStopHookInput = SDKSubagentStopHookInput;
 
 /**
+ * Stop hook input from SDK.
+ * Fired when the agent finishes execution (clean completion).
+ * Re-exported for use in other modules.
+ */
+export type StopHookInput = SDKStopHookInput;
+
+/**
  * Hook callback signature matching Agent SDK.
  * Re-exported for use in other modules.
  */
@@ -152,6 +160,12 @@ export type SubagentStartHookConfig = HookCallbackMatcher;
  * Uses SDK's HookCallbackMatcher type.
  */
 export type SubagentStopHookConfig = HookCallbackMatcher;
+
+/**
+ * Hook configuration for Stop.
+ * Uses SDK's HookCallbackMatcher type.
+ */
+export type StopHookConfig = HookCallbackMatcher;
 
 /**
  * Plugin reference for SDK options.

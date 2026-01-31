@@ -40,6 +40,7 @@ import {
 import type {
   ExecutionConfig,
   ExecutionResult,
+  TerminationType,
   TestScenario,
   TranscriptErrorEvent,
   ToolCapture,
@@ -216,6 +217,8 @@ interface ExecutionContext {
   timeout: ReturnType<typeof setTimeout>;
   /** Execution start timestamp */
   startTime: number;
+  /** Whether the SDK Stop hook fired (clean completion) */
+  stopReceived: boolean;
 }
 
 /**
@@ -243,6 +246,7 @@ function prepareExecutionContext(timeoutMs: number): ExecutionContext {
     controller,
     timeout,
     startTime,
+    stopReceived: false,
   };
 }
 
@@ -274,6 +278,7 @@ function setupCaptureInfrastructure(
   additionalPlugins: string[],
   detectedTools: ToolCapture[],
   subagentCaptures: SubagentCapture[],
+  onStop: () => void,
 ): CaptureInfrastructure {
   // Build plugin list
   const plugins: PluginReference[] = [{ type: "local", path: pluginPath }];
@@ -289,6 +294,7 @@ function setupCaptureInfrastructure(
     onToolCapture: (capture) => detectedTools.push(capture),
     subagentCaptureMap,
     onSubagentCapture: (capture) => subagentCaptures.push(capture),
+    onStop,
   });
 
   return { plugins, hooksConfig };
@@ -319,11 +325,43 @@ interface BuildExecutionResultOptions {
   hookResponses: HookResponseCapture[];
   subagentCaptures: SubagentCapture[];
   metrics: ResultMetrics;
+  /** Whether the SDK Stop hook fired (clean completion) */
+  stopReceived: boolean;
 }
 
 /**
- * Build execution result from collected data.
+ * Derives the termination type from execution signals.
+ *
+ * Priority:
+ * 1. If Stop hook fired → "clean" (agent completed normally)
+ * 2. If errors contain an AbortError → "timeout" (forced termination)
+ * 3. If any errors exist → "error" (unexpected failure)
+ * 4. Otherwise → "clean" (no errors and no Stop hook, assume clean)
  */
+export function deriveTerminationType(
+  errors: TranscriptErrorEvent[],
+  stopReceived: boolean,
+): TerminationType {
+  if (stopReceived) {
+    return "clean";
+  }
+
+  const hasTimeout = errors.some(
+    (e) => e.error_type === "timeout" || e.message.includes("AbortError"),
+  );
+  if (hasTimeout) {
+    return "timeout";
+  }
+
+  if (errors.length > 0) {
+    return "error";
+  }
+
+  // No errors and no Stop hook — assume clean completion
+  // (Stop hook may not fire in all SDK versions or configurations)
+  return "clean";
+}
+
 function buildExecutionResult(
   options: BuildExecutionResultOptions,
 ): ExecutionResult {
@@ -336,7 +374,12 @@ function buildExecutionResult(
     hookResponses,
     subagentCaptures,
     metrics,
+    stopReceived,
   } = options;
+
+  // Derive termination type from execution signals
+  const terminationType = deriveTerminationType(errors, stopReceived);
+
   return {
     scenario_id: scenarioId,
     transcript: buildTranscript(context, messages, errors),
@@ -355,6 +398,7 @@ function buildExecutionResult(
       : {}),
     cache_read_tokens: metrics.cacheReadTokens,
     cache_creation_tokens: metrics.cacheCreationTokens,
+    termination_type: terminationType,
   };
 }
 
@@ -390,6 +434,7 @@ function finalizeExecution(
     hookResponses: ctx.hookCollector.responses,
     subagentCaptures: ctx.subagentCaptures,
     metrics: extractResultMetrics(ctx.messages),
+    stopReceived: ctx.stopReceived,
   });
 }
 
@@ -467,6 +512,9 @@ export async function executeScenario(
     additionalPlugins,
     ctx.detectedTools,
     ctx.subagentCaptures,
+    () => {
+      ctx.stopReceived = true;
+    },
   );
 
   // Keep reference to query for cleanup
@@ -552,6 +600,9 @@ export async function executeScenarioWithCheckpoint(
     additionalPlugins,
     ctx.detectedTools,
     ctx.subagentCaptures,
+    () => {
+      ctx.stopReceived = true;
+    },
   );
 
   // Keep reference to query for cleanup

@@ -184,6 +184,14 @@ export interface Transcript {
 }
 
 /**
+ * Type of scenario termination.
+ * - "clean": Agent finished normally (Stop hook received)
+ * - "timeout": Forced termination via AbortController
+ * - "error": Unexpected failure during execution
+ */
+export type TerminationType = "clean" | "timeout" | "error";
+
+/**
  * Result of executing a scenario.
  */
 export interface ExecutionResult {
@@ -207,4 +215,6 @@ export interface ExecutionResult {
   cache_read_tokens?: number;
   /** Total cache creation tokens across all models */
   cache_creation_tokens?: number;
+  /** How the scenario terminated: clean completion, timeout, or error */
+  termination_type?: TerminationType;
 }

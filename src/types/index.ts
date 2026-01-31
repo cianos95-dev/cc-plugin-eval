@@ -72,6 +72,7 @@ export type {
   TranscriptEvent,
   Transcript,
   ExecutionResult,
+  TerminationType,
 } from "./transcript.js";
 
 // Evaluation types
