@@ -44,7 +44,7 @@ jobs:
       # The workflow logs contain all information needed for analysis
 
       - name: Analyze failure with Claude
-        uses: anthropics/claude-code-action@6c61301d8e1ee91bef7b65172f93462bbb216394 # v1.0.46
+        uses: anthropics/claude-code-action@b433f16b30d54063fd3bab6b12f46f3da00e41b6 # v1.0.47
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           additional_permissions: |
@@ -169,4 +169,4 @@ jobs:
 
             Summarize what you found and what action was taken (comment posted, no PR found, etc.).
 
-          claude_args: '--model claude-opus-4-5-20251101 --allowedTools "mcp__github_ci__get_ci_status,mcp__github_ci__get_workflow_run_details,mcp__github_ci__download_job_log,Bash(gh run view:*),Bash(gh pr list:*),Bash(gh pr comment:*),Bash(gh pr view:*)"'
+          claude_args: '--model claude-opus-4-6 --allowedTools "mcp__github_ci__get_ci_status,mcp__github_ci__get_workflow_run_details,mcp__github_ci__download_job_log,Bash(gh run view:*),Bash(gh pr list:*),Bash(gh pr comment:*),Bash(gh pr view:*)"'
