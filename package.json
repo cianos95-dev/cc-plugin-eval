@@ -62,19 +62,19 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.0.0",
-    "@types/node": "^25.2.2",
+    "@types/node": "^25.2.3",
     "@vitest/coverage-v8": "^4.0.17",
-    "@vitest/eslint-plugin": "^1.6.5",
+    "@vitest/eslint-plugin": "^1.6.9",
     "@vitest/ui": "^4.0.0",
     "eslint": "^9.0.0",
     "eslint-plugin-import": "^2.31.0",
-    "eslint-plugin-sonarjs": "^3.0.6",
+    "eslint-plugin-sonarjs": "^3.0.7",
     "jscpd": "^4.0.8",
     "knip": "^5.83.1",
     "madge": "^8.0.0",
     "prettier": "^3.4.2",
     "typescript": "^5.7.0",
-    "typescript-eslint": "^8.54.0",
+    "typescript-eslint": "^8.55.0",
     "vitest": "^4.0.0"
   }
 }
