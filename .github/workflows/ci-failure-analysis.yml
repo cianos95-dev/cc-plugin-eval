@@ -44,7 +44,7 @@ jobs:
       # The workflow logs contain all information needed for analysis
 
       - name: Analyze failure with Claude
-        uses: anthropics/claude-code-action@b433f16b30d54063fd3bab6b12f46f3da00e41b6 # v1.0.47
+        uses: anthropics/claude-code-action@68cfeead1890300cc87935dbe2c023825be87b8a # v1.0.52
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           additional_permissions: |
