@@ -4,6 +4,7 @@
  * Parses plugin structure and understands triggering conditions.
  */
 
+import { createLLMProvider } from "../../providers/index.js";
 import { writeJson } from "../../utils/file-io.js";
 import { logger } from "../../utils/logging.js";
 
@@ -15,7 +16,6 @@ import {
 import { generateAllCommandScenarios } from "./command-scenario-generator.js";
 import {
   estimatePipelineCost,
-  createAnthropicClient,
   formatPipelineCostEstimate,
 } from "./cost-estimator.js";
 import { calculateDiversityMetrics } from "./diversity-manager.js";
@@ -33,7 +33,7 @@ import type {
   PipelineCostEstimate,
   ScenarioType,
 } from "../../types/index.js";
-import type Anthropic from "@anthropic-ai/sdk";
+import type { LLMProvider } from "../../providers/types.js";
 
 /**
  * Output from Stage 2: Scenario Generation.
@@ -73,8 +73,8 @@ export type GenerationProgressCallback = (
  * Options for runGeneration to support dependency injection.
  */
 export interface GenerationOptions {
-  /** Anthropic client instance for LLM-based generation (injectable for testing) */
-  client?: Anthropic;
+  /** LLM provider instance for LLM-based generation (injectable for testing) */
+  provider?: LLMProvider;
   /** Progress callback for reporting generation progress */
   onProgress?: GenerationProgressCallback;
 }
@@ -154,7 +154,7 @@ export async function runGeneration(
   config: EvalConfig,
   options?: GenerationOptions,
 ): Promise<GenerationOutput> {
-  const { client: injectedClient, onProgress } = options ?? {};
+  const { provider: injectedProvider, onProgress } = options ?? {};
 
   logger.stageHeader("Stage 2: Scenario Generation");
 
@@ -196,8 +196,8 @@ export async function runGeneration(
 
   const allScenarios: TestScenario[] = [];
   let totalGenerationCost = 0;
-  // Use injected client or create a new one
-  const client = injectedClient ?? createAnthropicClient();
+  // Use injected provider or create a new one
+  const provider = injectedProvider ?? createLLMProvider();
 
   // Generate skill scenarios (LLM-based)
   if (config.scope.skills && analysis.components.skills.length > 0) {
@@ -207,7 +207,7 @@ export async function runGeneration(
         components: analysis.components.skills,
         generator: async (onProgress) =>
           generateAllSkillScenarios({
-            client,
+            provider,
             skills: analysis.components.skills,
             config: config.generation,
             onProgress,
@@ -228,7 +228,7 @@ export async function runGeneration(
         components: analysis.components.agents,
         generator: async (onProgress) =>
           generateAllAgentScenarios({
-            client,
+            provider,
             agents: analysis.components.agents,
             config: config.generation,
             onProgress,

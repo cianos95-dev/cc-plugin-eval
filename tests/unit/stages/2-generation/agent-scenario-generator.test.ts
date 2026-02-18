@@ -2,8 +2,7 @@
  * Unit tests for agent-scenario-generator.ts
  */
 
-import Anthropic from "@anthropic-ai/sdk";
-import { describe, expect, it, vi, beforeEach, type Mock } from "vitest";
+import { describe, expect, it, vi, beforeEach } from "vitest";
 
 import {
   buildAgentPrompt,
@@ -16,16 +15,25 @@ import type {
   AgentComponent,
   GenerationConfig,
 } from "../../../../src/types/index.js";
-
-// Mock the Anthropic SDK
-vi.mock("@anthropic-ai/sdk", () => ({
-  default: vi.fn(),
-}));
+import type { LLMProvider } from "../../../../src/providers/types.js";
 
 // Mock the retry utility to avoid delays in tests
 vi.mock("../../../../src/utils/retry.js", () => ({
   withRetry: vi.fn((fn: () => Promise<unknown>) => fn()),
 }));
+
+// Mock the logger utility
+vi.mock("../../../../src/utils/logging.js", () => ({
+  logger: {
+    error: vi.fn(),
+    debug: vi.fn(),
+    info: vi.fn(),
+    warn: vi.fn(),
+    progress: vi.fn(),
+  },
+}));
+
+import { logger } from "../../../../src/utils/logging.js";
 
 describe("buildAgentPrompt", () => {
   const agent: AgentComponent = {
@@ -240,17 +248,14 @@ describe("parseAgentScenarioResponse", () => {
   });
 
   it("should return empty array for invalid JSON", () => {
-    const consoleSpy = vi.spyOn(console, "error").mockImplementation(vi.fn());
-
     const response = "Invalid JSON";
     const scenarios = parseAgentScenarioResponse(response, agent);
 
     expect(scenarios).toEqual([]);
-    expect(consoleSpy).toHaveBeenCalledWith(
+    expect(logger.error).toHaveBeenCalledWith(
       expect.stringContaining("Failed to parse LLM response for"),
       expect.any(SyntaxError),
     );
-    consoleSpy.mockRestore();
   });
 });
 
@@ -396,7 +401,7 @@ describe("createFallbackAgentScenarios", () => {
 });
 
 describe("generateAgentScenarios", () => {
-  let mockClient: { messages: { create: Mock } };
+  let mockProvider: LLMProvider;
   const agent: AgentComponent = {
     name: "code-reviewer",
     path: "/path/agent.md",
@@ -423,53 +428,44 @@ describe("generateAgentScenarios", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    mockClient = {
-      messages: {
-        create: vi.fn(),
-      },
+    mockProvider = {
+      name: "test",
+      supportsStructuredOutput: false,
+      supportsPromptCaching: true,
+      supportsBatchAPI: false,
+      createCompletion: vi.fn(),
+      createStructuredCompletion: vi.fn(),
     };
   });
 
   it("should generate scenarios from LLM response", async () => {
-    const mockResponse = {
-      content: [
+    (mockProvider.createCompletion as ReturnType<typeof vi.fn>).mockResolvedValue({
+      text: JSON.stringify([
         {
-          type: "text",
-          text: JSON.stringify([
-            {
-              user_prompt: "review my code please",
-              scenario_type: "direct",
-              expected_trigger: true,
-              reasoning: "Direct request for code review",
-            },
-            {
-              user_prompt: "can you check this PR?",
-              scenario_type: "paraphrased",
-              expected_trigger: true,
-              reasoning: "Paraphrased review request",
-            },
-          ]),
+          user_prompt: "review my code please",
+          scenario_type: "direct",
+          expected_trigger: true,
+          reasoning: "Direct request for code review",
         },
-      ],
+        {
+          user_prompt: "can you check this PR?",
+          scenario_type: "paraphrased",
+          expected_trigger: true,
+          reasoning: "Paraphrased review request",
+        },
+      ]),
       usage: { input_tokens: 100, output_tokens: 50 },
-    };
-    mockClient.messages.create.mockResolvedValue(mockResponse);
+    });
 
-    const result = await generateAgentScenarios(
-      mockClient as unknown as Anthropic,
-      agent,
-      config,
-    );
+    const result = await generateAgentScenarios(mockProvider, agent, config);
 
-    expect(mockClient.messages.create).toHaveBeenCalledTimes(1);
-    expect(mockClient.messages.create).toHaveBeenCalledWith(
+    expect(mockProvider.createCompletion).toHaveBeenCalledTimes(1);
+    expect(mockProvider.createCompletion).toHaveBeenCalledWith(
       expect.objectContaining({
-        model: expect.stringContaining("haiku"),
-        messages: expect.arrayContaining([
-          expect.objectContaining({ role: "user" }),
-        ]),
+        model: "haiku",
+        userPrompt: expect.stringContaining("code-reviewer"),
+        timeoutMs: 60000,
       }),
-      expect.objectContaining({ timeout: 60000 }),
     );
     expect(result.scenarios).toHaveLength(2);
     expect(result.scenarios[0].user_prompt).toBe("review my code please");
@@ -478,36 +474,26 @@ describe("generateAgentScenarios", () => {
   });
 
   it("should handle proactive scenarios with setup_messages", async () => {
-    const mockResponse = {
-      content: [
+    (mockProvider.createCompletion as ReturnType<typeof vi.fn>).mockResolvedValue({
+      text: JSON.stringify([
         {
-          type: "text",
-          text: JSON.stringify([
+          user_prompt: "yes, please do that",
+          scenario_type: "proactive",
+          expected_trigger: true,
+          reasoning: "Proactive after code context",
+          setup_messages: [
+            { role: "user", content: "I just finished the feature" },
             {
-              user_prompt: "yes, please do that",
-              scenario_type: "proactive",
-              expected_trigger: true,
-              reasoning: "Proactive after code context",
-              setup_messages: [
-                { role: "user", content: "I just finished the feature" },
-                {
-                  role: "assistant",
-                  content: "Would you like me to review it?",
-                },
-              ],
+              role: "assistant",
+              content: "Would you like me to review it?",
             },
-          ]),
+          ],
         },
-      ],
+      ]),
       usage: { input_tokens: 100, output_tokens: 50 },
-    };
-    mockClient.messages.create.mockResolvedValue(mockResponse);
+    });
 
-    const result = await generateAgentScenarios(
-      mockClient as unknown as Anthropic,
-      agent,
-      config,
-    );
+    const result = await generateAgentScenarios(mockProvider, agent, config);
 
     expect(result.scenarios).toHaveLength(1);
     expect(result.scenarios[0].scenario_type).toBe("proactive");
@@ -516,90 +502,52 @@ describe("generateAgentScenarios", () => {
   });
 
   it("should handle empty response gracefully", async () => {
-    const mockResponse = {
-      content: [{ type: "text", text: "[]" }],
+    (mockProvider.createCompletion as ReturnType<typeof vi.fn>).mockResolvedValue({
+      text: "[]",
       usage: { input_tokens: 50, output_tokens: 10 },
-    };
-    mockClient.messages.create.mockResolvedValue(mockResponse);
+    });
 
-    const result = await generateAgentScenarios(
-      mockClient as unknown as Anthropic,
-      agent,
-      config,
-    );
+    const result = await generateAgentScenarios(mockProvider, agent, config);
 
     expect(result.scenarios).toEqual([]);
     expect(result.cost_usd).toBeGreaterThan(0);
   });
 
   it("should handle markdown-wrapped JSON response", async () => {
-    const mockResponse = {
-      content: [
-        {
-          type: "text",
-          text: '```json\n[{"user_prompt": "test", "scenario_type": "direct", "expected_trigger": true, "reasoning": "test"}]\n```',
-        },
-      ],
+    (mockProvider.createCompletion as ReturnType<typeof vi.fn>).mockResolvedValue({
+      text: '```json\n[{"user_prompt": "test", "scenario_type": "direct", "expected_trigger": true, "reasoning": "test"}]\n```',
       usage: { input_tokens: 100, output_tokens: 50 },
-    };
-    mockClient.messages.create.mockResolvedValue(mockResponse);
+    });
 
-    const result = await generateAgentScenarios(
-      mockClient as unknown as Anthropic,
-      agent,
-      config,
-    );
+    const result = await generateAgentScenarios(mockProvider, agent, config);
 
     expect(result.scenarios).toHaveLength(1);
     expect(result.scenarios[0].user_prompt).toBe("test");
   });
 
-  it("should throw when no text content in response", async () => {
-    const mockResponse = {
-      content: [{ type: "tool_use", id: "123", name: "test", input: {} }],
-      usage: { input_tokens: 50, output_tokens: 0 },
-    };
-    mockClient.messages.create.mockResolvedValue(mockResponse);
-
-    await expect(
-      generateAgentScenarios(mockClient as unknown as Anthropic, agent, config),
-    ).rejects.toThrow("No text content in LLM response");
-  });
-
   it("should use correct model from config", async () => {
-    const mockResponse = {
-      content: [{ type: "text", text: "[]" }],
+    (mockProvider.createCompletion as ReturnType<typeof vi.fn>).mockResolvedValue({
+      text: "[]",
       usage: { input_tokens: 50, output_tokens: 10 },
-    };
-    mockClient.messages.create.mockResolvedValue(mockResponse);
+    });
 
     const opusConfig = { ...config, model: "opus" };
-    await generateAgentScenarios(
-      mockClient as unknown as Anthropic,
-      agent,
-      opusConfig,
-    );
+    await generateAgentScenarios(mockProvider, agent, opusConfig);
 
-    expect(mockClient.messages.create).toHaveBeenCalledWith(
+    expect(mockProvider.createCompletion).toHaveBeenCalledWith(
       expect.objectContaining({
-        model: expect.stringContaining("opus"),
+        model: "opus",
       }),
-      expect.objectContaining({ timeout: 60000 }),
     );
   });
 
   it("should return cost based on token usage", async () => {
-    const mockResponse = {
-      content: [{ type: "text", text: "[]" }],
+    (mockProvider.createCompletion as ReturnType<typeof vi.fn>).mockResolvedValue({
+      text: "[]",
       usage: { input_tokens: 1000, output_tokens: 500 },
-    };
-    mockClient.messages.create.mockResolvedValue(mockResponse);
+    });
 
-    const result = await generateAgentScenarios(
-      mockClient as unknown as Anthropic,
-      agent,
-      config,
-    );
+    const result = await generateAgentScenarios(mockProvider, agent, config);
 
     // Haiku 4.5: $1/1M input, $5/1M output
     // Expected: (1000/1M * 1) + (500/1M * 5) = 0.001 + 0.0025 = 0.0035
@@ -608,7 +556,7 @@ describe("generateAgentScenarios", () => {
 });
 
 describe("generateAllAgentScenarios", () => {
-  let mockClient: { messages: { create: Mock } };
+  let mockProvider: LLMProvider;
   const agents: AgentComponent[] = [
     {
       name: "agent-one",
@@ -635,55 +583,48 @@ describe("generateAllAgentScenarios", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    mockClient = {
-      messages: {
-        create: vi.fn(),
-      },
+    mockProvider = {
+      name: "test",
+      supportsStructuredOutput: false,
+      supportsPromptCaching: true,
+      supportsBatchAPI: false,
+      createCompletion: vi.fn(),
+      createStructuredCompletion: vi.fn(),
     };
   });
 
   it("should generate scenarios for all agents", async () => {
-    mockClient.messages.create
+    (mockProvider.createCompletion as ReturnType<typeof vi.fn>)
       .mockResolvedValueOnce({
-        content: [
+        text: JSON.stringify([
           {
-            type: "text",
-            text: JSON.stringify([
-              {
-                user_prompt: "agent one prompt",
-                scenario_type: "direct",
-                expected_trigger: true,
-                reasoning: "test",
-              },
-            ]),
+            user_prompt: "agent one prompt",
+            scenario_type: "direct",
+            expected_trigger: true,
+            reasoning: "test",
           },
-        ],
+        ]),
         usage: { input_tokens: 100, output_tokens: 50 },
       })
       .mockResolvedValueOnce({
-        content: [
+        text: JSON.stringify([
           {
-            type: "text",
-            text: JSON.stringify([
-              {
-                user_prompt: "agent two prompt",
-                scenario_type: "direct",
-                expected_trigger: true,
-                reasoning: "test",
-              },
-            ]),
+            user_prompt: "agent two prompt",
+            scenario_type: "direct",
+            expected_trigger: true,
+            reasoning: "test",
           },
-        ],
+        ]),
         usage: { input_tokens: 100, output_tokens: 50 },
       });
 
     const result = await generateAllAgentScenarios({
-      client: mockClient as unknown as Anthropic,
+      provider: mockProvider,
       agents,
       config,
     });
 
-    expect(mockClient.messages.create).toHaveBeenCalledTimes(2);
+    expect(mockProvider.createCompletion).toHaveBeenCalledTimes(2);
     expect(result.scenarios).toHaveLength(2);
     expect(result.scenarios[0].component_ref).toBe("agent-one");
     expect(result.scenarios[1].component_ref).toBe("agent-two");
@@ -691,14 +632,14 @@ describe("generateAllAgentScenarios", () => {
   });
 
   it("should call progress callback", async () => {
-    mockClient.messages.create.mockResolvedValue({
-      content: [{ type: "text", text: "[]" }],
+    (mockProvider.createCompletion as ReturnType<typeof vi.fn>).mockResolvedValue({
+      text: "[]",
       usage: { input_tokens: 50, output_tokens: 10 },
     });
 
     const progressCallback = vi.fn();
     await generateAllAgentScenarios({
-      client: mockClient as unknown as Anthropic,
+      provider: mockProvider,
       agents,
       config,
       onProgress: progressCallback,
@@ -712,60 +653,50 @@ describe("generateAllAgentScenarios", () => {
 
   it("should return empty result for empty agents list", async () => {
     const result = await generateAllAgentScenarios({
-      client: mockClient as unknown as Anthropic,
+      provider: mockProvider,
       agents: [],
       config,
     });
 
     expect(result.scenarios).toEqual([]);
     expect(result.cost_usd).toBe(0);
-    expect(mockClient.messages.create).not.toHaveBeenCalled();
+    expect(mockProvider.createCompletion).not.toHaveBeenCalled();
   });
 
   it("should aggregate scenarios and costs from all agents", async () => {
-    mockClient.messages.create
+    (mockProvider.createCompletion as ReturnType<typeof vi.fn>)
       .mockResolvedValueOnce({
-        content: [
+        text: JSON.stringify([
           {
-            type: "text",
-            text: JSON.stringify([
-              {
-                user_prompt: "p1",
-                scenario_type: "direct",
-                expected_trigger: true,
-                reasoning: "r1",
-              },
-              {
-                user_prompt: "p2",
-                scenario_type: "proactive",
-                expected_trigger: true,
-                reasoning: "r2",
-                setup_messages: [{ role: "user", content: "context" }],
-              },
-            ]),
+            user_prompt: "p1",
+            scenario_type: "direct",
+            expected_trigger: true,
+            reasoning: "r1",
           },
-        ],
+          {
+            user_prompt: "p2",
+            scenario_type: "proactive",
+            expected_trigger: true,
+            reasoning: "r2",
+            setup_messages: [{ role: "user", content: "context" }],
+          },
+        ]),
         usage: { input_tokens: 100, output_tokens: 50 },
       })
       .mockResolvedValueOnce({
-        content: [
+        text: JSON.stringify([
           {
-            type: "text",
-            text: JSON.stringify([
-              {
-                user_prompt: "p3",
-                scenario_type: "negative",
-                expected_trigger: false,
-                reasoning: "r3",
-              },
-            ]),
+            user_prompt: "p3",
+            scenario_type: "negative",
+            expected_trigger: false,
+            reasoning: "r3",
           },
-        ],
+        ]),
         usage: { input_tokens: 100, output_tokens: 50 },
       });
 
     const result = await generateAllAgentScenarios({
-      client: mockClient as unknown as Anthropic,
+      provider: mockProvider,
       agents,
       config,
     });

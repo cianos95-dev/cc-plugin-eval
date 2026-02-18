@@ -4,11 +4,11 @@
  * Secondary evaluation method that assesses response quality,
  * validates edge cases, and confirms negative scenarios.
  *
- * Uses Anthropic's beta structured output API for guaranteed JSON parsing.
+ * Uses provider abstraction for structured output (Anthropic beta API,
+ * Gemini JSON schema, or JSON-in-prompt fallback for other providers).
  */
 
 import { DEFAULT_TUNING } from "../../config/defaults.js";
-import { resolveModelId } from "../../config/models.js";
 import { calculateCostFromUsage } from "../../config/pricing.js";
 import { callLLMForTextWithCost } from "../../utils/llm.js";
 import { withRetry } from "../../utils/retry.js";
@@ -23,14 +23,14 @@ import type {
   Transcript,
   TranscriptEvent,
 } from "../../types/index.js";
-import type Anthropic from "@anthropic-ai/sdk";
+import type { LLMProvider } from "../../providers/types.js";
 
 /**
  * Options for LLM judge evaluation functions.
  */
 export interface EvaluateJudgeOptions {
-  /** Anthropic client */
-  client: Anthropic;
+  /** LLM provider */
+  provider: LLMProvider;
   /** Test scenario being evaluated */
   scenario: TestScenario;
   /** Execution transcript */
@@ -297,7 +297,8 @@ export function buildJudgePrompt(
 export async function evaluateWithLLMJudge(
   options: EvaluateJudgeOptions,
 ): Promise<JudgeResponseWithCost> {
-  const { client, scenario, transcript, programmaticResult, config } = options;
+  const { provider, scenario, transcript, programmaticResult, config } =
+    options;
 
   const userPrompt = buildJudgePrompt(
     scenario,
@@ -307,40 +308,23 @@ export async function evaluateWithLLMJudge(
   );
 
   const { text: responseText, cost_usd } = await withRetry(async () => {
-    // Use Anthropic's beta structured output API with prompt caching
-    const result = await client.beta.messages.create(
-      {
-        model: resolveModelId(config.model),
-        max_tokens: config.max_tokens,
-        temperature: config.temperature,
-        system: [
-          {
-            type: "text",
-            text: JUDGE_SYSTEM_PROMPT,
-            cache_control: { type: "ephemeral" },
-          },
-        ],
-        messages: [{ role: "user", content: userPrompt }],
-        betas: ["structured-outputs-2025-11-13"],
-        // Anthropic uses output_format with schema directly (not nested json_schema)
-        output_format: {
-          type: "json_schema",
-          schema: JUDGE_RESPONSE_SCHEMA,
-        },
-      },
-      { timeout: config.api_timeout_ms },
-    );
+    // Use provider's structured completion (Anthropic beta API, Gemini schema, etc.)
+    const result = await provider.createStructuredCompletion({
+      model: config.model,
+      maxTokens: config.max_tokens,
+      temperature: config.temperature,
+      systemPrompt: JUDGE_SYSTEM_PROMPT,
+      userPrompt,
+      timeoutMs: config.api_timeout_ms,
+      schema: JUDGE_RESPONSE_SCHEMA,
+    });
 
-    // Extract text content from structured output response
-    const textBlock = result.content.find((block) => block.type === "text");
-    if (textBlock?.type !== "text") {
-      throw new Error("No text block in structured output response");
-    }
+    // Calculate cost from usage (returns $0 for non-Anthropic providers)
+    const cost = provider.supportsPromptCaching
+      ? calculateCostFromUsage(result.usage, config.model)
+      : 0;
 
-    // Calculate cost from usage
-    const cost = calculateCostFromUsage(result.usage, config.model);
-
-    return { text: textBlock.text, cost_usd: cost };
+    return { text: result.text, cost_usd: cost };
   });
 
   try {
@@ -409,7 +393,8 @@ No markdown, no explanation - just the JSON.`;
 async function evaluateWithJsonFallback(
   options: EvaluateJudgeOptions,
 ): Promise<JudgeResponseWithCost> {
-  const { client, scenario, transcript, programmaticResult, config } = options;
+  const { provider, scenario, transcript, programmaticResult, config } =
+    options;
 
   const userPrompt = buildJudgePrompt(
     scenario,
@@ -419,7 +404,7 @@ async function evaluateWithJsonFallback(
   );
 
   const { text: responseText, cost_usd } = await callLLMForTextWithCost(
-    client,
+    provider,
     {
       model: config.model,
       maxTokens: config.max_tokens,

@@ -2,8 +2,7 @@
  * Unit tests for skill-scenario-generator.ts
  */
 
-import Anthropic from "@anthropic-ai/sdk";
-import { describe, expect, it, vi, beforeEach, type Mock } from "vitest";
+import { describe, expect, it, vi, beforeEach } from "vitest";
 
 import {
   buildSkillPrompt,
@@ -16,11 +15,7 @@ import type {
   SkillComponent,
   GenerationConfig,
 } from "../../../../src/types/index.js";
-
-// Mock the Anthropic SDK
-vi.mock("@anthropic-ai/sdk", () => ({
-  default: vi.fn(),
-}));
+import type { LLMProvider } from "../../../../src/providers/types.js";
 
 // Mock the retry utility to avoid delays in tests
 vi.mock("../../../../src/utils/retry.js", () => ({
@@ -34,6 +29,7 @@ vi.mock("../../../../src/utils/logging.js", () => ({
     debug: vi.fn(),
     info: vi.fn(),
     warn: vi.fn(),
+    progress: vi.fn(),
   },
 }));
 
@@ -330,7 +326,7 @@ describe("createFallbackSkillScenarios", () => {
 });
 
 describe("generateSkillScenarios", () => {
-  let mockClient: { messages: { create: Mock } };
+  let mockProvider: LLMProvider;
   const skill: SkillComponent = {
     name: "hook-development",
     path: "/path/skill.md",
@@ -355,53 +351,44 @@ describe("generateSkillScenarios", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    mockClient = {
-      messages: {
-        create: vi.fn(),
-      },
+    mockProvider = {
+      name: "test",
+      supportsStructuredOutput: false,
+      supportsPromptCaching: true,
+      supportsBatchAPI: false,
+      createCompletion: vi.fn(),
+      createStructuredCompletion: vi.fn(),
     };
   });
 
   it("should generate scenarios from LLM response", async () => {
-    const mockResponse = {
-      content: [
+    (mockProvider.createCompletion as ReturnType<typeof vi.fn>).mockResolvedValue({
+      text: JSON.stringify([
         {
-          type: "text",
-          text: JSON.stringify([
-            {
-              user_prompt: "create a hook for validation",
-              scenario_type: "direct",
-              expected_trigger: true,
-              reasoning: "Direct match of trigger phrase",
-            },
-            {
-              user_prompt: "help me build a hook",
-              scenario_type: "paraphrased",
-              expected_trigger: true,
-              reasoning: "Paraphrased request",
-            },
-          ]),
+          user_prompt: "create a hook for validation",
+          scenario_type: "direct",
+          expected_trigger: true,
+          reasoning: "Direct match of trigger phrase",
         },
-      ],
+        {
+          user_prompt: "help me build a hook",
+          scenario_type: "paraphrased",
+          expected_trigger: true,
+          reasoning: "Paraphrased request",
+        },
+      ]),
       usage: { input_tokens: 100, output_tokens: 50 },
-    };
-    mockClient.messages.create.mockResolvedValue(mockResponse);
+    });
 
-    const result = await generateSkillScenarios(
-      mockClient as unknown as Anthropic,
-      skill,
-      config,
-    );
+    const result = await generateSkillScenarios(mockProvider, skill, config);
 
-    expect(mockClient.messages.create).toHaveBeenCalledTimes(1);
-    expect(mockClient.messages.create).toHaveBeenCalledWith(
+    expect(mockProvider.createCompletion).toHaveBeenCalledTimes(1);
+    expect(mockProvider.createCompletion).toHaveBeenCalledWith(
       expect.objectContaining({
-        model: expect.stringContaining("haiku"),
-        messages: expect.arrayContaining([
-          expect.objectContaining({ role: "user" }),
-        ]),
+        model: "haiku",
+        userPrompt: expect.stringContaining("hook-development"),
+        timeoutMs: 60000,
       }),
-      expect.objectContaining({ timeout: 60000 }),
     );
     expect(result.scenarios).toHaveLength(2);
     expect(result.scenarios[0].user_prompt).toBe(
@@ -412,112 +399,68 @@ describe("generateSkillScenarios", () => {
   });
 
   it("should handle empty response gracefully", async () => {
-    const mockResponse = {
-      content: [{ type: "text", text: "[]" }],
+    (mockProvider.createCompletion as ReturnType<typeof vi.fn>).mockResolvedValue({
+      text: "[]",
       usage: { input_tokens: 50, output_tokens: 10 },
-    };
-    mockClient.messages.create.mockResolvedValue(mockResponse);
+    });
 
-    const result = await generateSkillScenarios(
-      mockClient as unknown as Anthropic,
-      skill,
-      config,
-    );
+    const result = await generateSkillScenarios(mockProvider, skill, config);
 
     expect(result.scenarios).toEqual([]);
     expect(result.cost_usd).toBeGreaterThan(0);
   });
 
   it("should handle markdown-wrapped JSON response", async () => {
-    const mockResponse = {
-      content: [
-        {
-          type: "text",
-          text: '```json\n[{"user_prompt": "test", "scenario_type": "direct", "expected_trigger": true, "reasoning": "test"}]\n```',
-        },
-      ],
+    (mockProvider.createCompletion as ReturnType<typeof vi.fn>).mockResolvedValue({
+      text: '```json\n[{"user_prompt": "test", "scenario_type": "direct", "expected_trigger": true, "reasoning": "test"}]\n```',
       usage: { input_tokens: 100, output_tokens: 50 },
-    };
-    mockClient.messages.create.mockResolvedValue(mockResponse);
+    });
 
-    const result = await generateSkillScenarios(
-      mockClient as unknown as Anthropic,
-      skill,
-      config,
-    );
+    const result = await generateSkillScenarios(mockProvider, skill, config);
 
     expect(result.scenarios).toHaveLength(1);
     expect(result.scenarios[0].user_prompt).toBe("test");
   });
 
-  it("should throw when no text content in response", async () => {
-    const mockResponse = {
-      content: [{ type: "image", source: {} }],
-      usage: { input_tokens: 50, output_tokens: 0 },
-    };
-    mockClient.messages.create.mockResolvedValue(mockResponse);
-
-    await expect(
-      generateSkillScenarios(mockClient as unknown as Anthropic, skill, config),
-    ).rejects.toThrow("No text content in LLM response");
-  });
-
   it("should use correct model from config", async () => {
-    const mockResponse = {
-      content: [{ type: "text", text: "[]" }],
+    (mockProvider.createCompletion as ReturnType<typeof vi.fn>).mockResolvedValue({
+      text: "[]",
       usage: { input_tokens: 50, output_tokens: 10 },
-    };
-    mockClient.messages.create.mockResolvedValue(mockResponse);
+    });
 
     const sonnetConfig = { ...config, model: "sonnet" };
-    await generateSkillScenarios(
-      mockClient as unknown as Anthropic,
-      skill,
-      sonnetConfig,
-    );
+    await generateSkillScenarios(mockProvider, skill, sonnetConfig);
 
-    expect(mockClient.messages.create).toHaveBeenCalledWith(
+    expect(mockProvider.createCompletion).toHaveBeenCalledWith(
       expect.objectContaining({
-        model: expect.stringContaining("sonnet"),
+        model: "sonnet",
       }),
-      expect.objectContaining({ timeout: 60000 }),
     );
   });
 
   it("should use max_tokens from config", async () => {
-    const mockResponse = {
-      content: [{ type: "text", text: "[]" }],
+    (mockProvider.createCompletion as ReturnType<typeof vi.fn>).mockResolvedValue({
+      text: "[]",
       usage: { input_tokens: 50, output_tokens: 10 },
-    };
-    mockClient.messages.create.mockResolvedValue(mockResponse);
+    });
 
     const configWithTokens = { ...config, max_tokens: 2000 };
-    await generateSkillScenarios(
-      mockClient as unknown as Anthropic,
-      skill,
-      configWithTokens,
-    );
+    await generateSkillScenarios(mockProvider, skill, configWithTokens);
 
-    expect(mockClient.messages.create).toHaveBeenCalledWith(
+    expect(mockProvider.createCompletion).toHaveBeenCalledWith(
       expect.objectContaining({
-        max_tokens: 2000,
+        maxTokens: 2000,
       }),
-      expect.objectContaining({ timeout: 60000 }),
     );
   });
 
   it("should return cost based on token usage", async () => {
-    const mockResponse = {
-      content: [{ type: "text", text: "[]" }],
+    (mockProvider.createCompletion as ReturnType<typeof vi.fn>).mockResolvedValue({
+      text: "[]",
       usage: { input_tokens: 1000, output_tokens: 500 },
-    };
-    mockClient.messages.create.mockResolvedValue(mockResponse);
+    });
 
-    const result = await generateSkillScenarios(
-      mockClient as unknown as Anthropic,
-      skill,
-      config,
-    );
+    const result = await generateSkillScenarios(mockProvider, skill, config);
 
     // Haiku 4.5: $1/1M input, $5/1M output
     // Expected: (1000/1M * 1) + (500/1M * 5) = 0.001 + 0.0025 = 0.0035
@@ -526,7 +469,7 @@ describe("generateSkillScenarios", () => {
 });
 
 describe("generateAllSkillScenarios", () => {
-  let mockClient: { messages: { create: Mock } };
+  let mockProvider: LLMProvider;
   const skills: SkillComponent[] = [
     {
       name: "skill-one",
@@ -553,55 +496,48 @@ describe("generateAllSkillScenarios", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    mockClient = {
-      messages: {
-        create: vi.fn(),
-      },
+    mockProvider = {
+      name: "test",
+      supportsStructuredOutput: false,
+      supportsPromptCaching: true,
+      supportsBatchAPI: false,
+      createCompletion: vi.fn(),
+      createStructuredCompletion: vi.fn(),
     };
   });
 
   it("should generate scenarios for all skills", async () => {
-    mockClient.messages.create
+    (mockProvider.createCompletion as ReturnType<typeof vi.fn>)
       .mockResolvedValueOnce({
-        content: [
+        text: JSON.stringify([
           {
-            type: "text",
-            text: JSON.stringify([
-              {
-                user_prompt: "skill one prompt",
-                scenario_type: "direct",
-                expected_trigger: true,
-                reasoning: "test",
-              },
-            ]),
+            user_prompt: "skill one prompt",
+            scenario_type: "direct",
+            expected_trigger: true,
+            reasoning: "test",
           },
-        ],
+        ]),
         usage: { input_tokens: 100, output_tokens: 50 },
       })
       .mockResolvedValueOnce({
-        content: [
+        text: JSON.stringify([
           {
-            type: "text",
-            text: JSON.stringify([
-              {
-                user_prompt: "skill two prompt",
-                scenario_type: "direct",
-                expected_trigger: true,
-                reasoning: "test",
-              },
-            ]),
+            user_prompt: "skill two prompt",
+            scenario_type: "direct",
+            expected_trigger: true,
+            reasoning: "test",
           },
-        ],
+        ]),
         usage: { input_tokens: 100, output_tokens: 50 },
       });
 
     const result = await generateAllSkillScenarios({
-      client: mockClient as unknown as Anthropic,
+      provider: mockProvider,
       skills,
       config,
     });
 
-    expect(mockClient.messages.create).toHaveBeenCalledTimes(2);
+    expect(mockProvider.createCompletion).toHaveBeenCalledTimes(2);
     expect(result.scenarios).toHaveLength(2);
     expect(result.scenarios[0].component_ref).toBe("skill-one");
     expect(result.scenarios[1].component_ref).toBe("skill-two");
@@ -609,14 +545,14 @@ describe("generateAllSkillScenarios", () => {
   });
 
   it("should call progress callback", async () => {
-    mockClient.messages.create.mockResolvedValue({
-      content: [{ type: "text", text: "[]" }],
+    (mockProvider.createCompletion as ReturnType<typeof vi.fn>).mockResolvedValue({
+      text: "[]",
       usage: { input_tokens: 50, output_tokens: 10 },
     });
 
     const progressCallback = vi.fn();
     await generateAllSkillScenarios({
-      client: mockClient as unknown as Anthropic,
+      provider: mockProvider,
       skills,
       config,
       onProgress: progressCallback,
@@ -630,59 +566,49 @@ describe("generateAllSkillScenarios", () => {
 
   it("should return empty result for empty skills list", async () => {
     const result = await generateAllSkillScenarios({
-      client: mockClient as unknown as Anthropic,
+      provider: mockProvider,
       skills: [],
       config,
     });
 
     expect(result.scenarios).toEqual([]);
     expect(result.cost_usd).toBe(0);
-    expect(mockClient.messages.create).not.toHaveBeenCalled();
+    expect(mockProvider.createCompletion).not.toHaveBeenCalled();
   });
 
   it("should aggregate scenarios and costs from all skills", async () => {
-    mockClient.messages.create
+    (mockProvider.createCompletion as ReturnType<typeof vi.fn>)
       .mockResolvedValueOnce({
-        content: [
+        text: JSON.stringify([
           {
-            type: "text",
-            text: JSON.stringify([
-              {
-                user_prompt: "p1",
-                scenario_type: "direct",
-                expected_trigger: true,
-                reasoning: "r1",
-              },
-              {
-                user_prompt: "p2",
-                scenario_type: "negative",
-                expected_trigger: false,
-                reasoning: "r2",
-              },
-            ]),
+            user_prompt: "p1",
+            scenario_type: "direct",
+            expected_trigger: true,
+            reasoning: "r1",
           },
-        ],
+          {
+            user_prompt: "p2",
+            scenario_type: "negative",
+            expected_trigger: false,
+            reasoning: "r2",
+          },
+        ]),
         usage: { input_tokens: 100, output_tokens: 50 },
       })
       .mockResolvedValueOnce({
-        content: [
+        text: JSON.stringify([
           {
-            type: "text",
-            text: JSON.stringify([
-              {
-                user_prompt: "p3",
-                scenario_type: "direct",
-                expected_trigger: true,
-                reasoning: "r3",
-              },
-            ]),
+            user_prompt: "p3",
+            scenario_type: "direct",
+            expected_trigger: true,
+            reasoning: "r3",
           },
-        ],
+        ]),
         usage: { input_tokens: 100, output_tokens: 50 },
       });
 
     const result = await generateAllSkillScenarios({
-      client: mockClient as unknown as Anthropic,
+      provider: mockProvider,
       skills,
       config,
     });

@@ -31,7 +31,7 @@ import type {
   SetupMessage,
   GenerationConfig,
 } from "../../types/index.js";
-import type Anthropic from "@anthropic-ai/sdk";
+import type { LLMProvider } from "../../providers/types.js";
 
 /**
  * Schema for LLM-generated agent scenario.
@@ -282,19 +282,19 @@ export function parseAgentScenarioResponse(
  * Uses Anthropic's prompt caching for the system instructions to reduce
  * input token costs by ~90% after the first call within the cache TTL.
  *
- * @param client - Anthropic client
+ * @param provider - LLM provider instance
  * @param agent - Agent component
  * @param config - Generation config
  * @returns Object with scenarios array and cost in USD
  */
 export async function generateAgentScenarios(
-  client: Anthropic,
+  provider: LLMProvider,
   agent: AgentComponent,
   config: GenerationConfig,
 ): Promise<{ scenarios: TestScenario[]; cost_usd: number }> {
   const userPrompt = buildAgentPrompt(agent, config.scenarios_per_component);
 
-  const { text, cost_usd } = await callLLMForTextWithCost(client, {
+  const { text, cost_usd } = await callLLMForTextWithCost(provider, {
     model: config.model,
     maxTokens: config.max_tokens,
     temperature: config.temperature,
@@ -310,8 +310,8 @@ export async function generateAgentScenarios(
  * Options for generateAllAgentScenarios.
  */
 export interface GenerateAllAgentScenariosOptions {
-  /** Anthropic client */
-  client: Anthropic;
+  /** LLM provider */
+  provider: LLMProvider;
   /** Array of agent components */
   agents: AgentComponent[];
   /** Generation config */
@@ -333,7 +333,7 @@ export interface GenerateAllAgentScenariosOptions {
 export async function generateAllAgentScenarios(
   options: GenerateAllAgentScenariosOptions,
 ): Promise<{ scenarios: TestScenario[]; cost_usd: number }> {
-  const { client, agents, config, onProgress, maxConcurrent = 10 } = options;
+  const { provider, agents, config, onProgress, maxConcurrent = 10 } = options;
 
   // Create rate limiter if configured
   const rateLimiter = setupRateLimiter(config);
@@ -347,7 +347,7 @@ export async function generateAllAgentScenarios(
       const generateFn = async (): Promise<{
         scenarios: TestScenario[];
         cost_usd: number;
-      }> => generateAgentScenarios(client, agent, config);
+      }> => generateAgentScenarios(provider, agent, config);
 
       return rateLimiter ? rateLimiter(generateFn) : generateFn();
     },

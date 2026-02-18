@@ -1,13 +1,15 @@
 /**
  * LLM API utility functions for common patterns.
+ *
+ * Updated to use LLMProvider abstraction for multi-provider support.
+ * Backward compatible: still accepts Anthropic client via AnthropicProvider.
  */
 
-import { resolveModelId } from "../config/models.js";
 import { calculateCostFromUsage } from "../config/pricing.js";
 
 import { withRetry } from "./retry.js";
 
-import type Anthropic from "@anthropic-ai/sdk";
+import type { LLMProvider } from "../providers/types.js";
 
 /**
  * Options for making LLM API calls.
@@ -28,22 +30,21 @@ export interface LLMCallOptions {
 }
 
 /**
- * Makes an LLM API call with retry logic and prompt caching, returning the text response.
+ * Makes an LLM API call with retry logic, returning the text response.
  *
  * This utility consolidates the common pattern of:
  * 1. Wrapping the call in retry logic for transient failures
- * 2. Setting up prompt caching with ephemeral cache control
- * 3. Resolving model aliases to full model IDs
- * 4. Extracting text content from the response
+ * 2. Resolving model aliases to full model IDs
+ * 3. Extracting text content from the response
  *
- * @param client - The Anthropic client instance
+ * @param provider - The LLM provider instance
  * @param options - Configuration options for the API call
  * @returns The text content from the LLM response
  * @throws Error if no text content is found in the response
  *
  * @example
  * ```ts
- * const text = await callLLMForText(client, {
+ * const text = await callLLMForText(provider, {
  *   model: "sonnet",
  *   maxTokens: 4096,
  *   temperature: 0.7,
@@ -54,86 +55,23 @@ export interface LLMCallOptions {
  * ```
  */
 export async function callLLMForText(
-  client: Anthropic,
+  provider: LLMProvider,
   options: LLMCallOptions,
 ): Promise<string> {
   const { model, maxTokens, temperature, systemPrompt, userPrompt, timeoutMs } =
     options;
 
   return withRetry(async () => {
-    const result = await client.messages.create(
-      {
-        model: resolveModelId(model),
-        max_tokens: maxTokens,
-        temperature,
-        system: [
-          {
-            type: "text",
-            text: systemPrompt,
-            cache_control: { type: "ephemeral" },
-          },
-        ],
-        messages: [{ role: "user", content: userPrompt }],
-      },
-      { timeout: timeoutMs },
-    );
+    const result = await provider.createCompletion({
+      model,
+      maxTokens,
+      temperature,
+      systemPrompt,
+      userPrompt,
+      timeoutMs,
+    });
 
-    const textBlock = result.content.find((block) => block.type === "text");
-    if (textBlock?.type !== "text") {
-      throw new Error("No text content in LLM response");
-    }
-
-    return textBlock.text;
-  });
-}
-
-/**
- * Makes an LLM API call with retry logic and prompt caching, returning the full message.
- *
- * Use this when you need access to the full response (e.g., for usage stats, stop reason).
- * For simpler cases where you only need text, use `callLLMForText` instead.
- *
- * @param client - The Anthropic client instance
- * @param options - Configuration options for the API call
- * @returns The full Message response from the API
- *
- * @example
- * ```ts
- * const message = await callLLMForMessage(client, {
- *   model: "sonnet",
- *   maxTokens: 4096,
- *   temperature: 0.7,
- *   systemPrompt: "You are a helpful assistant.",
- *   userPrompt: "Generate test scenarios for...",
- *   timeoutMs: 60000,
- * });
- * console.log(message.usage); // Access token usage stats
- * ```
- */
-export async function callLLMForMessage(
-  client: Anthropic,
-  options: LLMCallOptions,
-): Promise<Anthropic.Message> {
-  const { model, maxTokens, temperature, systemPrompt, userPrompt, timeoutMs } =
-    options;
-
-  return withRetry(async () => {
-    return client.messages.create(
-      {
-        model: resolveModelId(model),
-        max_tokens: maxTokens,
-        temperature,
-        system: [
-          {
-            type: "text",
-            text: systemPrompt,
-            cache_control: { type: "ephemeral" },
-          },
-        ],
-        messages: [{ role: "user", content: userPrompt }],
-      },
-      { timeout: timeoutMs },
-    );
+    return result.text;
   });
 }
 
@@ -148,18 +86,18 @@ export interface LLMTextWithCostResult {
 }
 
 /**
- * Makes an LLM API call with retry logic and prompt caching, returning text and cost.
+ * Makes an LLM API call with retry logic, returning text and cost.
  *
  * This is similar to `callLLMForText` but also calculates and returns the cost
  * based on token usage. Use this when you need to track LLM costs.
  *
- * @param client - The Anthropic client instance
+ * @param provider - The LLM provider instance
  * @param options - Configuration options for the API call
  * @returns Object containing the text response and calculated cost in USD
  *
  * @example
  * ```ts
- * const { text, cost_usd } = await callLLMForTextWithCost(client, {
+ * const { text, cost_usd } = await callLLMForTextWithCost(provider, {
  *   model: "sonnet",
  *   maxTokens: 4096,
  *   temperature: 0.7,
@@ -171,17 +109,29 @@ export interface LLMTextWithCostResult {
  * ```
  */
 export async function callLLMForTextWithCost(
-  client: Anthropic,
+  provider: LLMProvider,
   options: LLMCallOptions,
 ): Promise<LLMTextWithCostResult> {
-  const message = await callLLMForMessage(client, options);
+  const { model, maxTokens, temperature, systemPrompt, userPrompt, timeoutMs } =
+    options;
 
-  const textBlock = message.content.find((block) => block.type === "text");
-  if (textBlock?.type !== "text") {
-    throw new Error("No text content in LLM response");
-  }
+  return withRetry(async () => {
+    const result = await provider.createCompletion({
+      model,
+      maxTokens,
+      temperature,
+      systemPrompt,
+      userPrompt,
+      timeoutMs,
+    });
 
-  const cost_usd = calculateCostFromUsage(message.usage, options.model);
+    // Calculate cost using Anthropic pricing model.
+    // For non-Anthropic providers, this returns $0 since their pricing
+    // models don't match (and free-tier providers have no cost).
+    const cost_usd = provider.supportsPromptCaching
+      ? calculateCostFromUsage(result.usage, model)
+      : 0;
 
-  return { text: textBlock.text, cost_usd };
+    return { text: result.text, cost_usd };
+  });
 }

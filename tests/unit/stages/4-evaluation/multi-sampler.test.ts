@@ -2,7 +2,6 @@
  * Tests for multi-sampler functions.
  */
 
-import type Anthropic from "@anthropic-ai/sdk";
 import { describe, it, expect, vi, beforeEach, type Mock } from "vitest";
 
 import type {
@@ -12,6 +11,8 @@ import type {
   TestScenario,
   Transcript,
 } from "../../../../src/types/index.js";
+
+import type { LLMProvider } from "../../../../src/providers/types.js";
 
 import { evaluateWithFallback } from "../../../../src/stages/4-evaluation/llm-judge.js";
 import {
@@ -263,10 +264,21 @@ describe("getConfidenceLevel", () => {
 // ============================================================================
 
 /**
- * Create a mock Anthropic client.
+ * Create a mock LLMProvider.
+ *
+ * The evaluateWithFallback function is fully mocked in these tests so the
+ * provider methods are never actually invoked. We only need the object to
+ * satisfy the LLMProvider type so it can be passed through.
  */
-function createMockClient(): Anthropic {
-  return {} as Anthropic;
+function createMockProvider(): LLMProvider {
+  return {
+    name: "mock-provider",
+    supportsStructuredOutput: true,
+    supportsPromptCaching: true,
+    supportsBatchAPI: false,
+    createCompletion: vi.fn(),
+    createStructuredCompletion: vi.fn(),
+  };
 }
 
 /**
@@ -395,14 +407,14 @@ describe("evaluateSingleSample", () => {
     });
     (evaluateWithFallback as Mock).mockResolvedValue(mockResponseWithCost);
 
-    const client = createMockClient();
+    const provider = createMockProvider();
     const scenario = createScenario();
     const transcript = createTranscript();
     const detections = createDetections();
     const config = createConfig();
 
     const result = await evaluateSingleSample({
-      client,
+      provider,
       scenario,
       transcript,
       programmaticResult: detections,
@@ -428,7 +440,7 @@ describe("evaluateSingleSample", () => {
     (evaluateWithFallback as Mock).mockResolvedValue(mockResponseWithCost);
 
     const result = await evaluateSingleSample({
-      client: createMockClient(),
+      provider: createMockProvider(),
       scenario: createScenario(),
       transcript: createTranscript(),
       programmaticResult: createDetections(),
@@ -445,14 +457,14 @@ describe("evaluateSingleSample", () => {
     const mockResponseWithCost = createJudgeResponseWithCost();
     (evaluateWithFallback as Mock).mockResolvedValue(mockResponseWithCost);
 
-    const client = createMockClient();
+    const provider = createMockProvider();
     const scenario = createScenario();
     const transcript = createTranscript();
     const detections = createDetections();
     const config = createConfig({ model: "sonnet", max_tokens: 2048 });
 
     await evaluateSingleSample({
-      client,
+      provider,
       scenario,
       transcript,
       programmaticResult: detections,
@@ -461,7 +473,7 @@ describe("evaluateSingleSample", () => {
 
     expect(evaluateWithFallback).toHaveBeenCalledTimes(1);
     expect(evaluateWithFallback).toHaveBeenCalledWith({
-      client,
+      provider,
       scenario,
       transcript,
       programmaticResult: detections,
@@ -476,7 +488,7 @@ describe("evaluateSingleSample", () => {
     (evaluateWithFallback as Mock).mockResolvedValue(mockResponseWithCost);
 
     const result = await evaluateSingleSample({
-      client: createMockClient(),
+      provider: createMockProvider(),
       scenario: createScenario(),
       transcript: createTranscript(),
       programmaticResult: createDetections(),
@@ -501,7 +513,7 @@ describe("evaluateWithMultiSampling", () => {
     const config = createConfig({ num_samples: 3 });
 
     await evaluateWithMultiSampling({
-      client: createMockClient(),
+      provider: createMockProvider(),
       scenario: createScenario(),
       transcript: createTranscript(),
       programmaticResult: createDetections(),
@@ -528,7 +540,7 @@ describe("evaluateWithMultiSampling", () => {
     });
 
     const result = await evaluateWithMultiSampling({
-      client: createMockClient(),
+      provider: createMockProvider(),
       scenario: createScenario(),
       transcript: createTranscript(),
       programmaticResult: createDetections(),
@@ -555,7 +567,7 @@ describe("evaluateWithMultiSampling", () => {
     const config = createConfig({ num_samples: 3, aggregate_method: "median" });
 
     const result = await evaluateWithMultiSampling({
-      client: createMockClient(),
+      provider: createMockProvider(),
       scenario: createScenario(),
       transcript: createTranscript(),
       programmaticResult: createDetections(),
@@ -579,7 +591,7 @@ describe("evaluateWithMultiSampling", () => {
     const config = createConfig({ num_samples: 3 });
 
     const result = await evaluateWithMultiSampling({
-      client: createMockClient(),
+      provider: createMockProvider(),
       scenario: createScenario(),
       transcript: createTranscript(),
       programmaticResult: createDetections(),
@@ -603,7 +615,7 @@ describe("evaluateWithMultiSampling", () => {
     const config = createConfig({ num_samples: 3 });
 
     const result = await evaluateWithMultiSampling({
-      client: createMockClient(),
+      provider: createMockProvider(),
       scenario: createScenario(),
       transcript: createTranscript(),
       programmaticResult: createDetections(),
@@ -628,7 +640,7 @@ describe("evaluateWithMultiSampling", () => {
     const config = createConfig({ num_samples: 3 });
 
     const result = await evaluateWithMultiSampling({
-      client: createMockClient(),
+      provider: createMockProvider(),
       scenario: createScenario(),
       transcript: createTranscript(),
       programmaticResult: createDetections(),
@@ -654,7 +666,7 @@ describe("evaluateWithMultiSampling", () => {
     const config = createConfig({ num_samples: 3 });
 
     const result = await evaluateWithMultiSampling({
-      client: createMockClient(),
+      provider: createMockProvider(),
       scenario: createScenario(),
       transcript: createTranscript(),
       programmaticResult: createDetections(),
@@ -693,7 +705,7 @@ describe("evaluateWithMultiSampling", () => {
     });
 
     const result = await evaluateWithMultiSampling({
-      client: createMockClient(),
+      provider: createMockProvider(),
       scenario: createScenario(),
       transcript: createTranscript(),
       programmaticResult: createDetections(),
@@ -717,7 +729,7 @@ describe("evaluateWithMultiSampling", () => {
     const config = createConfig({ num_samples: 1 });
 
     const result = await evaluateWithMultiSampling({
-      client: createMockClient(),
+      provider: createMockProvider(),
       scenario: createScenario(),
       transcript: createTranscript(),
       programmaticResult: createDetections(),
@@ -739,7 +751,7 @@ describe("evaluateWithMultiSampling", () => {
 
     await expect(
       evaluateWithMultiSampling({
-        client: createMockClient(),
+        provider: createMockProvider(),
         scenario: createScenario(),
         transcript: createTranscript(),
         programmaticResult: createDetections(),
@@ -763,7 +775,7 @@ describe("runJudgment", () => {
     const config = createConfig({ num_samples: 1 });
 
     const result = await runJudgment({
-      client: createMockClient(),
+      provider: createMockProvider(),
       scenario: createScenario(),
       transcript: createTranscript(),
       programmaticResult: createDetections(),
@@ -784,7 +796,7 @@ describe("runJudgment", () => {
     const config = createConfig({ num_samples: 3 });
 
     const result = await runJudgment({
-      client: createMockClient(),
+      provider: createMockProvider(),
       scenario: createScenario(),
       transcript: createTranscript(),
       programmaticResult: createDetections(),
@@ -804,7 +816,7 @@ describe("runJudgment", () => {
     const config = createConfig({ num_samples: 0 });
 
     const result = await runJudgment({
-      client: createMockClient(),
+      provider: createMockProvider(),
       scenario: createScenario(),
       transcript: createTranscript(),
       programmaticResult: createDetections(),
@@ -823,7 +835,7 @@ describe("runJudgment", () => {
 
     await expect(
       runJudgment({
-        client: createMockClient(),
+        provider: createMockProvider(),
         scenario: createScenario(),
         transcript: createTranscript(),
         programmaticResult: createDetections(),

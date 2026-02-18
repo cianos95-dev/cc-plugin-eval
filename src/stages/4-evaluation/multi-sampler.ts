@@ -28,14 +28,14 @@ import type {
   TestScenario,
   Transcript,
 } from "../../types/index.js";
-import type Anthropic from "@anthropic-ai/sdk";
+import type { LLMProvider } from "../../providers/types.js";
 
 /**
  * Options for multi-sample evaluation functions.
  */
 export interface EvaluateMultiSampleOptions {
-  /** Anthropic client */
-  client: Anthropic;
+  /** LLM provider */
+  provider: LLMProvider;
   /** Test scenario being evaluated */
   scenario: TestScenario;
   /** Execution transcript */
@@ -191,7 +191,7 @@ export async function evaluateWithMultiSampling(
   options: EvaluateWithMultiSamplingOptions,
 ): Promise<MultiSampleResult> {
   const {
-    client,
+    provider,
     scenario,
     transcript,
     programmaticResult,
@@ -208,7 +208,7 @@ export async function evaluateWithMultiSampling(
     concurrency: Math.min(numSamples, maxConcurrent),
     fn: async () =>
       evaluateWithFallback({
-        client,
+        provider,
         scenario,
         transcript,
         programmaticResult,
@@ -330,10 +330,11 @@ export function getConfidenceLevel(
 export async function evaluateSingleSample(
   options: EvaluateMultiSampleOptions,
 ): Promise<MultiSampleResult> {
-  const { client, scenario, transcript, programmaticResult, config } = options;
+  const { provider, scenario, transcript, programmaticResult, config } =
+    options;
 
   const { response, cost_usd } = await evaluateWithFallback({
-    client,
+    provider,
     scenario,
     transcript,
     programmaticResult,

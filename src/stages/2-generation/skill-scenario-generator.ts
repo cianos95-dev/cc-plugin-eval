@@ -28,7 +28,7 @@ import type {
   ScenarioType,
   GenerationConfig,
 } from "../../types/index.js";
-import type Anthropic from "@anthropic-ai/sdk";
+import type { LLMProvider } from "../../providers/types.js";
 
 /**
  * Schema for LLM-generated scenario.
@@ -164,13 +164,13 @@ export function parseSkillScenarioResponse(
  * Uses Anthropic's prompt caching for the system instructions to reduce
  * input token costs by ~90% after the first call within the cache TTL.
  *
- * @param client - Anthropic client
+ * @param provider - LLM provider instance
  * @param skill - Skill component
  * @param config - Generation config
  * @returns Object with scenarios array and cost in USD
  */
 export async function generateSkillScenarios(
-  client: Anthropic,
+  provider: LLMProvider,
   skill: SkillComponent,
   config: GenerationConfig,
 ): Promise<{ scenarios: TestScenario[]; cost_usd: number }> {
@@ -180,7 +180,7 @@ export async function generateSkillScenarios(
     config.semantic_variations,
   );
 
-  const { text, cost_usd } = await callLLMForTextWithCost(client, {
+  const { text, cost_usd } = await callLLMForTextWithCost(provider, {
     model: config.model,
     maxTokens: config.max_tokens,
     temperature: config.temperature,
@@ -196,8 +196,8 @@ export async function generateSkillScenarios(
  * Options for generateAllSkillScenarios.
  */
 export interface GenerateAllSkillScenariosOptions {
-  /** Anthropic client */
-  client: Anthropic;
+  /** LLM provider */
+  provider: LLMProvider;
   /** Array of skill components */
   skills: SkillComponent[];
   /** Generation config */
@@ -219,7 +219,7 @@ export interface GenerateAllSkillScenariosOptions {
 export async function generateAllSkillScenarios(
   options: GenerateAllSkillScenariosOptions,
 ): Promise<{ scenarios: TestScenario[]; cost_usd: number }> {
-  const { client, skills, config, onProgress, maxConcurrent = 10 } = options;
+  const { provider, skills, config, onProgress, maxConcurrent = 10 } = options;
 
   // Create rate limiter if configured
   const rateLimiter = setupRateLimiter(config);
@@ -233,7 +233,7 @@ export async function generateAllSkillScenarios(
       const generateFn = async (): Promise<{
         scenarios: TestScenario[];
         cost_usd: number;
-      }> => generateSkillScenarios(client, skill, config);
+      }> => generateSkillScenarios(provider, skill, config);
 
       return rateLimiter ? rateLimiter(generateFn) : generateFn();
     },

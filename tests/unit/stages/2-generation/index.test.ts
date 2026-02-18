@@ -17,9 +17,10 @@ import { logger } from "../../../../src/utils/logging.js";
 
 import {
   estimatePipelineCost,
-  createAnthropicClient,
   formatPipelineCostEstimate,
 } from "../../../../src/stages/2-generation/cost-estimator.js";
+import { createLLMProvider } from "../../../../src/providers/index.js";
+import type { LLMProvider } from "../../../../src/providers/types.js";
 import { generateAllSkillScenarios } from "../../../../src/stages/2-generation/skill-scenario-generator.js";
 import { generateAllAgentScenarios } from "../../../../src/stages/2-generation/agent-scenario-generator.js";
 import { generateAllCommandScenarios } from "../../../../src/stages/2-generation/command-scenario-generator.js";
@@ -43,8 +44,11 @@ vi.mock("../../../../src/utils/logging.js", () => ({
 
 vi.mock("../../../../src/stages/2-generation/cost-estimator.js", () => ({
   estimatePipelineCost: vi.fn(),
-  createAnthropicClient: vi.fn(),
   formatPipelineCostEstimate: vi.fn(() => "Cost estimate: $0.10"),
+}));
+
+vi.mock("../../../../src/providers/index.js", () => ({
+  createLLMProvider: vi.fn(),
 }));
 
 vi.mock(
@@ -228,9 +232,15 @@ describe("runGeneration", () => {
         evaluation: { total: 0 },
       },
     });
-    (createAnthropicClient as Mock).mockReturnValue({
-      messages: { create: vi.fn() },
-    });
+    const mockProvider: LLMProvider = {
+      name: "test",
+      supportsStructuredOutput: true,
+      supportsPromptCaching: true,
+      supportsBatchAPI: false,
+      createCompletion: vi.fn(),
+      createStructuredCompletion: vi.fn(),
+    };
+    (createLLMProvider as Mock).mockReturnValue(mockProvider);
     (generateAllSkillScenarios as Mock).mockResolvedValue({
       scenarios: [createScenario()],
       cost_usd: 0.001,
@@ -386,7 +396,7 @@ describe("runGeneration", () => {
 
       const result = await runGeneration(analysis, config);
 
-      expect(createAnthropicClient).toHaveBeenCalled();
+      expect(createLLMProvider).toHaveBeenCalled();
       expect(result.scenarios).toContainEqual(
         expect.objectContaining({ id: "skill-1" }),
       );

@@ -1,10 +1,9 @@
 /**
  * Tests for LLM judge functions.
  *
- * Uses mocked Anthropic SDK to test LLM integration paths.
+ * Uses mocked LLMProvider to test LLM integration paths.
  */
 
-import type Anthropic from "@anthropic-ai/sdk";
 import { describe, it, expect, vi, beforeEach, type Mock } from "vitest";
 
 import type {
@@ -13,6 +12,8 @@ import type {
   TestScenario,
   Transcript,
 } from "../../../../src/types/index.js";
+
+import type { LLMProvider } from "../../../../src/providers/types.js";
 
 import {
   evaluateWithLLMJudge,
@@ -28,15 +29,21 @@ vi.mock("../../../../src/utils/retry.js", () => ({
 }));
 
 /**
- * Create a mock Anthropic client.
- * Mocks both beta.messages.create (for structured output) and messages.create (for fallback).
+ * Create a mock LLMProvider.
+ * Mocks both createStructuredCompletion (for structured output) and createCompletion (for fallback).
+ *
+ * When supportsPromptCaching is true the provider returns real usage tokens so cost > 0.
+ * When supportsPromptCaching is false calculateCostFromUsage is bypassed and cost = 0.
  */
-function createMockClient(responseText: string): Anthropic & {
-  beta: { messages: { create: Mock } };
-  messages: { create: Mock };
+function createMockProvider(
+  responseText: string,
+  { supportsPromptCaching = true }: { supportsPromptCaching?: boolean } = {},
+): LLMProvider & {
+  createStructuredCompletion: Mock;
+  createCompletion: Mock;
 } {
   const mockResponse = {
-    content: [{ type: "text", text: responseText }],
+    text: responseText,
     usage: {
       input_tokens: 100,
       output_tokens: 50,
@@ -45,17 +52,12 @@ function createMockClient(responseText: string): Anthropic & {
     },
   };
   return {
-    beta: {
-      messages: {
-        create: vi.fn().mockResolvedValue(mockResponse),
-      },
-    },
-    messages: {
-      create: vi.fn().mockResolvedValue(mockResponse),
-    },
-  } as unknown as Anthropic & {
-    beta: { messages: { create: Mock } };
-    messages: { create: Mock };
+    name: "mock-provider",
+    supportsStructuredOutput: true,
+    supportsPromptCaching,
+    supportsBatchAPI: false,
+    createStructuredCompletion: vi.fn().mockResolvedValue(mockResponse),
+    createCompletion: vi.fn().mockResolvedValue(mockResponse),
   };
 }
 
@@ -364,35 +366,31 @@ describe("evaluateWithLLMJudge", () => {
     vi.clearAllMocks();
   });
 
-  it("should call Anthropic API with correct parameters", async () => {
+  it("should call provider.createStructuredCompletion with correct parameters", async () => {
     const responseJson = createJudgeResponseJson();
-    const mockClient = createMockClient(responseJson);
+    const mockProvider = createMockProvider(responseJson);
     const scenario = createScenario();
     const transcript = createTranscript();
     const detections = createDetections([{ name: "commit", type: "skill" }]);
     const config = createConfig({ model: "sonnet", max_tokens: 2048 });
 
     await evaluateWithLLMJudge({
-      client: mockClient,
+      provider: mockProvider,
       scenario,
       transcript,
       programmaticResult: detections,
       config,
     });
 
-    expect(mockClient.beta.messages.create).toHaveBeenCalledTimes(1);
-    const callArgs = mockClient.beta.messages.create.mock
+    expect(mockProvider.createStructuredCompletion).toHaveBeenCalledTimes(1);
+    const callArgs = mockProvider.createStructuredCompletion.mock
       .calls[0]?.[0] as Record<string, unknown>;
     expect(callArgs).toBeDefined();
-    expect(callArgs["model"]).toBe("claude-sonnet-4-5-20250929");
-    expect(callArgs["max_tokens"]).toBe(2048);
-    expect(callArgs["messages"]).toHaveLength(1);
-    // Verify structured output parameters
-    expect(callArgs["betas"]).toContain("structured-outputs-2025-11-13");
-    expect(callArgs["output_format"]).toEqual({
-      type: "json_schema",
-      schema: expect.any(Object),
-    });
+    expect(callArgs["model"]).toBe("sonnet");
+    expect(callArgs["maxTokens"]).toBe(2048);
+    expect(callArgs["schema"]).toEqual(expect.any(Object));
+    expect(callArgs["systemPrompt"]).toEqual(expect.any(String));
+    expect(callArgs["userPrompt"]).toEqual(expect.any(String));
   });
 
   it("should parse structured output response correctly", async () => {
@@ -403,14 +401,14 @@ describe("evaluateWithLLMJudge", () => {
       issues: ["Minor formatting issue"],
       summary: "Good response overall",
     });
-    const mockClient = createMockClient(responseJson);
+    const mockProvider = createMockProvider(responseJson);
     const scenario = createScenario();
     const transcript = createTranscript();
     const detections = createDetections([{ name: "commit", type: "skill" }]);
     const config = createConfig();
 
     const result = await evaluateWithLLMJudge({
-      client: mockClient,
+      provider: mockProvider,
       scenario,
       transcript,
       programmaticResult: detections,
@@ -437,14 +435,14 @@ describe("evaluateWithLLMJudge", () => {
         },
       ],
     });
-    const mockClient = createMockClient(responseJson);
+    const mockProvider = createMockProvider(responseJson);
     const scenario = createScenario();
     const transcript = createTranscript();
     const detections = createDetections([]);
     const config = createConfig();
 
     const result = await evaluateWithLLMJudge({
-      client: mockClient,
+      provider: mockProvider,
       scenario,
       transcript,
       programmaticResult: detections,
@@ -469,14 +467,14 @@ describe("evaluateWithLLMJudge", () => {
       issues: [],
       summary: "Acceptable",
     });
-    const mockClient = createMockClient(responseJson);
+    const mockProvider = createMockProvider(responseJson);
     const scenario = createScenario();
     const transcript = createTranscript();
     const detections = createDetections([]);
     const config = createConfig();
 
     const result = await evaluateWithLLMJudge({
-      client: mockClient,
+      provider: mockProvider,
       scenario,
       transcript,
       programmaticResult: detections,
@@ -488,7 +486,7 @@ describe("evaluateWithLLMJudge", () => {
   });
 
   it("should throw on invalid JSON response", async () => {
-    const mockClient = createMockClient("not valid json");
+    const mockProvider = createMockProvider("not valid json");
     const scenario = createScenario();
     const transcript = createTranscript();
     const detections = createDetections([]);
@@ -496,7 +494,7 @@ describe("evaluateWithLLMJudge", () => {
 
     await expect(
       evaluateWithLLMJudge({
-        client: mockClient,
+        provider: mockProvider,
         scenario,
         transcript,
         programmaticResult: detections,
@@ -514,7 +512,7 @@ describe("evaluateWithLLMJudge", () => {
       issues: [],
       summary: "Test summary",
     });
-    const mockClient = createMockClient(invalidResponse);
+    const mockProvider = createMockProvider(invalidResponse);
     const scenario = createScenario();
     const transcript = createTranscript();
     const detections = createDetections([]);
@@ -522,7 +520,7 @@ describe("evaluateWithLLMJudge", () => {
 
     await expect(
       evaluateWithLLMJudge({
-        client: mockClient,
+        provider: mockProvider,
         scenario,
         transcript,
         programmaticResult: detections,
@@ -540,7 +538,7 @@ describe("evaluateWithLLMJudge", () => {
       issues: [],
       summary: "Test summary",
     });
-    const mockClient = createMockClient(invalidResponse);
+    const mockProvider = createMockProvider(invalidResponse);
     const scenario = createScenario();
     const transcript = createTranscript();
     const detections = createDetections([]);
@@ -548,7 +546,7 @@ describe("evaluateWithLLMJudge", () => {
 
     await expect(
       evaluateWithLLMJudge({
-        client: mockClient,
+        provider: mockProvider,
         scenario,
         transcript,
         programmaticResult: detections,
@@ -557,23 +555,8 @@ describe("evaluateWithLLMJudge", () => {
     ).rejects.toThrow("Failed to parse structured output");
   });
 
-  it("should throw when no text block in response", async () => {
-    const mockClient = {
-      beta: {
-        messages: {
-          create: vi.fn().mockResolvedValue({
-            content: [
-              { type: "tool_use", id: "tc-1", name: "test", input: {} },
-            ],
-          }),
-        },
-      },
-      messages: {
-        create: vi.fn().mockResolvedValue({
-          content: [{ type: "tool_use", id: "tc-1", name: "test", input: {} }],
-        }),
-      },
-    } as unknown as Anthropic;
+  it("should throw when createStructuredCompletion returns unparseable text", async () => {
+    const mockProvider = createMockProvider("");
     const scenario = createScenario();
     const transcript = createTranscript();
     const detections = createDetections([]);
@@ -581,13 +564,34 @@ describe("evaluateWithLLMJudge", () => {
 
     await expect(
       evaluateWithLLMJudge({
-        client: mockClient,
+        provider: mockProvider,
         scenario,
         transcript,
         programmaticResult: detections,
         config,
       }),
-    ).rejects.toThrow("No text block");
+    ).rejects.toThrow("Failed to parse structured output");
+  });
+
+  it("should return zero cost when supportsPromptCaching is false", async () => {
+    const responseJson = createJudgeResponseJson();
+    const mockProvider = createMockProvider(responseJson, {
+      supportsPromptCaching: false,
+    });
+    const scenario = createScenario();
+    const transcript = createTranscript();
+    const detections = createDetections([]);
+    const config = createConfig();
+
+    const result = await evaluateWithLLMJudge({
+      provider: mockProvider,
+      scenario,
+      transcript,
+      programmaticResult: detections,
+      config,
+    });
+
+    expect(result.cost_usd).toBe(0);
   });
 });
 
@@ -598,14 +602,14 @@ describe("evaluateWithFallback", () => {
 
   it("should use structured output when it works", async () => {
     const responseJson = createJudgeResponseJson({ quality_score: 9 });
-    const mockClient = createMockClient(responseJson);
+    const mockProvider = createMockProvider(responseJson);
     const scenario = createScenario();
     const transcript = createTranscript();
     const detections = createDetections([{ name: "commit", type: "skill" }]);
     const config = createConfig();
 
     const result = await evaluateWithFallback({
-      client: mockClient,
+      provider: mockProvider,
       scenario,
       transcript,
       programmaticResult: detections,
@@ -614,17 +618,17 @@ describe("evaluateWithFallback", () => {
 
     expect(result.response.quality_score).toBe(9);
     expect(result.cost_usd).toBeGreaterThan(0);
-    expect(mockClient.beta.messages.create).toHaveBeenCalledTimes(1);
+    expect(mockProvider.createStructuredCompletion).toHaveBeenCalledTimes(1);
   });
 
   it("should fallback to JSON parsing on structured output failure", async () => {
     // First call (structured output) fails, second call (fallback) succeeds
     const responseJson = createJudgeResponseJson({ quality_score: 7 });
-    const betaCreateMock = vi
+    const createStructuredCompletionMock = vi
       .fn()
       .mockRejectedValue(new Error("Structured output not supported"));
-    const messagesCreateMock = vi.fn().mockResolvedValue({
-      content: [{ type: "text", text: responseJson }],
+    const createCompletionMock = vi.fn().mockResolvedValue({
+      text: responseJson,
       usage: {
         input_tokens: 100,
         output_tokens: 50,
@@ -632,17 +636,24 @@ describe("evaluateWithFallback", () => {
         cache_read_input_tokens: 0,
       },
     });
-    const mockClient = {
-      beta: { messages: { create: betaCreateMock } },
-      messages: { create: messagesCreateMock },
-    } as unknown as Anthropic;
+    const mockProvider: LLMProvider & {
+      createStructuredCompletion: Mock;
+      createCompletion: Mock;
+    } = {
+      name: "mock-provider",
+      supportsStructuredOutput: true,
+      supportsPromptCaching: true,
+      supportsBatchAPI: false,
+      createStructuredCompletion: createStructuredCompletionMock,
+      createCompletion: createCompletionMock,
+    };
     const scenario = createScenario();
     const transcript = createTranscript();
     const detections = createDetections([]);
     const config = createConfig();
 
     const result = await evaluateWithFallback({
-      client: mockClient,
+      provider: mockProvider,
       scenario,
       transcript,
       programmaticResult: detections,
@@ -651,18 +662,18 @@ describe("evaluateWithFallback", () => {
 
     expect(result.response.quality_score).toBe(7);
     expect(result.cost_usd).toBeGreaterThan(0);
-    expect(betaCreateMock).toHaveBeenCalledTimes(1);
-    expect(messagesCreateMock).toHaveBeenCalledTimes(1);
+    expect(createStructuredCompletionMock).toHaveBeenCalledTimes(1);
+    expect(createCompletionMock).toHaveBeenCalledTimes(1);
   });
 
   it("should handle markdown code blocks in fallback response", async () => {
     const responseJson = createJudgeResponseJson({ quality_score: 6 });
     const wrappedResponse = "```json\n" + responseJson + "\n```";
-    const betaCreateMock = vi
+    const createStructuredCompletionMock = vi
       .fn()
       .mockRejectedValue(new Error("Structured output error"));
-    const messagesCreateMock = vi.fn().mockResolvedValue({
-      content: [{ type: "text", text: wrappedResponse }],
+    const createCompletionMock = vi.fn().mockResolvedValue({
+      text: wrappedResponse,
       usage: {
         input_tokens: 100,
         output_tokens: 50,
@@ -670,17 +681,24 @@ describe("evaluateWithFallback", () => {
         cache_read_input_tokens: 0,
       },
     });
-    const mockClient = {
-      beta: { messages: { create: betaCreateMock } },
-      messages: { create: messagesCreateMock },
-    } as unknown as Anthropic;
+    const mockProvider: LLMProvider & {
+      createStructuredCompletion: Mock;
+      createCompletion: Mock;
+    } = {
+      name: "mock-provider",
+      supportsStructuredOutput: true,
+      supportsPromptCaching: true,
+      supportsBatchAPI: false,
+      createStructuredCompletion: createStructuredCompletionMock,
+      createCompletion: createCompletionMock,
+    };
     const scenario = createScenario();
     const transcript = createTranscript();
     const detections = createDetections([]);
     const config = createConfig();
 
     const result = await evaluateWithFallback({
-      client: mockClient,
+      provider: mockProvider,
       scenario,
       transcript,
       programmaticResult: detections,
@@ -692,12 +710,12 @@ describe("evaluateWithFallback", () => {
   });
 
   it("should return error response when both methods fail", async () => {
-    const betaCreateMock = vi
+    const createStructuredCompletionMock = vi
       .fn()
       .mockRejectedValue(new Error("Structured output error"));
-    const messagesCreateMock = vi.fn().mockResolvedValue({
+    const createCompletionMock = vi.fn().mockResolvedValue({
       // Fallback returns invalid JSON
-      content: [{ type: "text", text: "This is not JSON at all" }],
+      text: "This is not JSON at all",
       usage: {
         input_tokens: 100,
         output_tokens: 50,
@@ -705,17 +723,24 @@ describe("evaluateWithFallback", () => {
         cache_read_input_tokens: 0,
       },
     });
-    const mockClient = {
-      beta: { messages: { create: betaCreateMock } },
-      messages: { create: messagesCreateMock },
-    } as unknown as Anthropic;
+    const mockProvider: LLMProvider & {
+      createStructuredCompletion: Mock;
+      createCompletion: Mock;
+    } = {
+      name: "mock-provider",
+      supportsStructuredOutput: true,
+      supportsPromptCaching: true,
+      supportsBatchAPI: false,
+      createStructuredCompletion: createStructuredCompletionMock,
+      createCompletion: createCompletionMock,
+    };
     const scenario = createScenario();
     const transcript = createTranscript();
     const detections = createDetections([]);
     const config = createConfig();
 
     const result = await evaluateWithFallback({
-      client: mockClient,
+      provider: mockProvider,
       scenario,
       transcript,
       programmaticResult: detections,

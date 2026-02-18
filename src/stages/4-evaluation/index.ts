@@ -17,6 +17,7 @@
  */
 
 import { resolveModelId } from "../../config/models.js";
+import { createLLMProvider, isAnthropicProvider } from "../../providers/index.js";
 import { parallel } from "../../utils/concurrency.js";
 import {
   ensureDir,
@@ -25,7 +26,6 @@ import {
 } from "../../utils/file-io.js";
 import { logger } from "../../utils/logging.js";
 import { formatErrorWithRequestId } from "../../utils/retry.js";
-import { createAnthropicClient } from "../2-generation/cost-estimator.js";
 
 import {
   aggregateBatchResults,
@@ -68,6 +68,7 @@ import type {
   ProgressCallbacks,
   TestScenario,
 } from "../../types/index.js";
+import type { LLMProvider } from "../../providers/types.js";
 import type Anthropic from "@anthropic-ai/sdk";
 
 /**
@@ -104,8 +105,8 @@ interface BatchedEvaluationResult {
  * Options for runSynchronousEvaluation.
  */
 interface RunSynchronousEvaluationOptions {
-  /** Anthropic client */
-  client: Anthropic;
+  /** LLM provider */
+  provider: LLMProvider;
   /** Programmatic detection results */
   programmaticResults: ProgrammaticResult[];
   /** Evaluation configuration */
@@ -355,7 +356,8 @@ async function runBatchedEvaluation(
 async function runSynchronousEvaluation(
   options: RunSynchronousEvaluationOptions,
 ): Promise<SynchronousEvaluationResult> {
-  const { client, programmaticResults, config, progress, sampleData } = options;
+  const { provider, programmaticResults, config, progress, sampleData } =
+    options;
   const evalConfig = config.evaluation;
 
   // Track costs across all evaluations
@@ -373,7 +375,7 @@ async function runSynchronousEvaluation(
       if (pr.judgeStrategy.needsLLMJudge) {
         try {
           judgment = await runJudgment({
-            client,
+            provider,
             scenario: pr.context.scenario,
             transcript: pr.context.execution.transcript,
             programmaticResult: pr.uniqueDetections,
@@ -534,8 +536,8 @@ export async function runEvaluation(
     };
   }
 
-  // Create Anthropic client for LLM judge (uses 2-minute default timeout)
-  const client = createAnthropicClient();
+  // Create LLM provider for LLM judge
+  const provider = createLLMProvider();
 
   // Build scenario map for quick lookup
   const scenarioMap = new Map<string, TestScenario>();
@@ -568,12 +570,14 @@ export async function runEvaluation(
   ).length;
   const totalJudgeCalls = scenariosNeedingJudge * config.evaluation.num_samples;
 
-  // Determine if batching should be used
-  const useBatching = shouldUseBatching({
-    totalJudgeCalls,
-    batchThreshold: config.batch_threshold,
-    forceSynchronous: config.force_synchronous,
-  });
+  // Determine if batching should be used (only available with Anthropic provider)
+  const useBatching =
+    provider.supportsBatchAPI &&
+    shouldUseBatching({
+      totalJudgeCalls,
+      batchThreshold: config.batch_threshold,
+      forceSynchronous: config.force_synchronous,
+    });
 
   // Track sample data for metrics
   const sampleData: SampleDataEntry[] = [];
@@ -586,9 +590,21 @@ export async function runEvaluation(
       `Using Batches API for ${String(totalJudgeCalls)} judge calls (threshold: ${String(config.batch_threshold)})`,
     );
 
-    // Phase 2a: Run batched LLM evaluation
+    // Phase 2a: Run batched LLM evaluation (Anthropic-only)
+    // Extract the Anthropic client for batch API access
+    if (!isAnthropicProvider(provider)) {
+      throw new Error(
+        "Batch evaluation requires Anthropic provider but got: " + provider.name,
+      );
+    }
+    const anthropicClient = provider.getClient();
     const { results: batchResults, total_cost_usd: batchCost } =
-      await runBatchedEvaluation(client, programmaticResults, config, progress);
+      await runBatchedEvaluation(
+        anthropicClient,
+        programmaticResults,
+        config,
+        progress,
+      );
 
     evaluationCost = batchCost;
 
@@ -608,7 +624,7 @@ export async function runEvaluation(
     // Phase 2b: Run synchronous LLM evaluation
     const { results: syncResults, total_cost_usd: syncCost } =
       await runSynchronousEvaluation({
-        client,
+        provider,
         programmaticResults,
         config,
         progress,

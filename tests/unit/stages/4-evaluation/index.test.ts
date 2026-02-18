@@ -23,13 +23,17 @@ import { runJudgment } from "../../../../src/stages/4-evaluation/multi-sampler.j
 import { runEvaluation } from "../../../../src/stages/4-evaluation/index.js";
 
 // Mock dependencies
-// Vitest 4 requires constructable functions for mocks used with `new`
-vi.mock("@anthropic-ai/sdk", () => {
-  const MockAnthropic = vi.fn(function (this: Record<string, unknown>) {
-    this.messages = { create: vi.fn() };
-  });
-  return { default: MockAnthropic };
-});
+vi.mock("../../../../src/providers/index.js", () => ({
+  createLLMProvider: vi.fn(() => ({
+    name: "test",
+    supportsStructuredOutput: true,
+    supportsPromptCaching: true,
+    supportsBatchAPI: false,
+    createCompletion: vi.fn(),
+    createStructuredCompletion: vi.fn(),
+  })),
+  isAnthropicProvider: vi.fn(() => false),
+}));
 
 vi.mock("../../../../src/utils/concurrency.js", () => ({
   parallel: vi.fn(
