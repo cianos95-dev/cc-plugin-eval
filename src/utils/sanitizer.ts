@@ -130,6 +130,20 @@ export const DEFAULT_REDACTION_PATTERNS: RedactionPattern[] = [
     replacement: "[REDACTED_ANTHROPIC_KEY]",
   },
 
+  // Google API keys (AIza prefix, 39 chars total)
+  {
+    name: "google_api_key",
+    pattern: /AIza[a-zA-Z0-9_-]{35}/g,
+    replacement: "[REDACTED_GOOGLE_KEY]",
+  },
+
+  // API key in URL query parameters (?key=... or &key=...)
+  {
+    name: "url_api_key_param",
+    pattern: /[?&]key=[a-zA-Z0-9_-]+/g,
+    replacement: "?key=[REDACTED]",
+  },
+
   // Generic API keys (32+ alphanumeric chars after sk-)
   {
     name: "generic_api_key",

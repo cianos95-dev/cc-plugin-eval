@@ -154,7 +154,7 @@ export class GeminiProvider implements LLMProvider {
     await waitForRateLimit(this.rateLimiter);
 
     const model = resolveGeminiModel(options.model);
-    const url = `${GEMINI_API_BASE}/models/${model}:generateContent?key=${this.apiKey}`;
+    const url = `${GEMINI_API_BASE}/models/${model}:generateContent`;
 
     const body = {
       systemInstruction: {
@@ -181,7 +181,10 @@ export class GeminiProvider implements LLMProvider {
     try {
       const response = await fetch(url, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "x-goog-api-key": this.apiKey,
+        },
         body: JSON.stringify(body),
         signal: controller.signal,
       });
@@ -215,7 +218,7 @@ export class GeminiProvider implements LLMProvider {
     await waitForRateLimit(this.rateLimiter);
 
     const model = resolveGeminiModel(options.model);
-    const url = `${GEMINI_API_BASE}/models/${model}:generateContent?key=${this.apiKey}`;
+    const url = `${GEMINI_API_BASE}/models/${model}:generateContent`;
 
     const body = {
       systemInstruction: {
@@ -244,7 +247,10 @@ export class GeminiProvider implements LLMProvider {
     try {
       const response = await fetch(url, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "x-goog-api-key": this.apiKey,
+        },
         body: JSON.stringify(body),
         signal: controller.signal,
       });
@@ -280,7 +286,7 @@ export class GeminiProvider implements LLMProvider {
     await waitForRateLimit(this.rateLimiter);
 
     const geminiModel = resolveGeminiModel(model);
-    const url = `${GEMINI_API_BASE}/models/${geminiModel}:countTokens?key=${this.apiKey}`;
+    const url = `${GEMINI_API_BASE}/models/${geminiModel}:countTokens`;
 
     const contents = [
       ...(system
@@ -292,7 +298,10 @@ export class GeminiProvider implements LLMProvider {
     try {
       const response = await fetch(url, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "x-goog-api-key": this.apiKey,
+        },
         body: JSON.stringify({ contents }),
       });
 
