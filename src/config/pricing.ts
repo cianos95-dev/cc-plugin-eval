@@ -14,6 +14,14 @@ import type { ModelPricing } from "../types/index.js";
  * Cache read costs ~0.1x input price.
  */
 export const MODEL_PRICING: Record<string, ModelPricing> = {
+  // Opus 4.6 (latest flagship)
+  "claude-opus-4-6": {
+    input: 5.0,
+    output: 25.0,
+    cache_creation: 6.25,
+    cache_read: 0.5,
+  },
+
   // Opus 4.5 (flagship, cost-reduced)
   "claude-opus-4-5-20251101": {
     input: 5.0,
@@ -36,6 +44,14 @@ export const MODEL_PRICING: Record<string, ModelPricing> = {
     output: 75.0,
     cache_creation: 18.75,
     cache_read: 1.5,
+  },
+
+  // Sonnet 4.6 (latest balanced)
+  "claude-sonnet-4-6": {
+    input: 3.0,
+    output: 15.0,
+    cache_creation: 3.75,
+    cache_read: 0.3,
   },
 
   // Sonnet 4.5 (balanced)

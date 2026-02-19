@@ -384,7 +384,7 @@ describe("evaluateWithLLMJudge", () => {
     const callArgs = mockClient.beta.messages.create.mock
       .calls[0]?.[0] as Record<string, unknown>;
     expect(callArgs).toBeDefined();
-    expect(callArgs["model"]).toBe("claude-sonnet-4-5-20250929");
+    expect(callArgs["model"]).toBe("claude-sonnet-4-6");
     expect(callArgs["max_tokens"]).toBe(2048);
     expect(callArgs["messages"]).toHaveLength(1);
     // Verify structured output parameters

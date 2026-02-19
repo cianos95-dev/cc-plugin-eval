@@ -65,6 +65,8 @@ describe("formatCost", () => {
 
 describe("MODEL_PRICING", () => {
   it("contains expected models", () => {
+    expect(MODEL_PRICING).toHaveProperty("claude-opus-4-6");
+    expect(MODEL_PRICING).toHaveProperty("claude-sonnet-4-6");
     expect(MODEL_PRICING).toHaveProperty("claude-opus-4-5-20251101");
     expect(MODEL_PRICING).toHaveProperty("claude-opus-4-1-20250805");
     expect(MODEL_PRICING).toHaveProperty("claude-opus-4-20250514");

@@ -15,8 +15,8 @@
  * ## Model Defaults
  *
  * When using unversioned aliases:
- * - `opus` → Claude Opus 4.5 (latest flagship)
- * - `sonnet` → Claude Sonnet 4.5 (balanced performance)
+ * - `opus` → Claude Opus 4.6 (latest flagship)
+ * - `sonnet` → Claude Sonnet 4.6 (balanced performance)
  * - `haiku` → Claude Haiku 4.5 (fast and efficient)
  *
  * ## Updating for New Models
@@ -36,6 +36,12 @@
 // When updating to new model versions, change only these constants.
 // All other files should import and use these constants.
 
+/** Claude Opus 4.6 - latest flagship model. */
+export const MODEL_OPUS_4_6 = "claude-opus-4-6";
+
+/** Claude Sonnet 4.6 - latest balanced performance model. */
+export const MODEL_SONNET_4_6 = "claude-sonnet-4-6";
+
 /** Claude Opus 4.5 - flagship model with cost-reduced pricing. */
 export const MODEL_OPUS_4_5 = "claude-opus-4-5-20251101";
 
@@ -51,10 +57,15 @@ export const MODEL_HAIKU_4_5 = "claude-haiku-4-5-20251001";
  * All aliases resolve to model IDs that are valid keys in `MODEL_PRICING`.
  */
 export const MODEL_ALIASES: Readonly<Record<string, string>> = {
-  // Opus 4.5 (flagship, cost-reduced)
+  // Opus 4.6 (latest flagship)
+  "claude-opus-4.6": MODEL_OPUS_4_6,
+  "opus-4.6": MODEL_OPUS_4_6,
+  "opus-4-6": MODEL_OPUS_4_6,
+  opus: MODEL_OPUS_4_6, // Default to latest Opus
+
+  // Opus 4.5 (previous flagship, cost-reduced)
   "claude-opus-4.5": MODEL_OPUS_4_5,
   "opus-4.5": MODEL_OPUS_4_5,
-  opus: MODEL_OPUS_4_5,
 
   // Opus 4.1 (legacy flagship)
   "claude-opus-4.1": "claude-opus-4-1-20250805",
@@ -64,10 +75,15 @@ export const MODEL_ALIASES: Readonly<Record<string, string>> = {
   "claude-opus-4": "claude-opus-4-20250514",
   "opus-4": "claude-opus-4-20250514",
 
-  // Sonnet 4.5 (balanced performance)
+  // Sonnet 4.6 (latest balanced performance)
+  "claude-sonnet-4.6": MODEL_SONNET_4_6,
+  "sonnet-4.6": MODEL_SONNET_4_6,
+  "sonnet-4-6": MODEL_SONNET_4_6,
+  sonnet: MODEL_SONNET_4_6, // Default to latest Sonnet
+
+  // Sonnet 4.5 (previous balanced performance)
   "claude-sonnet-4.5": MODEL_SONNET_4_5,
   "sonnet-4.5": MODEL_SONNET_4_5,
-  sonnet: MODEL_SONNET_4_5, // Default to latest Sonnet
 
   // Sonnet 4 (previous generation)
   "claude-sonnet-4": "claude-sonnet-4-20250514",
@@ -94,7 +110,7 @@ export const MODEL_ALIASES: Readonly<Record<string, string>> = {
  *
  * @example
  * ```typescript
- * resolveModelId("opus")           // "claude-opus-4-5-20251101"
+ * resolveModelId("opus")           // "claude-opus-4-6"
  * resolveModelId("haiku-3.5")      // "claude-haiku-3-5-20250929"
  * resolveModelId("claude-sonnet-4-5-20250929") // unchanged
  * ```
