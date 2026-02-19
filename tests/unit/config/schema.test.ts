@@ -35,7 +35,7 @@ describe("GenerationConfigSchema", () => {
   it("applies default values", () => {
     const result = GenerationConfigSchema.parse({});
 
-    expect(result.model).toBe("claude-sonnet-4-5-20250929");
+    expect(result.model).toBe("claude-sonnet-4-6");
     expect(result.scenarios_per_component).toBe(5);
     expect(result.diversity).toBe(0.7);
     expect(result.reasoning_effort).toBe("medium");
@@ -116,7 +116,7 @@ describe("EvalConfigSchema", () => {
 
     expect(result.plugin.path).toBe("./my-plugin");
     expect(result.scope.skills).toBe(true);
-    expect(result.generation.model).toBe("claude-sonnet-4-5-20250929");
+    expect(result.generation.model).toBe("claude-sonnet-4-6");
     expect(result.dry_run).toBe(false);
   });
 

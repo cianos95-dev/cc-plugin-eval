@@ -11,12 +11,14 @@ describe("MODEL_ALIASES", () => {
   it("contains all expected model families", () => {
     // Opus family
     expect(MODEL_ALIASES).toHaveProperty("opus");
+    expect(MODEL_ALIASES).toHaveProperty("opus-4.6");
     expect(MODEL_ALIASES).toHaveProperty("opus-4.5");
     expect(MODEL_ALIASES).toHaveProperty("opus-4.1");
     expect(MODEL_ALIASES).toHaveProperty("opus-4");
 
     // Sonnet family
     expect(MODEL_ALIASES).toHaveProperty("sonnet");
+    expect(MODEL_ALIASES).toHaveProperty("sonnet-4.6");
     expect(MODEL_ALIASES).toHaveProperty("sonnet-4.5");
     expect(MODEL_ALIASES).toHaveProperty("sonnet-4");
 
@@ -43,12 +45,12 @@ describe("MODEL_ALIASES", () => {
 
 describe("resolveModelId", () => {
   describe("unversioned aliases (default to latest)", () => {
-    it("resolves opus to Opus 4.5", () => {
-      expect(resolveModelId("opus")).toBe("claude-opus-4-5-20251101");
+    it("resolves opus to Opus 4.6", () => {
+      expect(resolveModelId("opus")).toBe("claude-opus-4-6");
     });
 
-    it("resolves sonnet to Sonnet 4.5", () => {
-      expect(resolveModelId("sonnet")).toBe("claude-sonnet-4-5-20250929");
+    it("resolves sonnet to Sonnet 4.6", () => {
+      expect(resolveModelId("sonnet")).toBe("claude-sonnet-4-6");
     });
 
     it("resolves haiku to Haiku 4.5", () => {
@@ -57,6 +59,10 @@ describe("resolveModelId", () => {
   });
 
   describe("versioned aliases", () => {
+    it("resolves opus-4.6", () => {
+      expect(resolveModelId("opus-4.6")).toBe("claude-opus-4-6");
+    });
+
     it("resolves opus-4.5", () => {
       expect(resolveModelId("opus-4.5")).toBe("claude-opus-4-5-20251101");
     });
@@ -67,6 +73,10 @@ describe("resolveModelId", () => {
 
     it("resolves opus-4", () => {
       expect(resolveModelId("opus-4")).toBe("claude-opus-4-20250514");
+    });
+
+    it("resolves sonnet-4.6", () => {
+      expect(resolveModelId("sonnet-4.6")).toBe("claude-sonnet-4-6");
     });
 
     it("resolves sonnet-4.5", () => {
@@ -87,6 +97,10 @@ describe("resolveModelId", () => {
   });
 
   describe("full name aliases (claude- prefix)", () => {
+    it("resolves claude-opus-4.6", () => {
+      expect(resolveModelId("claude-opus-4.6")).toBe("claude-opus-4-6");
+    });
+
     it("resolves claude-opus-4.5", () => {
       expect(resolveModelId("claude-opus-4.5")).toBe(
         "claude-opus-4-5-20251101",
@@ -101,6 +115,10 @@ describe("resolveModelId", () => {
 
     it("resolves claude-opus-4", () => {
       expect(resolveModelId("claude-opus-4")).toBe("claude-opus-4-20250514");
+    });
+
+    it("resolves claude-sonnet-4.6", () => {
+      expect(resolveModelId("claude-sonnet-4.6")).toBe("claude-sonnet-4-6");
     });
 
     it("resolves claude-sonnet-4.5", () => {
@@ -130,7 +148,7 @@ describe("resolveModelId", () => {
 
   describe("pass-through behavior", () => {
     it("returns full model IDs unchanged", () => {
-      const fullId = "claude-opus-4-5-20251101";
+      const fullId = "claude-opus-4-6";
       expect(resolveModelId(fullId)).toBe(fullId);
     });
 
