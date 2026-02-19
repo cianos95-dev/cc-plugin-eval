@@ -34,4 +34,16 @@ export { runEvaluation } from "./stages/4-evaluation/index.js";
 /** Configuration loading with CLI overrides */
 export { loadConfigWithOverrides, type CLIOptions } from "./config/index.js";
 
+/** Gemini LLM provider with header-based authentication */
+export {
+  GeminiProvider,
+  createGeminiProvider,
+  GeminiApiError,
+  type GeminiProviderOptions,
+  type GeminiCompletionOptions,
+  type GeminiStructuredCompletionOptions,
+  type GeminiCountTokensOptions,
+  type GeminiCompletionResponse,
+} from "./providers/gemini.js";
+
 program.parse();
